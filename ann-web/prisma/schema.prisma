@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Category {
+  models
+  open_source
+  coding_ai
+  agents
+  research
+  security
+  funding
+  regulation
+}
+
+enum StoryStatus {
+  raw
+  clustered
+  investigating
+  enriched
+  verified
+  edited
+  reviewed
+  approved
+  published
+  rejected
+  needs_human_review
+}
+
+model Article {
+  id              String     @id @default(cuid())
+  title           String
+  slug            String     @unique
+  url             String     @unique
+  source          String
+  sourceUrl       String?
+  author          String?
+  publishedAt     DateTime
+  summary         String
+  tlDr            String?
+  content         String?
+  tags            String[]
+  category        Category
+  imageUrl        String?
+  relatedArticles String[]
+
+  // Agent pipeline tracking
+  storyStatus     StoryStatus @default(raw)
+  agentsInvolved  String[]   @default([])
+  sourcesAnalyzed Int        @default(0)
+  factCheckStatus String     @default("pending")
+
+  // Confidence scores
+  overallConfidence  Float?  @map("overall_confidence")
+  sourceQuality      Float?  @map("source_quality")
+  controversyScore   Float?  @map("controversy_score")
+  citationCount      Int?    @map("citation_count")
+  verifiedClaims     Int?    @map("verified_claims")
+  unverifiedClaims   Int?    @map("unverified_claims")
+  hallucinationRisk  Float?  @map("hallucination_risk")
+
+  // Risk assessment
+  riskLevel          String? @default("low") @map("risk_level")
+  riskFactors        String[] @default([]) @map("risk_factors")
+  requiresHumanReview Boolean @default(false) @map("requires_human_review")
+  legalConcerns      String[] @default([]) @map("legal_concerns")
+  biasConcerns       String[] @default([]) @map("bias_concerns")
+  safetyFlags        String[] @default([]) @map("safety_flags")
+
+  // Human review
+  humanReviewer String? @map("human_reviewer")
+  humanNotes    String? @map("human_notes")
+
+  // Timestamps
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  publishedAtReal DateTime?  @map("published_at_real")
+
+  // Relations
+  scores          Scores?
+  agentActions    AgentAction[]
+}
+
+model Scores {
+  id              String @id @default(cuid())
+  articleId       String @unique
+  article         Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  signalScore     Int    @default(0)
+  hypeScore       Int    @default(0)
+  builderScore    Int    @default(0)
+  securityScore   Int    @default(0)
+  openSourceScore Int    @default(0)
+  enterpriseScore Int    @default(0)
+  overallScore    Int    @default(0)
+}
+
+model AgentAction {
+  id          String   @id @default(cuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  agentRole   String
+  state       String   @default("pending")
+  startedAt   DateTime?
+  completedAt DateTime?
+  output      Json?
+  error       String?
+  durationMs  Int?
+
+  createdAt DateTime @default(now())
+}
+
+model Source {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  url         String?
+  type        String   // rss, api, scraper
+  isActive    Boolean  @default(true)
+  lastFetched DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Tag {
+  id           String   @id @default(cuid())
+  name         String   @unique
+  articleCount Int      @default(0)
+  createdAt    DateTime @default(now())
+}

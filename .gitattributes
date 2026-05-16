@@ -1,0 +1,57 @@
+# Normalize line endings across platforms.
+# All text files end in LF in the repo; Git checks them out with the OS-native
+# convention. Override below for files that must stay CRLF or be treated as binary.
+
+* text=auto eol=lf
+
+# Windows-native scripts must keep CRLF
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+*.ps1   text eol=crlf
+
+# Shell / Python / Node scripts — always LF, even on Windows checkouts
+*.sh    text eol=lf
+*.py    text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.jsx   text eol=lf
+*.mjs   text eol=lf
+*.cjs   text eol=lf
+*.json  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.html  text eol=lf
+*.css   text eol=lf
+*.scss  text eol=lf
+
+# Lockfiles — keep as committed, never auto-merge
+package-lock.json   -diff merge=union
+pnpm-lock.yaml      -diff merge=union
+yarn.lock           -diff merge=union
+poetry.lock         -diff merge=union
+uv.lock             -diff merge=union
+
+# Binaries
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.webp      binary
+*.pdf       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary
+*.zip       binary
+*.gz        binary
+*.tar       binary
+*.mp4       binary
+*.mp3       binary
+*.wav       binary
+
+# SVGs are text and should diff
+*.svg       text eol=lf

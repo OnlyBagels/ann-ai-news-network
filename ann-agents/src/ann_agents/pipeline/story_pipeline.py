@@ -1,0 +1,216 @@
+"""Story Pipeline - Orchestrates the full agent workflow for each story."""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime
+from typing import List, Optional
+
+from loguru import logger
+
+from ann_agents.core.types import AgentRole, Story, StoryStatus
+from ann_agents.reporters.model_reporter import ModelReporter
+from ann_agents.reporters.open_source_reporter import OpenSourceReporter
+from ann_agents.reporters.research_reporter import ResearchReporter
+from ann_agents.reporters.security_reporter import SecurityReporter
+from ann_agents.reporters.regulation_reporter import RegulationReporter
+from ann_agents.reporters.business_reporter import BusinessReporter
+from ann_agents.research.research_agent import ResearchAgent
+from ann_agents.factcheck.fact_check_agent import FactCheckAgent
+from ann_agents.editorial.editorial_agents import (
+    HeadlineEditor,
+    TechnicalEditor,
+    StyleEditor,
+    SummaryEditor,
+)
+from ann_agents.oversight.oversight_agents import (
+    RiskAgent,
+    LegalAgent,
+    BiasAgent,
+    EditorInChief,
+)
+
+
+class StoryPipeline:
+    """Orchestrates the full agent workflow for stories.
+
+    Pipeline flow:
+    Source detection → Story clustering → Reporter agents investigate
+    → Research agents enrich → Fact-check agents verify
+    → Editorial agents refine → Risk/legal oversight
+    → Editor-in-chief review → Human approval (optional) → Publish
+    """
+
+    def __init__(self):
+        # Reporter Agents (6)
+        self.reporters = {
+            AgentRole.MODEL_REPORTER: ModelReporter(),
+            AgentRole.OPEN_SOURCE_REPORTER: OpenSourceReporter(),
+            AgentRole.RESEARCH_REPORTER: ResearchReporter(),
+            AgentRole.SECURITY_REPORTER: SecurityReporter(),
+            AgentRole.REGULATION_REPORTER: RegulationReporter(),
+            AgentRole.BUSINESS_REPORTER: BusinessReporter(),
+        }
+
+        # Research Agent
+        self.research_agent = ResearchAgent()
+
+        # Fact-Check Agent
+        self.fact_check_agent = FactCheckAgent()
+
+        # Editorial Agents (4)
+        self.editorial_agents = {
+            AgentRole.HEADLINE_EDITOR: HeadlineEditor(),
+            AgentRole.TECHNICAL_EDITOR: TechnicalEditor(),
+            AgentRole.STYLE_EDITOR: StyleEditor(),
+            AgentRole.SUMMARY_EDITOR: SummaryEditor(),
+        }
+
+        # Oversight Agents (4)
+        self.oversight_agents = {
+            AgentRole.RISK_AGENT: RiskAgent(),
+            AgentRole.LEGAL_AGENT: LegalAgent(),
+            AgentRole.BIAS_AGENT: BiasAgent(),
+            AgentRole.EDITOR_IN_CHIEF: EditorInChief(),
+        }
+
+    async def run_full_pipeline(self, story: Story) -> Story:
+        """Run the complete agent pipeline on a story.
+
+        This is the main entry point for processing a story through the newsroom.
+        """
+        logger.info(f"=== Starting pipeline for story: {story.title[:60]} ===")
+        story.status = StoryStatus.INVESTIGATING
+
+        # Step 1: Reporter Agents investigate (run in parallel)
+        story = await self._run_reporters(story)
+        story.status = StoryStatus.ENRICHED
+
+        # Step 2: Research Agent enriches
+        story = await self.research_agent.run(story)
+
+        # Step 3: Fact-Check Agent verifies
+        story = await self.fact_check_agent.run(story)
+        story.status = StoryStatus.VERIFIED
+
+        # Step 4: Editorial Agents refine (run in parallel)
+        story = await self._run_editorial(story)
+        story.status = StoryStatus.EDITED
+
+        # Step 5: Oversight Agents review (run in parallel)
+        story = await self._run_oversight(story)
+        story.status = StoryStatus.REVIEWED
+
+        # Step 6: Editor-in-Chief makes final decision
+        story = await self.oversight_agents[AgentRole.EDITOR_IN_CHIEF].run(story)
+
+        logger.info(
+            f"=== Pipeline complete for: {story.title[:60]} === "
+            f"Status: {story.status.value}, "
+            f"Agents: {len(story.agents_involved)}, "
+            f"Confidence: {story.confidence.overall_confidence if story.confidence else 'N/A'}"
+        )
+
+        return story
+
+    async def _run_reporters(self, story: Story) -> Story:
+        """Run all reporter agents in parallel."""
+        tasks = []
+        for role, agent in self.reporters.items():
+            tasks.append(agent.run(story.copy(deep=True)))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Merge results from all reporters
+        for result in results:
+            if isinstance(result, Story):
+                story = self._merge_stories(story, result)
+            elif isinstance(result, Exception):
+                logger.error(f"Reporter agent failed: {result}")
+
+        return story
+
+    async def _run_editorial(self, story: Story) -> Story:
+        """Run all editorial agents in parallel."""
+        tasks = []
+        for role, agent in self.editorial_agents.items():
+            tasks.append(agent.run(story.copy(deep=True)))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, Story):
+                story = self._merge_stories(story, result)
+            elif isinstance(result, Exception):
+                logger.error(f"Editorial agent failed: {result}")
+
+        return story
+
+    async def _run_oversight(self, story: Story) -> Story:
+        """Run oversight agents (except Editor-in-Chief) in parallel."""
+        tasks = []
+        for role, agent in self.oversight_agents.items():
+            if role == AgentRole.EDITOR_IN_CHIEF:
+                continue
+            tasks.append(agent.run(story.copy(deep=True)))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        for result in results:
+            if isinstance(result, Story):
+                story = self._merge_stories(story, result)
+            elif isinstance(result, Exception):
+                logger.error(f"Oversight agent failed: {result}")
+
+        return story
+
+    def _merge_stories(self, original: Story, updated: Story) -> Story:
+        """Merge updates from an agent's output back into the main story."""
+        # Merge agent actions
+        existing_roles = {a.agent_role for a in original.agent_actions}
+        for action in updated.agent_actions:
+            if action.agent_role not in existing_roles:
+                original.agent_actions.append(action)
+                existing_roles.add(action.agent_role)
+
+        # Merge agents involved
+        for role in updated.agents_involved:
+            if role not in original.agents_involved:
+                original.agents_involved.append(role)
+
+        # Merge content (take first non-None value)
+        if updated.summary and not original.summary:
+            original.summary = updated.summary
+        if updated.tl_dr and not original.tl_dr:
+            original.tl_dr = updated.tl_dr
+        if updated.content and not original.content:
+            original.content = updated.content
+        if updated.headline and not original.headline:
+            original.headline = updated.headline
+
+        # Merge tags
+        original.tags = list(set(original.tags + updated.tags))
+
+        # Merge category (take first set)
+        if updated.category and not original.category:
+            original.category = updated.category
+
+        # Merge scores
+        if updated.confidence and not original.confidence:
+            original.confidence = updated.confidence
+        if updated.scores and not original.scores:
+            original.scores = updated.scores
+        if updated.risk and not original.risk:
+            original.risk = updated.risk
+
+        # Merge metadata
+        if updated.suggested_headlines:
+            original.suggested_headlines = list(
+                set(original.suggested_headlines + updated.suggested_headlines)
+            )
+
+        original.sources_analyzed = max(original.sources_analyzed, updated.sources_analyzed)
+        original.fact_check_status = updated.fact_check_status or original.fact_check_status
+        original.updated_at = datetime.utcnow()
+
+        return original

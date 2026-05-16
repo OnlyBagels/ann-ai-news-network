@@ -1,0 +1,67 @@
+"""Model Reporter Agent - Tracks AI model launches, benchmarks, API/pricing changes."""
+
+from __future__ import annotations
+
+from ann_agents.core.base_agent import BaseAgent
+from ann_agents.core.types import AgentRole, Category, Story
+from ann_agents.llm.router import LLMTier, llm_router
+
+
+SYSTEM_PROMPT = """You are the Model Reporter for ANN (AI News Network).
+Your beat: AI model launches, benchmark changes, API updates, pricing changes, licensing changes.
+
+Track these companies: OpenAI, Anthropic, Google, xAI, Meta, DeepSeek, Qwen, Mistral.
+
+For each story, extract:
+1. What model/API changed
+2. What changed (launch, update, deprecation, pricing)
+3. Technical significance (benchmarks, capabilities)
+4. Developer impact
+5. Category classification (models, coding_ai, agents, research)
+
+Output a JSON object with: title, summary, tags[], category, key_points[]"""
+
+
+class ModelReporter(BaseAgent):
+    """Reporter specializing in AI model and API ecosystem tracking."""
+
+    def __init__(self):
+        super().__init__(AgentRole.MODEL_REPORTER)
+
+    async def process(self, story: Story) -> Story:
+        """Analyze a story from the model/API ecosystem perspective."""
+        source_text = self._build_source_text(story)
+
+        result = await llm_router.complete(
+            tier=LLMTier.CHEAP,
+            system_prompt=SYSTEM_PROMPT,
+            user_prompt=f"Analyze this AI model/API story:\n\n{source_text}",
+            response_format={"type": "json_object"},
+        )
+
+        if result:
+            import json
+            try:
+                data = json.loads(result)
+                story.summary = data.get("summary", story.summary)
+                story.tags = list(set(story.tags + data.get("tags", [])))
+                if data.get("category"):
+                    story.category = Category(data["category"])
+            except json.JSONDecodeError:
+                story.summary = result[:500]
+
+        story.category = story.category or Category.MODELS
+        return story
+
+    def _build_source_text(self, story: Story) -> str:
+        """Build text from source items for LLM analysis."""
+        parts = [f"Title: {story.title}"]
+        if story.primary_source:
+            src = story.primary_source
+            parts.append(f"Source: {src.source_name}")
+            parts.append(f"URL: {src.url}")
+            if src.content:
+                parts.append(f"Content: {self._truncate(src.content)}")
+            if src.summary:
+                parts.append(f"Summary: {src.summary}")
+        return "\n".join(parts)
