@@ -104,7 +104,7 @@ class LLMRouter:
             The model's response text, or None if no client available
         """
         client = self._get_client(tier)
-        if not client is None:
+        if client is None:
             logger.warning(f"No API key configured for LLM tier: {tier.value}")
             return None
 
