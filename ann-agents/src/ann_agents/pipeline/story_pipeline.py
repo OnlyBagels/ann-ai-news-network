@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from loguru import logger
 
+from ann_agents.bridge.publisher import publisher
 from ann_agents.core.types import AgentRole, Story, StoryStatus
 from ann_agents.reporters.model_reporter import ModelReporter
 from ann_agents.reporters.open_source_reporter import OpenSourceReporter
@@ -103,6 +104,14 @@ class StoryPipeline:
 
         # Step 6: Editor-in-Chief makes final decision
         story = await self.oversight_agents[AgentRole.EDITOR_IN_CHIEF].run(story)
+
+        # Step 7: Publish to ann-web's admin review queue.
+        # Best-effort: a publisher failure does not fail the pipeline.
+        # The Story stays in memory and the failure shows up in logs.
+        try:
+            await publisher.publish(story)
+        except Exception as e:
+            logger.error(f"[pipeline] publisher raised: {e}")
 
         logger.info(
             f"=== Pipeline complete for: {story.title[:60]} === "

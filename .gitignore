@@ -136,6 +136,12 @@ wrangler.*.local.toml
 *.bak
 *.orig
 
+# Scratch / personal notes that occasionally land in the working tree
+/idk*.md
+/scratch*.md
+/tmp*.md
+/notes.md
+
 # ===========================================================================
 # Public repo policy: code only.
 # Everything below is intentionally kept private — not for the public repo.
