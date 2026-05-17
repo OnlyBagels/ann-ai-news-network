@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, SignalScores, Story
+from ann_agents.core.voice import apply_voice
 from ann_agents.llm.router import LLMTier, llm_router
 
 
@@ -19,9 +20,14 @@ class HeadlineEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt="You are a headline editor for a technical AI news outlet. "
-                          "Generate 3 concise, accurate, non-clickbait headline options. "
-                          "Output a JSON object with: headlines[]",
+            system_prompt=apply_voice(
+                "You are the Headline Editor for ANN. Generate 3 concise, accurate, "
+                "non-clickbait headline options. Specific verb + specific noun. "
+                "Front-load the entity (model name, company, repo) for SEO. "
+                "60-80 characters. No questions, no clickbait, no filler verbs "
+                "(update, change, improve, modify).\n\n"
+                "Output a JSON object with: headlines[]"
+            ),
             user_prompt=f"Generate headlines for this story:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -51,10 +57,14 @@ class TechnicalEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt="You are a technical editor for an AI news outlet. "
-                          "Review the story for technical accuracy, clarity, and completeness. "
-                          "Output a JSON object with: technical_issues[], clarity_score (0-10), "
-                          "suggested_improvements[], is_technically_sound (bool)",
+            system_prompt=apply_voice(
+                "You are the Technical Editor for ANN. Review the story for technical "
+                "accuracy, clarity, and completeness. Flag claims that lack a citation, "
+                "numbers that look suspicious, and architecture descriptions that don't "
+                "match how the system actually works.\n\n"
+                "Output a JSON object with: technical_issues[], clarity_score (0-10), "
+                "suggested_improvements[], is_technically_sound (bool)"
+            ),
             user_prompt=f"Review this story for technical accuracy:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -83,11 +93,15 @@ class StyleEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt="You are a style editor for ANN (AI News Network). "
-                          "ANN's style: technical, confident, concise, high-signal. "
-                          "No hype, no clickbait, no influencer tone. "
-                          "Output a JSON object with: style_issues[], tone_assessment, "
-                          "readability_score (0-10), suggested_refinements[]",
+            system_prompt=apply_voice(
+                "You are the Style Editor for ANN — the de-slop pass. You enforce "
+                "the house voice and call out every banned phrase, anti-pattern, "
+                "and chatbot tell. For each issue, quote the exact text and propose "
+                "a rewrite that follows the rules above.\n\n"
+                "Output a JSON object with: style_issues[] (each item: "
+                "{quoted_text, category, suggested_rewrite}), tone_assessment, "
+                "readability_score (0-10), suggested_refinements[]"
+            ),
             user_prompt=f"Review this story for ANN style compliance:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -116,9 +130,13 @@ class SummaryEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt="You are a summary editor. Create a concise TL;DR (1-2 sentences) "
-                          "and a brief summary (2-3 paragraphs) for a technical AI audience. "
-                          "Output a JSON object with: tl_dr, summary",
+            system_prompt=apply_voice(
+                "You are the Summary Editor for ANN. Create a TL;DR (1-2 sentences, "
+                "lead with the most surprising or load-bearing fact, no preamble) and "
+                "a brief summary (2-3 short paragraphs) for a technical AI audience. "
+                "Numbers beat adjectives.\n\n"
+                "Output a JSON object with: tl_dr, summary"
+            ),
             user_prompt=f"Create TL;DR and summary for:\n\n{source_text}",
             response_format={"type": "json_object"},
         )

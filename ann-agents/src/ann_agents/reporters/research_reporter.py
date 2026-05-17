@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, Category, Story
+from ann_agents.core.voice import apply_voice
 from ann_agents.llm.router import LLMTier, llm_router
 
 
@@ -34,7 +35,7 @@ class ResearchReporter(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.LONG_CONTEXT,  # Papers need longer context
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=apply_voice(SYSTEM_PROMPT),
             user_prompt=f"Analyze this AI research story:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
