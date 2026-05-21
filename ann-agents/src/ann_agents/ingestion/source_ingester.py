@@ -9,10 +9,48 @@ from typing import AsyncGenerator, List, Optional
 import httpx
 from loguru import logger
 
+from ann_agents.core.config import settings
 from ann_agents.core.types import SourceItem
 
 
 _USER_AGENT = "ANN-Agents/1.0 (+https://github.com/OnlyBagels/ann-ai-news-network)"
+
+
+async def fetch_github_readme(repo: str, timeout: float = 10.0) -> str:
+    """Fetch a public repo's README via the GitHub API.
+
+    Uses GITHUB_TOKEN from settings when present (5,000 req/hr) — falls
+    back to unauthenticated (60 req/hr). Returns empty string on any
+    failure; the caller treats that as "no content available."
+
+    READMEs are markdown; we cap at 15k chars so ArticleWriter has
+    enough to work with without blowing context budget.
+    """
+    if not repo:
+        return ""
+    headers = {
+        "User-Agent": _USER_AGENT,
+        "Accept": "application/vnd.github.raw",  # raw bytes instead of base64 json
+    }
+    if settings.github_token:
+        headers["Authorization"] = f"Bearer {settings.github_token}"
+
+    url = f"https://api.github.com/repos/{repo}/readme"
+    try:
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
+            resp = await client.get(url, headers=headers)
+        if resp.status_code == 404:
+            return ""  # repo has no README — common, not worth logging
+        if resp.status_code != 200:
+            logger.debug(f"[ingest] readme {resp.status_code} for {repo}")
+            return ""
+        text = resp.text
+        if len(text) > 15000:
+            text = text[:15000]
+        return text
+    except Exception as e:
+        logger.warning(f"[ingest] readme fetch failed for {repo}: {e}")
+        return ""
 
 
 async def _extract_article(html: str) -> str:
@@ -165,14 +203,21 @@ class SourceIngester:
         return items
 
     async def ingest_github_trending(self, language: str = "", since: str = "daily") -> List[SourceItem]:
-        """Ingest trending repos from GitHub."""
+        """Ingest trending repos from GitHub, enriching each with its README.
+
+        The trending page only gives us repo name + one-line description —
+        not enough for ArticleWriter to write anything substantive. After
+        scraping the listing we fetch each repo's README via the GitHub
+        API in parallel and store it as item.content, the same field
+        trafilatura fills for HN-linked articles.
+        """
         from bs4 import BeautifulSoup
 
         items: List[SourceItem] = []
         url = f"https://github.com/trending/{language}?since={since}"
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(url, headers={"User-Agent": "ANN-Agents/1.0"})
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
                 soup = BeautifulSoup(resp.text, "lxml")
                 articles = soup.select("article.Box-row")
 
@@ -200,6 +245,20 @@ class SourceIngester:
             logger.info(f"Ingested {len(items)} repos from GitHub Trending")
         except Exception as e:
             logger.error(f"Failed to ingest GitHub Trending: {e}")
+            return items
+
+        # Pull each repo's README in parallel.
+        readme_targets = [(it, str(it.metadata.get("repo", ""))) for it in items if it.metadata.get("repo")]
+        if readme_targets:
+            readmes = await asyncio.gather(
+                *(fetch_github_readme(repo) for _, repo in readme_targets),
+                return_exceptions=False,
+            )
+            for (it, _), readme in zip(readme_targets, readmes):
+                if readme:
+                    it.content = readme
+            enriched = sum(1 for (it, _) in readme_targets if it.content)
+            logger.info(f"Enriched {enriched}/{len(readme_targets)} GitHub Trending items with README")
 
         return items
 
