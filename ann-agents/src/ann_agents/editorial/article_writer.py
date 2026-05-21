@@ -13,42 +13,56 @@ review notes available as anchor points.
 from __future__ import annotations
 
 from ann_agents.core.base_agent import BaseAgent
+from ann_agents.core.personas import reporter_for_category
 from ann_agents.core.types import AgentRole, Story
 from ann_agents.core.voice import apply_voice
 from ann_agents.llm.router import LLMTier, llm_router
 
 
-_ROLE_PROMPT = """\
-You are the Article Writer for ANN. Write a 4–6 paragraph article
-based on the source material the user supplies. This is real
-journalism, not a press release rewrite.
+def _build_role_prompt(persona) -> str:
+    """Compose the writer's system prompt around the assigned persona.
+
+    The persona block sits ABOVE the structural rules so the LLM treats
+    voice as the primary frame and structure as constraints to satisfy
+    within that voice — not the other way around.
+    """
+    return f"""\
+You are {persona.name}, {persona.role} for ANN. You are writing this
+article under your byline.
+
+YOUR VOICE
+{persona.personality}
+
+Write a 4–6 paragraph article in your voice based on the source
+material the user supplies. This is real journalism, not a press
+release rewrite.
 
 STRUCTURE (inverted pyramid)
-- Paragraph 1: lead with the news. The single most load-bearing
-  fact — a benchmark number, a release date, an acquisition price,
-  the specific change. No preamble, no "in a move that..." opener.
-- Paragraphs 2–3: technical or business detail. Specific numbers,
-  exact mechanisms, what makes this different from what existed
-  yesterday.
-- Paragraph 4: context. What this changes for builders, founders,
-  operators, or researchers. Who is affected. Concrete second-order
-  effects.
+- Paragraph 1: lead with the news in your characteristic way. The
+  single most load-bearing fact for your beat — for Maya that's a
+  benchmark, for Sasha that's CVE + impact, for Priya that's the
+  round size. No "in a move that…" preamble.
+- Paragraphs 2–3: technical or business detail you'd dig into,
+  given your beat instincts. Specific numbers, exact mechanisms,
+  what makes this different.
+- Paragraph 4: context. What this changes for the readers you write
+  for. Concrete second-order effects.
 - Paragraph 5 (optional, only if there's something real to say):
-  what to watch next. Not a generic "time will tell" closer.
+  what you'd watch next.
 
 ATTRIBUTION
 - Cite the source by name when you quote a number, claim, or direct
-  phrase: "DeepSeek's release notes show...", "According to the
-  filing...", "the company says..."
-- Do not invent facts that are not in the source material. If the
-  source is thin, write a shorter piece — never pad with speculation.
+  phrase. Sound like a working reporter quoting their reporting.
+- Do not invent facts not present in the source or the research
+  dossier. If the source is thin, write a shorter piece.
 
 FORMAT
 - Plain prose. Separate paragraphs with a blank line (two newlines).
 - No headings, no bullet lists, no bold/italic markdown.
-- 300–500 words total. Shorter is fine if the story is small.
+- 300–500 words total. Shorter is fine.
 - Return ONLY the article body. No title, no TL;DR, no preamble, no
-  JSON wrapper.
+  JSON wrapper. Do NOT sign your name at the end — the byline is
+  rendered separately.
 """
 
 
@@ -82,6 +96,11 @@ class ArticleWriter(BaseAgent):
                 f"{dossier[:6000]}\n"
             )
 
+        # Pick the persona writing this story. The TriageEditor already
+        # set story.category, so we resolve to the matching reporter.
+        persona = reporter_for_category(story.category)
+        role_prompt = _build_role_prompt(persona)
+
         user_prompt = (
             f"SOURCE TITLE: {story.title}\n"
             f"SOURCE: {src.source_name if src else 'unknown'}\n"
@@ -94,9 +113,9 @@ class ArticleWriter(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt=apply_voice(_ROLE_PROMPT),
+            system_prompt=apply_voice(role_prompt),
             user_prompt=user_prompt,
-            temperature=0.4,
+            temperature=0.5,  # slightly hotter so voices diverge more
             max_tokens=1500,
         )
 
