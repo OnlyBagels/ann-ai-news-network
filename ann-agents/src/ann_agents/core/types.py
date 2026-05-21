@@ -26,6 +26,7 @@ class AgentRole(str, Enum):
     FACT_CHECK_AGENT = "fact_check_agent"
 
     # Editorial Agents
+    TRIAGE_EDITOR = "triage_editor"
     HEADLINE_EDITOR = "headline_editor"
     TECHNICAL_EDITOR = "technical_editor"
     STYLE_EDITOR = "style_editor"

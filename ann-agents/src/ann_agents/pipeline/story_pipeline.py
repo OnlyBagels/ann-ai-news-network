@@ -25,6 +25,7 @@ from ann_agents.editorial.editorial_agents import (
     StyleEditor,
     SummaryEditor,
 )
+from ann_agents.editorial.triage_editor import TriageEditor, assigned_reporter
 from ann_agents.oversight.oversight_agents import (
     RiskAgent,
     LegalAgent,
@@ -44,7 +45,10 @@ class StoryPipeline:
     """
 
     def __init__(self):
-        # Reporter Agents (6)
+        # Triage editor — reads incoming wire, assigns to one beat.
+        self.triage_editor = TriageEditor()
+
+        # Reporter Agents (6) — only ONE runs per story, picked by triage.
         self.reporters = {
             AgentRole.MODEL_REPORTER: ModelReporter(),
             AgentRole.OPEN_SOURCE_REPORTER: OpenSourceReporter(),
@@ -87,8 +91,12 @@ class StoryPipeline:
         logger.info(f"=== Starting pipeline for story: {story.title[:60]} ===")
         story.status = StoryStatus.INVESTIGATING
 
-        # Step 1: Reporter Agents investigate (run in parallel)
-        story = await self._run_reporters(story)
+        # Step 0: TriageEditor picks the beat. Sets story.category so the
+        # assignment step has something to route on.
+        story = await self.triage_editor.run(story)
+
+        # Step 1: ONE beat reporter (picked by triage) investigates.
+        story = await self._run_assigned_reporter(story)
         story.status = StoryStatus.ENRICHED
 
         # Step 2: Research Agent enriches
@@ -130,22 +138,22 @@ class StoryPipeline:
 
         return story
 
-    async def _run_reporters(self, story: Story) -> Story:
-        """Run all reporter agents in parallel."""
-        tasks = []
-        for role, agent in self.reporters.items():
-            tasks.append(agent.run(story.copy(deep=True)))
+    async def _run_assigned_reporter(self, story: Story) -> Story:
+        """Run only the reporter the TriageEditor assigned this story to.
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        The old behaviour was to fan out to all 6 reporters in parallel and
+        merge — wasteful and noisy. A real newsroom assigns a story to one
+        beat. The triage editor picked the beat in step 0; we run that
+        reporter and that reporter only.
+        """
+        role = assigned_reporter(story)
+        if role is None or role not in self.reporters:
+            logger.warning(f"[pipeline] no reporter for story.category={story.category}; skipping investigate")
+            return story
 
-        # Merge results from all reporters
-        for result in results:
-            if isinstance(result, Story):
-                story = self._merge_stories(story, result)
-            elif isinstance(result, Exception):
-                logger.error(f"Reporter agent failed: {result}")
-
-        return story
+        reporter = self.reporters[role]
+        logger.info(f"[pipeline] assigned to {role.value}")
+        return await reporter.run(story)
 
     async def _run_editorial(self, story: Story) -> Story:
         """Run all editorial agents in parallel."""
