@@ -18,8 +18,13 @@ export async function GET(
   }
 
   try {
-    const article = await prisma.article.findUnique({
-      where: { id },
+    // Public detail: only serve articles that have cleared review.
+    // Drafts and rejects 404 here so they can't be deep-linked.
+    const article = await prisma.article.findFirst({
+      where: {
+        id,
+        storyStatus: { in: ["approved", "published"] },
+      },
       include: {
         scores: true,
       },

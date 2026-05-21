@@ -6,129 +6,83 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { NewsletterSignup } from "@/components/shared/NewsletterSignup";
 import { CATEGORIES } from "@/types";
-import type { Article, Category } from "@/types";
+import type { Article, Category, Scores } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
 
-const FEATURED: Article[] = [
-  {
-    id: "f-1",
-    title: "Anthropic releases Claude 4.7 — sets new SOTA on SWE-bench Verified at 82.3%",
-    slug: "claude-4-7-swebench",
-    url: "#",
-    source: "Anthropic Blog",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    summary: "Claude 4.7 jumps 8 points on SWE-bench Verified while reducing inference cost by 31%. Extended thinking mode is now default.",
-    tlDr: "Claude 4.7 is +8pts on SWE-bench Verified (82.3%), -31% cost. Extended thinking on by default. Available in API today.",
-    tags: ["claude", "anthropic", "swe-bench", "coding-ai"],
-    category: "models",
-    scores: { signalScore: 96, hypeScore: 71, builderScore: 94, securityScore: 82, openSourceScore: 25, enterpriseScore: 91, overallScore: 93 },
-  },
-  {
-    id: "f-2",
-    title: "Meta open-sources Llama 4 405B under permissive license — full weights, no restrictions",
-    slug: "llama-4-mit",
-    url: "#",
-    source: "Meta AI",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 47).toISOString(),
-    summary: "Meta drops Llama 4 with weights, training code, and dataset details. Permissive license, commercial use allowed.",
-    tlDr: "Llama 4 405B is fully open. Weights + training code. Permissive license, commercial OK. Available on HuggingFace.",
-    tags: ["llama", "meta", "open-source", "weights"],
-    category: "open-source",
-    scores: { signalScore: 94, hypeScore: 88, builderScore: 90, securityScore: 60, openSourceScore: 98, enterpriseScore: 75, overallScore: 92 },
-  },
-  {
-    id: "f-3",
-    title: "Critical RCE in PyTorch JIT compiler — CVE-2026-3124, CVSS 9.8",
-    slug: "pytorch-jit-cve",
-    url: "#",
-    source: "NVD",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
-    summary: "Remote code execution via crafted TorchScript. Affects PyTorch 2.0–2.6. Patch in 2.6.1, upgrade immediately.",
-    tlDr: "CVE-2026-3124. RCE via malicious TorchScript. CVSS 9.8. PyTorch 2.0–2.6 affected. Patch 2.6.1 out.",
-    tags: ["pytorch", "security", "cve", "rce"],
-    category: "security",
-    scores: { signalScore: 98, hypeScore: 35, builderScore: 80, securityScore: 99, openSourceScore: 70, enterpriseScore: 92, overallScore: 95 },
-  },
-  {
-    id: "f-4",
-    title: "OpenAI acquires Windsurf for $3.2B — enters AI-IDE market",
-    slug: "openai-windsurf",
-    url: "#",
-    source: "TechCrunch",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    summary: "OpenAI's largest acquisition yet. Windsurf's 2M+ developers get native GPT-5 integration. Direct Cursor competitor.",
-    tlDr: "OpenAI buys Windsurf for $3.2B. 2M+ devs get GPT-5. Cursor's first real competitor with platform leverage.",
-    tags: ["openai", "windsurf", "acquisition", "ide"],
-    category: "funding",
-    scores: { signalScore: 89, hypeScore: 93, builderScore: 82, securityScore: 50, openSourceScore: 18, enterpriseScore: 86, overallScore: 86 },
-  },
-  {
-    id: "f-5",
-    title: "DeepMind AlphaFold 3 expands to protein-protein interactions — 87% accuracy on benchmark",
-    slug: "alphafold3-ppi",
-    url: "#",
-    source: "Nature",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-    summary: "AlphaFold 3 now predicts full protein complexes. Major implications for drug discovery and synthetic biology.",
-    tlDr: "AF3 predicts full protein complexes at 87% accuracy. Drug discovery + synthetic bio applications open up fast.",
-    tags: ["deepmind", "alphafold", "biology", "research"],
-    category: "research",
-    scores: { signalScore: 91, hypeScore: 78, builderScore: 55, securityScore: 35, openSourceScore: 72, enterpriseScore: 80, overallScore: 88 },
-  },
-  {
-    id: "f-6",
-    title: "EU AI Act enforcement begins — first fines expected within 90 days",
-    slug: "eu-ai-act-enforcement",
-    url: "#",
-    source: "European Commission",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-    summary: "EU AI Act enforcement phase active. Fines up to 7% of global revenue. High-risk AI systems must comply immediately.",
-    tlDr: "EU AI Act enforcement live. Penalties up to 7% of global revenue. 90-day window before first fines hit.",
-    tags: ["eu", "regulation", "compliance"],
-    category: "regulation",
-    scores: { signalScore: 90, hypeScore: 60, builderScore: 65, securityScore: 78, openSourceScore: 50, enterpriseScore: 94, overallScore: 87 },
-  },
-  {
-    id: "f-7",
-    title: "GitHub Copilot Workspace GA — 40% of AI-generated PRs merge without edits",
-    slug: "copilot-workspace-ga",
-    url: "#",
-    source: "GitHub Blog",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 480).toISOString(),
-    summary: "Copilot Workspace moves to general availability. Issue-to-PR pipeline now production-ready.",
-    tlDr: "Copilot Workspace GA. Issue → PR pipeline live. 40% merge rate with no human edits. Available for all paid plans.",
-    tags: ["github", "copilot", "coding-ai"],
-    category: "coding-ai",
-    scores: { signalScore: 87, hypeScore: 80, builderScore: 92, securityScore: 55, openSourceScore: 60, enterpriseScore: 88, overallScore: 85 },
-  },
-  {
-    id: "f-8",
-    title: "AutoGPT v5 ships with multi-model routing and sandboxed execution",
-    slug: "autogpt-v5",
-    url: "#",
-    source: "AutoGPT",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 600).toISOString(),
-    summary: "Major rewrite of AutoGPT. Native multi-model routing (Claude/GPT/Gemini), sandboxed execution, new A2A protocol.",
-    tlDr: "AutoGPT v5: dynamic model routing, sandboxed exec, agent-to-agent protocol. Production-ready for the first time.",
-    tags: ["autogpt", "agents", "frameworks"],
-    category: "agents",
-    scores: { signalScore: 84, hypeScore: 75, builderScore: 88, securityScore: 70, openSourceScore: 92, enterpriseScore: 62, overallScore: 82 },
-  },
-];
+// Don't statically render — articles change as soon as a draft is approved.
+export const dynamic = "force-dynamic";
 
-const hero = FEATURED[0];
-const top3 = FEATURED.slice(1, 4);
-const rest = FEATURED.slice(4);
+const EMPTY_SCORES: Scores = {
+  signalScore: 0,
+  hypeScore: 0,
+  builderScore: 0,
+  securityScore: 0,
+  openSourceScore: 0,
+  enterpriseScore: 0,
+  overallScore: 0,
+};
+
+async function loadFeed(): Promise<Article[]> {
+  const rows = await prisma.article.findMany({
+    where: { storyStatus: { in: ["approved", "published"] } },
+    orderBy: [
+      { scores: { overallScore: "desc" } },
+      { publishedAt: "desc" },
+    ],
+    include: { scores: true },
+    take: 12,
+  });
+
+  return rows.map((a) => ({
+    id: a.id,
+    title: a.title,
+    slug: a.slug,
+    url: a.url,
+    source: a.source,
+    sourceUrl: a.sourceUrl ?? undefined,
+    author: a.author ?? undefined,
+    publishedAt: a.publishedAt.toISOString(),
+    summary: a.summary,
+    tlDr: a.tlDr ?? undefined,
+    tags: a.tags,
+    category: a.category as Category,
+    scores: a.scores
+      ? {
+          signalScore: a.scores.signalScore,
+          hypeScore: a.scores.hypeScore,
+          builderScore: a.scores.builderScore,
+          securityScore: a.scores.securityScore,
+          openSourceScore: a.scores.openSourceScore,
+          enterpriseScore: a.scores.enterpriseScore,
+          overallScore: a.scores.overallScore,
+        }
+      : EMPTY_SCORES,
+    imageUrl: a.imageUrl ?? undefined,
+  }));
+}
 
 function categoryMeta(c: Category) {
   return CATEGORIES.find((x) => x.id === c);
 }
 
-export default function HomePage() {
-  const todayCount = FEATURED.length;
-  const avgSignal = Math.round(FEATURED.reduce((s, a) => s + a.scores.signalScore, 0) / FEATURED.length);
-  const topCategory = "models";
-  const topScore = Math.max(...FEATURED.map((a) => a.scores.signalScore));
+export default async function HomePage() {
+  const articles = await loadFeed();
+
+  if (articles.length === 0) {
+    return <EmptyState />;
+  }
+
+  const hero = articles[0];
+  const top3 = articles.slice(1, 4);
+  const rest = articles.slice(4);
+
+  const todayCount = articles.length;
+  const avgSignal = Math.round(
+    articles.reduce((s, a) => s + a.scores.signalScore, 0) / articles.length
+  );
+  const topScore = Math.max(...articles.map((a) => a.scores.signalScore));
+  const topCategory = articles[0].category;
 
   return (
     <div className="space-y-10">
@@ -193,14 +147,16 @@ export default function HomePage() {
       </section>
 
       {/* Trending row */}
-      <section>
-        <SectionTitle kicker="Trending" title="Top stories" right={<Link href="/feed" className="text-xs font-mono text-foreground/60 hover:text-foreground inline-flex items-center gap-1">See all <ArrowUpRight className="w-3 h-3" /></Link>} />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          {top3.map((a) => (
-            <FeaturedCard key={a.id} article={a} />
-          ))}
-        </div>
-      </section>
+      {top3.length > 0 && (
+        <section>
+          <SectionTitle kicker="Trending" title="Top stories" right={<Link href="/feed" className="text-xs font-mono text-foreground/60 hover:text-foreground inline-flex items-center gap-1">See all <ArrowUpRight className="w-3 h-3" /></Link>} />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {top3.map((a) => (
+              <FeaturedCard key={a.id} article={a} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Category tabs */}
       <section>
@@ -213,28 +169,55 @@ export default function HomePage() {
             ))}
           </TabsList>
           <TabsContent value="all" className="mt-4">
-            <ArticleList articles={FEATURED} />
+            <ArticleList articles={articles} />
           </TabsContent>
           {CATEGORIES.slice(0, 6).map((c) => (
             <TabsContent key={c.id} value={c.id} className="mt-4">
-              <ArticleList articles={FEATURED.filter((a) => a.category === c.id)} fallbackLabel={c.label} />
+              <ArticleList articles={articles.filter((a) => a.category === c.id)} fallbackLabel={c.label} />
             </TabsContent>
           ))}
         </Tabs>
       </section>
 
-      <Separator />
+      {rest.length > 0 && (
+        <>
+          <Separator />
+          <section>
+            <SectionTitle kicker="More" title="The rest of today's signal" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {rest.map((a) => (
+                <CompactCard key={a.id} article={a} />
+              ))}
+            </div>
+          </section>
+        </>
+      )}
 
-      {/* More */}
-      <section>
-        <SectionTitle kicker="More" title="The rest of today's signal" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {rest.map((a) => (
-            <CompactCard key={a.id} article={a} />
-          ))}
+      <NewsletterSignup />
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="space-y-8">
+      <header className="border-b border-border pb-5">
+        <div className="flex items-center gap-2 mb-1">
+          <Flame className="w-4 h-4" />
+          <span className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">Featured · Today</span>
         </div>
-      </section>
-
+        <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Signal of the day</h1>
+        <p className="text-sm text-muted-foreground mt-1">The highest-signal AI stories curated and ranked by relevance.</p>
+      </header>
+      <Card className="border-border">
+        <CardContent className="p-12 text-center space-y-2">
+          <p className="text-sm font-mono text-muted-foreground">No approved articles yet.</p>
+          <p className="text-xs font-mono text-muted-foreground/70">
+            Drafts queue up at <Link href="/admin/review" className="underline">/admin/review</Link>.
+            Approve a few to see them here.
+          </p>
+        </CardContent>
+      </Card>
       <NewsletterSignup />
     </div>
   );

@@ -21,8 +21,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Build query filters
-    const where: Record<string, unknown> = {};
+    // Public feed: only show articles that have cleared /admin/review.
+    // Draft and rejected articles never leak to the public surface.
+    const where: Record<string, unknown> = {
+      storyStatus: { in: ["approved", "published"] },
+    };
     if (category) {
       where.category = category;
     }
@@ -34,18 +37,19 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    // Build orderBy
-    let orderBy: Record<string, "asc" | "desc"> = {};
+    // Build orderBy. signal/trending sort against the joined Scores row;
+    // newest is the publish timestamp from the original source.
+    let orderBy: Record<string, unknown> = {};
     switch (sort) {
       case "newest":
         orderBy = { publishedAt: "desc" };
         break;
       case "trending":
-        orderBy = { signalScore: "desc" };
+        orderBy = { scores: { signalScore: "desc" } };
         break;
       case "signal":
       default:
-        orderBy = { overallScore: "desc" };
+        orderBy = { scores: { overallScore: "desc" } };
         break;
     }
 

@@ -60,7 +60,7 @@ const DEMO_ARTICLES: Article[] = [
     summary: "Meta drops Llama 4 with a permissive MIT license, no restrictions.",
     tlDr: "Llama 4 is fully open-weight under MIT. 405B params. Available on HuggingFace now. No usage restrictions.",
     tags: ["llama", "meta", "open-source", "weights"],
-    category: "open-source",
+    category: "open_source",
     scores: { signalScore: 95, hypeScore: 88, builderScore: 90, securityScore: 60, openSourceScore: 98, enterpriseScore: 75, overallScore: 93 },
   },
   {
@@ -138,7 +138,7 @@ const DEMO_ARTICLES: Article[] = [
     summary: "GitHub's AI-powered development environment moves to general availability.",
     tlDr: "Copilot Workspace can now generate full PRs from issue descriptions. 40% of generated PRs merged without human edits.",
     tags: ["github", "copilot", "coding-ai", "devtools"],
-    category: "coding-ai",
+    category: "coding_ai",
     scores: { signalScore: 87, hypeScore: 82, builderScore: 92, securityScore: 55, openSourceScore: 60, enterpriseScore: 90, overallScore: 86 },
   },
 ];

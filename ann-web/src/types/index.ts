@@ -29,8 +29,8 @@ export interface Scores {
 
 export type Category =
   | "models"
-  | "open-source"
-  | "coding-ai"
+  | "open_source"
+  | "coding_ai"
   | "agents"
   | "research"
   | "security"
@@ -52,13 +52,13 @@ export const CATEGORIES: CategoryInfo[] = [
     color: "text-cyan-400",
   },
   {
-    id: "open-source",
+    id: "open_source",
     label: "Open Source",
     description: "Open-source AI projects, releases, and community",
     color: "text-emerald-400",
   },
   {
-    id: "coding-ai",
+    id: "coding_ai",
     label: "Coding AI",
     description: "AI coding tools, IDEs, and developer workflows",
     color: "text-blue-400",
