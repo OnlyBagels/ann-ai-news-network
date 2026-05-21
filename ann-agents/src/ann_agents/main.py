@@ -17,6 +17,7 @@ from loguru import logger
 
 from ann_agents.core.types import Category, SourceItem, Story
 from ann_agents.ingestion.source_ingester import SourceIngester
+from ann_agents.pipeline.filters import filter_ai_relevant
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
@@ -114,6 +115,10 @@ async def run_ingest() -> None:
 
     all_items = hn_items + arxiv_items + github_items
     logger.info(f"Total items ingested: {len(all_items)}")
+
+    # Cheap LLM pre-filter — reject non-AI stories before the 16-agent
+    # pipeline burns ~80 calls on a Knuth letter from 1980.
+    all_items = await filter_ai_relevant(all_items)
 
     # Process each item through the pipeline
     for item in all_items[:5]:  # Limit to 5 for demo
