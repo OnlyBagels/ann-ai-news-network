@@ -134,19 +134,12 @@ class EditorInChief(BaseAgent):
         risk = story.risk
         has_agents = len(story.agents_involved) > 0
 
-        # Decision logic
-        if risk and risk.requires_human_review:
-            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif risk and risk.risk_level == RiskLevel.HIGH:
-            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif confidence and confidence.overall_confidence < 0.5:
-            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif confidence and confidence.hallucination_risk > 0.7:
-            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif has_agents:
-            story.status = StoryStatus.APPROVED
-        else:
-            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
+        # Every article goes through the human gate. The Editor-in-Chief
+        # marks the story ready for review; a human at /admin/review is the
+        # only thing that flips status to APPROVED. See CLAUDE.md "Don't
+        # bypass the human gate" — there is no auto-publish path.
+        _ = (risk, confidence, has_agents)  # signals already on the story
+        story.status = StoryStatus.NEEDS_HUMAN_REVIEW
 
         # Calculate signal scores
         story.scores = self._calculate_scores(story)
