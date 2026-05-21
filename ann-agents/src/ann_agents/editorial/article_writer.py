@@ -67,6 +67,21 @@ class ArticleWriter(BaseAgent):
         source_text = self._truncate(body, max_chars=6000)
         src = story.primary_source
 
+        # The JournalistResearcher stashes its 3-researcher dossier here.
+        dossier = ""
+        if src and src.metadata:
+            dossier = (src.metadata.get("research_dossier") or "").strip()
+
+        dossier_block = ""
+        if dossier:
+            dossier_block = (
+                "\n---\n"
+                "RESEARCH DOSSIER (from 3 parallel researchers — web search,\n"
+                "linked-page follow-ups, entity lookups). Use these as your\n"
+                "primary source of specific numbers, names, and quotes.\n\n"
+                f"{dossier[:6000]}\n"
+            )
+
         user_prompt = (
             f"SOURCE TITLE: {story.title}\n"
             f"SOURCE: {src.source_name if src else 'unknown'}\n"
@@ -74,6 +89,7 @@ class ArticleWriter(BaseAgent):
             f"TL;DR: {story.tl_dr or '(none — derive your own lead from the source)'}\n"
             f"TAGS: {', '.join(story.tags) if story.tags else '(none)'}\n"
             f"\nSOURCE CONTENT:\n{source_text}"
+            f"{dossier_block}"
         )
 
         result = await llm_router.complete(

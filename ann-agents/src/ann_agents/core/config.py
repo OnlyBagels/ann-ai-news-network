@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     huggingface_token: Optional[str] = Field(default=None, alias="HUGGINGFACE_TOKEN")
     reddit_client_id: Optional[str] = Field(default=None, alias="REDDIT_CLIENT_ID")
     reddit_client_secret: Optional[str] = Field(default=None, alias="REDDIT_CLIENT_SECRET")
+    # Optional — WebSearchResearcher prefers Tavily when set, falls back to DDG HTML scrape.
+    tavily_api_key: Optional[str] = Field(default=None, alias="TAVILY_API_KEY")
 
     # Database
     database_url: str = Field(

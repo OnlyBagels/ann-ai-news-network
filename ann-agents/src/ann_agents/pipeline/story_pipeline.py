@@ -26,6 +26,7 @@ from ann_agents.editorial.editorial_agents import (
     SummaryEditor,
 )
 from ann_agents.editorial.triage_editor import TriageEditor, assigned_reporter
+from ann_agents.research.journalist_research import JournalistResearcher
 from ann_agents.oversight.oversight_agents import (
     RiskAgent,
     LegalAgent,
@@ -47,6 +48,10 @@ class StoryPipeline:
     def __init__(self):
         # Triage editor — reads incoming wire, assigns to one beat.
         self.triage_editor = TriageEditor()
+
+        # JournalistResearcher — 3 parallel researchers, one tool each,
+        # combined into a dossier for ArticleWriter.
+        self.journalist_researcher = JournalistResearcher()
 
         # Reporter Agents (6) — only ONE runs per story, picked by triage.
         self.reporters = {
@@ -98,6 +103,11 @@ class StoryPipeline:
         # Step 1: ONE beat reporter (picked by triage) investigates.
         story = await self._run_assigned_reporter(story)
         story.status = StoryStatus.ENRICHED
+
+        # Step 1b: 3-researcher journalist pass — web search, cross-refs,
+        # entity lookups in parallel. Dossier lands on primary_source
+        # metadata and ArticleWriter reads it.
+        story = await self.journalist_researcher.run(story)
 
         # Step 2: Research Agent enriches
         story = await self.research_agent.run(story)

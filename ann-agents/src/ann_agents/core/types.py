@@ -21,6 +21,10 @@ class AgentRole(str, Enum):
 
     # Research Agents
     RESEARCH_AGENT = "research_agent"
+    JOURNALIST_RESEARCHER = "journalist_researcher"
+    WEB_SEARCH_RESEARCHER = "web_search_researcher"
+    CROSS_REF_RESEARCHER = "cross_ref_researcher"
+    ENTITY_LOOKUP_RESEARCHER = "entity_lookup_researcher"
 
     # Fact-Check Agents
     FACT_CHECK_AGENT = "fact_check_agent"
