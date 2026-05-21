@@ -142,8 +142,10 @@ class SourceIngester:
 
         items: List[SourceItem] = []
         try:
+            # arxiv 2.x moved .results() off Search and onto Client.
+            client = arxiv.Client()
             search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
-            for result in search.results():
+            for result in client.results(search):
                 item = SourceItem(
                     title=result.title,
                     url=result.entry_id,
