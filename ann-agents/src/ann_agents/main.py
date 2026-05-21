@@ -120,8 +120,9 @@ async def run_ingest() -> None:
     # pipeline burns ~80 calls on a Knuth letter from 1980.
     all_items = await filter_ai_relevant(all_items)
 
-    # Process each item through the pipeline
-    for item in all_items[:5]:  # Limit to 5 for demo
+    # Process each item through the pipeline. Cap per run so a single
+    # invocation doesn't burn through the budget.
+    for item in all_items[:10]:
         story = Story(
             title=item.title,
             source_items=[item],
