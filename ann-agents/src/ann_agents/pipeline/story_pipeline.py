@@ -18,6 +18,7 @@ from ann_agents.reporters.regulation_reporter import RegulationReporter
 from ann_agents.reporters.business_reporter import BusinessReporter
 from ann_agents.research.research_agent import ResearchAgent
 from ann_agents.factcheck.fact_check_agent import FactCheckAgent
+from ann_agents.editorial.article_writer import ArticleWriter
 from ann_agents.editorial.editorial_agents import (
     HeadlineEditor,
     TechnicalEditor,
@@ -59,13 +60,16 @@ class StoryPipeline:
         # Fact-Check Agent
         self.fact_check_agent = FactCheckAgent()
 
-        # Editorial Agents (4)
+        # Editorial Agents (4 parallel + 1 sequential writer)
         self.editorial_agents = {
             AgentRole.HEADLINE_EDITOR: HeadlineEditor(),
             AgentRole.TECHNICAL_EDITOR: TechnicalEditor(),
             AgentRole.STYLE_EDITOR: StyleEditor(),
             AgentRole.SUMMARY_EDITOR: SummaryEditor(),
         }
+        # Sequential — runs AFTER the parallel batch because it leans on
+        # tl_dr + summary + headline as anchors.
+        self.article_writer = ArticleWriter()
 
         # Oversight Agents (4)
         self.oversight_agents = {
@@ -96,6 +100,10 @@ class StoryPipeline:
 
         # Step 4: Editorial Agents refine (run in parallel)
         story = await self._run_editorial(story)
+
+        # Step 4b: ArticleWriter drafts the body using the just-finalized
+        # tl_dr and summary. Sequential — depends on step 4 outputs.
+        story = await self.article_writer.run(story)
         story.status = StoryStatus.EDITED
 
         # Step 5: Oversight Agents review (run in parallel)

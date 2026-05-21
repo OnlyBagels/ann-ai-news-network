@@ -30,6 +30,7 @@ class AgentRole(str, Enum):
     TECHNICAL_EDITOR = "technical_editor"
     STYLE_EDITOR = "style_editor"
     SUMMARY_EDITOR = "summary_editor"
+    ARTICLE_WRITER = "article_writer"
 
     # Oversight Agents
     RISK_AGENT = "risk_agent"

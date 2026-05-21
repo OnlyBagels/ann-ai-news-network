@@ -162,14 +162,9 @@ export default function ArticlePage() {
         </div>
       </section>
 
-      {/* Summary */}
+      {/* Article body — full journalistic piece, paragraphs split on \n\n */}
       <section className="mb-8">
-        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">
-          Summary
-        </h2>
-        <div className="text-sm text-foreground/80 leading-relaxed font-mono bg-terminal-card border border-border rounded-lg p-5">
-          {article.summary}
-        </div>
+        <ArticleBody content={article.content} fallbackSummary={article.summary} />
       </section>
 
       {/* Tags */}
@@ -210,6 +205,29 @@ export default function ArticlePage() {
         </section>
       )}
     </article>
+  );
+}
+
+function ArticleBody({
+  content,
+  fallbackSummary,
+}: {
+  content?: string;
+  fallbackSummary: string;
+}) {
+  // Body is plain prose from ArticleWriter — split on blank lines into paragraphs.
+  const body = (content && content.trim()) || fallbackSummary;
+  const paragraphs = body
+    .split(/\n{2,}/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  return (
+    <div className="space-y-4 text-[15px] leading-7 text-foreground/90">
+      {paragraphs.map((p, i) => (
+        <p key={i}>{p}</p>
+      ))}
+    </div>
   );
 }
 
