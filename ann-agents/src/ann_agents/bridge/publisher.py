@@ -40,6 +40,13 @@ def _enum_value(value: Any) -> Any:
 
 def _serialize_story(story: Story) -> Dict[str, Any]:
     """Translate a Story into the JSON payload the draft endpoint expects."""
+    # Fall back to the primary source's body text when an editorial agent
+    # hasn't written story.content yet — better than shipping an empty
+    # Article.content to the admin queue.
+    body = story.content
+    if not body and story.primary_source:
+        body = story.primary_source.content
+
     payload: Dict[str, Any] = {
         "id": story.id,
         "title": story.title,
@@ -47,7 +54,7 @@ def _serialize_story(story: Story) -> Dict[str, Any]:
         "url": story.url,
         "summary": story.summary or "",
         "tlDr": story.tl_dr,
-        "content": story.content,
+        "content": body,
         "tags": list(story.tags),
         "category": _enum_value(story.category) if story.category else None,
         "headline": story.headline,

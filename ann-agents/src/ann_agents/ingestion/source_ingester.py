@@ -2,12 +2,58 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime
 from typing import AsyncGenerator, List, Optional
 
+import httpx
 from loguru import logger
 
 from ann_agents.core.types import SourceItem
+
+
+_USER_AGENT = "ANN-Agents/1.0 (+https://github.com/OnlyBagels/ann-ai-news-network)"
+
+
+async def _extract_article(html: str) -> str:
+    """Run trafilatura's extractor off the event loop (it's sync)."""
+    import trafilatura
+    def _call() -> str:
+        return trafilatura.extract(
+            html,
+            include_comments=False,
+            include_tables=False,
+            favor_precision=True,
+        ) or ""
+    return await asyncio.to_thread(_call)
+
+
+async def fetch_article_content(url: str, timeout: float = 10.0) -> str:
+    """Fetch a URL and extract clean article text. Empty string on failure.
+
+    Agents grounded on real article text hallucinate far less than agents
+    inferring from a title alone — every HN story that links out should
+    flow through this before reaching the pipeline.
+    """
+    if not url or url.startswith("https://news.ycombinator.com"):
+        return ""
+    try:
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            follow_redirects=True,
+            headers={"User-Agent": _USER_AGENT},
+        ) as client:
+            resp = await client.get(url)
+        if resp.status_code != 200:
+            logger.debug(f"[ingest] {resp.status_code} from {url}")
+            return ""
+        text = await _extract_article(resp.text)
+        if text:
+            logger.debug(f"[ingest] fetched {len(text)} chars from {url}")
+        return text
+    except Exception as e:
+        logger.warning(f"[ingest] failed to fetch {url}: {e}")
+        return ""
 
 
 class SourceIngester:
@@ -39,12 +85,15 @@ class SourceIngester:
         return items
 
     async def ingest_hn(self, story_id: Optional[int] = None, top_n: int = 30) -> List[SourceItem]:
-        """Ingest from Hacker News API."""
-        import httpx
+        """Ingest from Hacker News API, enriching items with article body text.
 
+        HN posts often link out to a blog/paper/repo. The pipeline grounds
+        much better when each Story has real source text, so we fetch the
+        linked URL via trafilatura in parallel after building the items.
+        """
         items: List[SourceItem] = []
         try:
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=15.0) as client:
                 if story_id:
                     ids = [story_id]
                 else:
@@ -70,6 +119,20 @@ class SourceIngester:
             logger.info(f"Ingested {len(items)} items from Hacker News")
         except Exception as e:
             logger.error(f"Failed to ingest Hacker News: {e}")
+            return items
+
+        # Enrich with article body text in parallel.
+        enrich_targets = [it for it in items if it.url and "news.ycombinator.com" not in it.url]
+        if enrich_targets:
+            contents = await asyncio.gather(
+                *(fetch_article_content(it.url) for it in enrich_targets),
+                return_exceptions=False,
+            )
+            for it, body in zip(enrich_targets, contents):
+                if body:
+                    it.content = body
+            enriched = sum(1 for it in enrich_targets if it.content)
+            logger.info(f"Enriched {enriched}/{len(enrich_targets)} HN items with article body")
 
         return items
 
@@ -101,7 +164,6 @@ class SourceIngester:
 
     async def ingest_github_trending(self, language: str = "", since: str = "daily") -> List[SourceItem]:
         """Ingest trending repos from GitHub."""
-        import httpx
         from bs4 import BeautifulSoup
 
         items: List[SourceItem] = []
