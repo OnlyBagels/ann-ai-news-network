@@ -73,18 +73,23 @@ class ArticleWriter(BaseAgent):
         super().__init__(AgentRole.ARTICLE_WRITER)
 
     async def process(self, story: Story) -> Story:
-        # Nothing to ground on → skip rather than hallucinate.
         body = story.primary_source.content if story.primary_source else None
-        if not body or len(body.strip()) < 200:
-            return story
 
-        source_text = self._truncate(body, max_chars=6000)
+        # Pull the research dossier early — it drives the fallback path.
         src = story.primary_source
-
-        # The JournalistResearcher stashes its 3-researcher dossier here.
         dossier = ""
         if src and src.metadata:
             dossier = (src.metadata.get("research_dossier") or "").strip()
+
+        # Guard: skip rather than hallucinate when there is nothing to ground on.
+        # Exception: a rich research dossier (> 500 chars) is itself a valid
+        # source, so allow writing in assignment-mode even with no source body.
+        thin_body = not body or len(body.strip()) < 200
+        has_dossier = len(dossier) > 500
+        if thin_body and not has_dossier:
+            return story
+
+        source_text = self._truncate(body or "", max_chars=6000)
 
         dossier_block = ""
         if dossier:

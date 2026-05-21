@@ -13,14 +13,16 @@ import asyncio
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import BackgroundTasks, FastAPI, HTTPException
 from loguru import logger
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 
 from ann_agents.bridge.db_bridge import DatabaseBridge
 from ann_agents.bridge.meilisearch_sync import MeilisearchSync
 from ann_agents.bridge.scheduler import NewsroomScheduler
 from ann_agents.core.config import settings
+from ann_agents.core.types import Story, SourceItem, StoryStatus
+from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 app = FastAPI(title="ANN Agent Service", version="0.1.0")
 
@@ -28,6 +30,7 @@ app = FastAPI(title="ANN Agent Service", version="0.1.0")
 db = DatabaseBridge()
 search = MeilisearchSync()
 scheduler = NewsroomScheduler()
+_pipeline = StoryPipeline()
 
 # Pipeline state
 pipeline_state: Dict[str, any] = {
@@ -125,6 +128,102 @@ async def get_stats():
     except Exception as e:
         logger.error(f"Failed to get stats: {e}")
         return {"pipeline": pipeline_state, "review_queue_size": 0}
+
+
+_VALID_SECTIONS = {
+    "world", "politics", "business", "tech", "science",
+    "climate", "health", "sports", "culture", "opinion",
+}
+
+
+class AssignmentRequest(BaseModel):
+    topic: str = Field(..., min_length=1, max_length=500)
+    section: Optional[str] = None
+    region: Optional[str] = None
+    category: Optional[str] = None
+    notes: Optional[str] = None
+
+    @field_validator("section")
+    @classmethod
+    def validate_section(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in _VALID_SECTIONS:
+            raise ValueError(
+                f"invalid section '{v}' — must be one of: "
+                + ", ".join(sorted(_VALID_SECTIONS))
+            )
+        return v
+
+
+def _build_assignment_story(req: AssignmentRequest) -> Story:
+    """Build a synthetic Story for research-first (no-URL) assignment mode.
+
+    The story has no primary_source and no URL so the pipeline runs in
+    research-first mode: triage → JournalistResearcher → ResearchAgent
+    → fact-check → editorial → oversight → publish.
+    """
+    story = Story(
+        title=req.topic,
+        url=None,
+        primary_source=None,
+    )
+
+    # Pre-seed category from the request so TriageEditor has a starting hint.
+    if req.category:
+        from ann_agents.core.types import parse_category
+        parsed = parse_category(req.category)
+        if parsed:
+            story.category = parsed
+
+    # Stash metadata for downstream agents that may want it.
+    # We use a synthetic SourceItem as a metadata carrier so the
+    # JournalistResearcher (which reads primary_source.metadata) has
+    # somewhere to write the dossier back.
+    story.primary_source = SourceItem(
+        title=req.topic,
+        url=f"ann://internal/{story.id}",
+        source_name="assignment",
+        source_type="assignment",
+        published_at=datetime.utcnow(),
+        content=None,
+        metadata={
+            "assignment": True,
+            **({"section": req.section} if req.section else {}),
+            **({"region": req.region} if req.region else {}),
+            **({"notes": req.notes} if req.notes else {}),
+        },
+    )
+
+    return story
+
+
+async def _run_assignment_pipeline(story: Story) -> None:
+    """Background task: run the full pipeline and log the result."""
+    try:
+        await _pipeline.run_full_pipeline(story)
+        logger.info(f"[assignment] pipeline finished for story {story.id}")
+    except Exception as exc:
+        logger.error(f"[assignment] pipeline failed for story {story.id}: {exc}")
+
+
+@app.post("/api/assignment")
+async def create_assignment(
+    req: AssignmentRequest,
+    background_tasks: BackgroundTasks,
+):
+    """Accept a manual topic assignment and run the pipeline in the background.
+
+    Returns immediately once the story is queued. The article lands in the
+    admin review queue via the normal publisher → POST /api/agents/draft flow.
+    """
+    story = _build_assignment_story(req)
+    story.status = StoryStatus.RAW
+
+    background_tasks.add_task(_run_assignment_pipeline, story)
+
+    logger.info(
+        f"[assignment] queued story {story.id} — topic: '{req.topic[:80]}'"
+    )
+    return {"assignmentId": story.id, "status": "queued"}
 
 
 @app.on_event("startup")

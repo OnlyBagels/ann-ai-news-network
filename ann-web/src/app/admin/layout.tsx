@@ -9,6 +9,7 @@ import {
   Radio,
   ArrowLeft,
   Terminal,
+  PenLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +23,11 @@ const adminNavItems = [
     href: "/admin/review",
     label: "Review Queue",
     icon: ClipboardCheck,
+  },
+  {
+    href: "/admin/assignments",
+    label: "Assign Topic",
+    icon: PenLine,
   },
   {
     href: "/admin/agents",

@@ -12,6 +12,9 @@ export interface Article {
   content?: string;
   tags: string[];
   category: Category;
+  section?: Section;
+  region?: Region;
+  subCategory?: string;
   scores: Scores;
   imageUrl?: string;
   relatedArticles?: string[];
@@ -95,8 +98,128 @@ export const CATEGORIES: CategoryInfo[] = [
   },
 ];
 
+export type Section =
+  | "world"
+  | "politics"
+  | "business"
+  | "tech"
+  | "science"
+  | "climate"
+  | "health"
+  | "sports"
+  | "culture"
+  | "opinion";
+
+export interface SectionInfo {
+  id: Section;
+  label: string;
+  description: string;
+  color: string;
+}
+
+export const SECTIONS: SectionInfo[] = [
+  {
+    id: "world",
+    label: "World",
+    description: "International news and global affairs",
+    color: "text-sky-400",
+  },
+  {
+    id: "politics",
+    label: "Politics",
+    description: "Policy, legislation, elections, and governance",
+    color: "text-orange-400",
+  },
+  {
+    id: "business",
+    label: "Business",
+    description: "Markets, companies, funding, and economy",
+    color: "text-yellow-400",
+  },
+  {
+    id: "tech",
+    label: "Tech",
+    description: "Technology, AI, software, and hardware",
+    color: "text-cyan-400",
+  },
+  {
+    id: "science",
+    label: "Science",
+    description: "Research, breakthroughs, and academia",
+    color: "text-pink-400",
+  },
+  {
+    id: "climate",
+    label: "Climate",
+    description: "Environment, energy, and climate change",
+    color: "text-emerald-400",
+  },
+  {
+    id: "health",
+    label: "Health",
+    description: "Medicine, public health, and wellness",
+    color: "text-rose-400",
+  },
+  {
+    id: "sports",
+    label: "Sports",
+    description: "Games, leagues, athletes, and competitions",
+    color: "text-lime-400",
+  },
+  {
+    id: "culture",
+    label: "Culture",
+    description: "Arts, media, entertainment, and society",
+    color: "text-violet-400",
+  },
+  {
+    id: "opinion",
+    label: "Opinion",
+    description: "Editorials, analysis, and commentary",
+    color: "text-amber-400",
+  },
+];
+
+export type Region =
+  | "us"
+  | "eu"
+  | "uk"
+  | "asia"
+  | "africa"
+  | "me"
+  | "latam"
+  | "oceania"
+  | "global"
+  | "ru"
+  | "ua"
+  | "cn"
+  | "jp";
+
+export interface RegionInfo {
+  id: Region;
+  label: string;
+}
+
+export const REGIONS: RegionInfo[] = [
+  { id: "us", label: "US" },
+  { id: "eu", label: "EU" },
+  { id: "uk", label: "UK" },
+  { id: "asia", label: "Asia" },
+  { id: "africa", label: "Africa" },
+  { id: "me", label: "Middle East" },
+  { id: "latam", label: "Latin America" },
+  { id: "oceania", label: "Oceania" },
+  { id: "global", label: "Global" },
+  { id: "ru", label: "Russia" },
+  { id: "ua", label: "Ukraine" },
+  { id: "cn", label: "China" },
+  { id: "jp", label: "Japan" },
+];
+
 export interface FeedQuery {
   category?: Category;
+  section?: Section;
+  region?: Region;
   search?: string;
   sort?: "signal" | "newest" | "trending";
   page?: number;

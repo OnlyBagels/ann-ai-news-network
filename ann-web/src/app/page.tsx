@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { NewsletterSignup } from "@/components/shared/NewsletterSignup";
+import { SectionNav } from "@/components/layout/SectionNav";
 import { CATEGORIES } from "@/types";
-import type { Article, Category, Scores } from "@/types";
+import type { Article, Category, Section, Region, Scores } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 
@@ -47,6 +48,9 @@ async function loadFeed(): Promise<Article[]> {
     tlDr: a.tlDr ?? undefined,
     tags: a.tags,
     category: a.category as Category,
+    section: (a.section ?? "tech") as Section,
+    region: (a.region ?? "global") as Region,
+    subCategory: a.subCategory ?? undefined,
     scores: a.scores
       ? {
           signalScore: a.scores.signalScore,
@@ -86,6 +90,9 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-10">
+      {/* Section navigation strip */}
+      <SectionNav />
+
       {/* Featured page header */}
       <header className="border-b border-border pb-5">
         <div className="flex items-center gap-2 mb-1">

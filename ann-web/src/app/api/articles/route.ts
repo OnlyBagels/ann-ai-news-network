@@ -7,10 +7,21 @@ export async function GET(request: NextRequest) {
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20")));
   const category = searchParams.get("category");
+  const section = searchParams.get("section");
+  const region = searchParams.get("region");
   const sort = searchParams.get("sort") || "signal";
   const search = searchParams.get("search");
 
-  const cacheKey = getCacheKey("feed", page.toString(), limit.toString(), category || undefined, sort, search || undefined);
+  const cacheKey = getCacheKey(
+    "feed",
+    page.toString(),
+    limit.toString(),
+    category || undefined,
+    section || undefined,
+    region || undefined,
+    sort,
+    search || undefined,
+  );
 
   // Try cache first
   if (redis) {
@@ -28,6 +39,12 @@ export async function GET(request: NextRequest) {
     };
     if (category) {
       where.category = category;
+    }
+    if (section) {
+      where.section = section;
+    }
+    if (region) {
+      where.region = region;
     }
     if (search) {
       where.OR = [
@@ -80,6 +97,9 @@ export async function GET(request: NextRequest) {
         tlDr: article.tlDr,
         tags: article.tags,
         category: article.category,
+        section: article.section,
+        region: article.region,
+        subCategory: article.subCategory,
         scores: article.scores,
         imageUrl: article.imageUrl,
       })),

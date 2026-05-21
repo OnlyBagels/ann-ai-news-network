@@ -17,7 +17,7 @@ from loguru import logger
 
 from ann_agents.core.types import Category, SourceItem, Story
 from ann_agents.ingestion.source_ingester import SourceIngester
-from ann_agents.pipeline.filters import filter_ai_relevant
+from ann_agents.pipeline.filters import filter_newsworthy
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
@@ -108,17 +108,20 @@ async def run_ingest() -> None:
     ingester = SourceIngester()
     pipeline = StoryPipeline()
 
-    # Ingest from multiple sources
-    hn_items = await ingester.ingest_hn(top_n=10)
-    arxiv_items = await ingester.ingest_arxiv(max_results=5)
-    github_items = await ingester.ingest_github_trending()
+    # Ingest from multiple sources concurrently.
+    hn_items, arxiv_items, github_items, news_feed_items = await asyncio.gather(
+        ingester.ingest_hn(top_n=10),
+        ingester.ingest_arxiv(max_results=5),
+        ingester.ingest_github_trending(),
+        ingester.ingest_news_feeds(limit_per_feed=5),
+    )
 
-    all_items = hn_items + arxiv_items + github_items
+    all_items = hn_items + arxiv_items + github_items + news_feed_items
     logger.info(f"Total items ingested: {len(all_items)}")
 
-    # Cheap LLM pre-filter — reject non-AI stories before the 16-agent
-    # pipeline burns ~80 calls on a Knuth letter from 1980.
-    all_items = await filter_ai_relevant(all_items)
+    # Cheap LLM pre-filter — reject SEO junk and promos before the 16-agent
+    # pipeline burns ~80 calls on a press release with no story.
+    all_items = await filter_newsworthy(all_items)
 
     # Process each item through the pipeline. Cap per run so a single
     # invocation doesn't burn through the budget.

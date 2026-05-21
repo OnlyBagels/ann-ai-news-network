@@ -49,6 +49,11 @@ model Article {
   imageUrl        String?
   relatedArticles String[]
 
+  // Broad section + region (pivot from AI-only to All News)
+  section         String?    @default("tech")
+  region          String?    @default("global")
+  subCategory     String?    @map("sub_category")
+
   // Agent pipeline tracking
   storyStatus     StoryStatus @default(raw)
   agentsInvolved  String[]   @default([])

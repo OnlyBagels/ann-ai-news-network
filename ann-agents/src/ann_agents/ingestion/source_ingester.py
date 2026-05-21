@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import AsyncGenerator, List, Optional
+from typing import AsyncGenerator, List, Optional, Tuple
 
 import httpx
 from loguru import logger
@@ -14,6 +14,39 @@ from ann_agents.core.types import SourceItem
 
 
 _USER_AGENT = "ANN-Agents/1.0 (+https://github.com/OnlyBagels/ann-ai-news-network)"
+
+# Broad news RSS feeds for All News Network coverage.
+# Each tuple: (display_name, feed_url, default_section)
+NEWS_FEEDS: List[Tuple[str, str, str]] = [
+    # World
+    ("Reuters Top News",      "https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best", "World"),
+    ("Reuters World News",    "https://www.reutersagency.com/feed/?best-regions=north-america&post_type=best", "World"),
+    ("BBC News",              "https://feeds.bbci.co.uk/news/rss.xml",                                  "World"),
+    ("BBC World",             "https://feeds.bbci.co.uk/news/world/rss.xml",                            "World"),
+    ("Al Jazeera English",    "https://www.aljazeera.com/xml/rss/all.xml",                              "World"),
+    # Politics
+    ("The Guardian World",    "https://www.theguardian.com/world/rss",                                  "Politics"),
+    ("The Guardian Politics", "https://www.theguardian.com/politics/rss",                               "Politics"),
+    ("NPR News",              "https://feeds.npr.org/1001/rss.xml",                                     "Politics"),
+    ("Politico",              "https://www.politico.com/rss/politicopicks.xml",                         "Politics"),
+    # Business
+    ("Bloomberg Markets",     "https://feeds.bloomberg.com/markets/news.rss",                           "Business"),
+    # Tech
+    ("The Verge",             "https://www.theverge.com/rss/index.xml",                                 "Tech"),
+    # Science
+    ("Nature",                "https://www.nature.com/nature.rss",                                      "Science"),
+    # Climate
+    ("Reuters Climate",       "https://www.reutersagency.com/feed/?best-topics=environment&post_type=best", "Climate"),
+    # Sports
+    ("ESPN Headlines",        "https://www.espn.com/espn/rss/news",                                     "Sports"),
+    # Culture
+    ("Variety",               "https://variety.com/feed/",                                              "Culture"),
+    # Health
+    ("NPR Health",            "https://feeds.npr.org/1027/rss.xml",                                     "Health"),
+    # Additional broad coverage
+    ("BBC Technology",        "https://feeds.bbci.co.uk/news/technology/rss.xml",                       "Tech"),
+    ("The Guardian Science",  "https://www.theguardian.com/science/rss",                                "Science"),
+]
 
 
 async def fetch_github_readme(repo: str, timeout: float = 10.0) -> str:
@@ -296,6 +329,85 @@ class SourceIngester:
             logger.error(f"Failed to ingest HuggingFace: {e}")
 
         return items
+
+    async def ingest_news_feeds(self, limit_per_feed: int = 5) -> List[SourceItem]:
+        """Fetch all NEWS_FEEDS concurrently, normalize to SourceItem, enrich with article text.
+
+        Feeds that return 0 entries or an HTTP error are silently skipped so a
+        single broken endpoint never aborts the whole ingestion run.
+
+        Content enrichment runs in batches of 10 concurrent requests to avoid
+        hammering origin servers.
+        """
+        import feedparser
+
+        async def _fetch_feed(name: str, feed_url: str, section: str) -> List[SourceItem]:
+            results: List[SourceItem] = []
+            try:
+                async with httpx.AsyncClient(
+                    timeout=10.0,
+                    follow_redirects=True,
+                    headers={"User-Agent": _USER_AGENT},
+                ) as client:
+                    resp = await client.get(feed_url)
+                if resp.status_code >= 400:
+                    logger.warning(f"[ingest] feed {name} returned HTTP {resp.status_code} — skipped")
+                    return results
+                # feedparser accepts raw text; pass the decoded body so we
+                # avoid a second blocking network call inside feedparser.
+                feed = feedparser.parse(resp.text)
+            except Exception as exc:
+                logger.warning(f"[ingest] feed {name} fetch failed: {exc} — skipped")
+                return results
+
+            if not feed.entries:
+                logger.warning(f"[ingest] feed {name} returned 0 entries — skipped")
+                return results
+
+            for entry in feed.entries[:limit_per_feed]:
+                item = SourceItem(
+                    title=entry.get("title", "Untitled"),
+                    url=entry.get("link", ""),
+                    source_name=name,
+                    source_type="rss",
+                    author=entry.get("author"),
+                    published_at=self._parse_date(
+                        entry.get("published_parsed") or entry.get("updated_parsed")
+                    ),
+                    summary=entry.get("summary", ""),
+                    tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
+                    metadata={"section": section},
+                )
+                results.append(item)
+
+            logger.info(f"[ingest] {name}: {len(results)} items")
+            return results
+
+        # Fetch all feeds concurrently.
+        feed_batches = await asyncio.gather(
+            *(_fetch_feed(name, url, section) for name, url, section in NEWS_FEEDS),
+            return_exceptions=False,
+        )
+        all_items: List[SourceItem] = [item for batch in feed_batches for item in batch]
+        logger.info(f"[ingest] news feeds total: {len(all_items)} items across {len(NEWS_FEEDS)} feeds")
+
+        # Enrich article text in batches of 10 to be polite to origin servers.
+        enrich_targets = [it for it in all_items if it.url]
+        batch_size = 10
+        enriched_count = 0
+        for start in range(0, len(enrich_targets), batch_size):
+            batch = enrich_targets[start : start + batch_size]
+            contents = await asyncio.gather(
+                *(fetch_article_content(it.url) for it in batch),
+                return_exceptions=False,
+            )
+            for it, body in zip(batch, contents):
+                if body:
+                    it.content = body
+                    enriched_count += 1
+
+        logger.info(f"[ingest] enriched {enriched_count}/{len(enrich_targets)} news-feed items with article body")
+        return all_items
 
     def _parse_date(self, date_struct) -> datetime:
         """Parse a time.struct_time or similar into datetime."""

@@ -107,6 +107,14 @@ class StoryPipeline:
         # Step 1b: 3-researcher journalist pass — web search, cross-refs,
         # entity lookups in parallel. Dossier lands on primary_source
         # metadata and ArticleWriter reads it.
+        # In assignment-mode the story arrives with no primary_source; log
+        # it so operators know we're running research-first, but proceed —
+        # the JournalistResearcher and ResearchAgent don't require source body.
+        if story.primary_source is None:
+            logger.info(
+                f"[pipeline] no primary_source for '{story.title[:60]}' "
+                "— running in research-first (assignment) mode"
+            )
         story = await self.journalist_researcher.run(story)
 
         # Step 2: Research Agent enriches
