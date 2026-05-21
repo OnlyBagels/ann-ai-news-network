@@ -8,12 +8,13 @@ import {
   ArrowUpRight,
   Clock,
   ExternalLink,
-  Globe,
-  Tag,
+  Lock,
+  MessageSquare,
 } from "lucide-react";
 import { cn, formatDate, scoreColor, scoreBg } from "@/lib/utils";
 import { CATEGORIES, type Article } from "@/types";
 import { NewsletterSignup } from "@/components/shared/NewsletterSignup";
+import { bylineFor, type Persona } from "@/lib/personas";
 
 async function fetchArticle(id: string): Promise<Article> {
   const res = await fetch(`/api/articles/${id}`);
@@ -78,6 +79,8 @@ export default function ArticlePage() {
 
   const category = CATEGORIES.find((c) => c.id === article.category);
   const categoryColor = category?.color ?? "text-muted";
+  const byline = bylineFor(article.category);
+  const readMinutes = readingTime(article);
 
   return (
     <article className="max-w-3xl mx-auto">
@@ -91,46 +94,47 @@ export default function ArticlePage() {
       </Link>
 
       {/* Header */}
-      <header className="mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <span
-            className={cn(
-              "category-badge",
-              categoryColor,
-              categoryColor.replace("text-", "border-") + "/30"
-            )}
-          >
+      <header className="mb-8 border-l-2 border-accent-cyan pl-4">
+        {/* Category + read time strip — mirrors the CNN-style header */}
+        <div className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-widest text-muted-foreground mb-3">
+          <span className={cn("font-semibold", categoryColor)}>
             {category?.label ?? article.category}
           </span>
-          <span className="flex items-center gap-1 text-xs font-mono text-muted">
-            <Clock className="w-3 h-3" />
-            {formatDate(article.publishedAt)}
-          </span>
+          <span>·</span>
+          <span>{readMinutes} min read</span>
         </div>
 
-        <h1 className="text-2xl font-bold text-foreground leading-tight mb-4">
+        {/* Headline */}
+        <h1 className="text-2xl md:text-3xl font-bold text-foreground leading-tight mb-5">
           {article.title}
         </h1>
 
-        {/* Source info */}
-        <div className="flex items-center gap-4 text-sm font-mono text-muted">
-          <span className="flex items-center gap-1.5">
-            <Globe className="w-3.5 h-3.5" />
-            {article.source}
-          </span>
-          {article.author && (
-            <span className="flex items-center gap-1.5">
-              <span className="text-muted/60">by</span> {article.author}
-            </span>
-          )}
+        {/* Updated timestamp */}
+        <div className="text-xs font-mono uppercase tracking-widest text-muted mb-4">
+          Updated <span className="text-foreground/70">{formatDate(article.publishedAt)}</span>
+        </div>
+
+        {/* Byline strip — writer + editor + fact-checker with avatars */}
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-2 text-sm text-foreground/80">
+          <span className="text-muted-foreground">By</span>
+          <BylineEntry persona={byline.writer} />
+          <span className="text-muted-foreground">,</span>
+          <BylineEntry persona={byline.editor} prefix="edited by" />
+          <span className="text-muted-foreground">,</span>
+          <BylineEntry persona={byline.factChecker} prefix="fact-checked by" />
+        </div>
+
+        {/* Source link (right-aligned) */}
+        <div className="mt-4 flex items-center justify-between gap-3 text-xs font-mono text-muted-foreground">
+          <span>Source: {article.source}</span>
           <a
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-1 text-accent-cyan hover:text-accent-green transition-colors ml-auto"
+            className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green transition-colors"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            Source
+            Open original
           </a>
         </div>
       </header>
@@ -186,6 +190,15 @@ export default function ArticlePage() {
         </section>
       )}
 
+      {/* Comments — sign-in gate placeholder */}
+      <CommentsSection />
+
+      {/* AI disclosure footer (per CLAUDE.md) */}
+      <p className="text-[11px] font-mono text-muted-foreground/70 italic mb-8 border-t border-border pt-4">
+        Drafted by ANN&apos;s agent pipeline; reviewed under the editorial gate
+        before publish. See <Link href="/legal/ai-disclosure" className="underline">AI disclosure</Link> for our standards.
+      </p>
+
       {/* Newsletter */}
       <div className="mb-8">
         <NewsletterSignup />
@@ -205,6 +218,63 @@ export default function ArticlePage() {
         </section>
       )}
     </article>
+  );
+}
+
+function readingTime(article: Article): number {
+  const text = (article.content || article.summary || "") + " " + (article.tlDr || "");
+  const words = text.split(/\s+/).filter(Boolean).length;
+  return Math.max(1, Math.round(words / 200));
+}
+
+function BylineEntry({ persona, prefix }: { persona: Persona; prefix?: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {prefix && <span className="text-muted-foreground">{prefix}</span>}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={persona.avatarUrl}
+        alt=""
+        width={20}
+        height={20}
+        className="w-5 h-5 rounded-full bg-terminal-card border border-border"
+      />
+      <span
+        className="font-semibold text-foreground hover:underline cursor-pointer"
+        title={`${persona.role} — ${persona.bio}`}
+      >
+        {persona.name}
+      </span>
+    </span>
+  );
+}
+
+function CommentsSection() {
+  return (
+    <section className="border border-border rounded-lg bg-terminal-card p-6 mb-8">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider flex items-center gap-2">
+          <MessageSquare className="w-3.5 h-3.5" />
+          Discussion
+        </h2>
+        <span className="text-[10px] font-mono text-muted-foreground/60">0 comments</span>
+      </div>
+      <div className="border border-dashed border-border rounded-md p-6 text-center">
+        <Lock className="w-4 h-4 text-muted mx-auto mb-2" />
+        <p className="text-sm text-foreground/80 mb-1">Comments require an account.</p>
+        <p className="text-xs text-muted mb-3">
+          Sign in to join the discussion, save articles, and follow beats.
+        </p>
+        <button
+          type="button"
+          disabled
+          className="text-xs font-mono text-accent-cyan border border-accent-cyan/30 px-4 py-2 rounded-md opacity-60 cursor-not-allowed"
+          title="Auth not yet wired"
+        >
+          Sign in to comment
+        </button>
+      </div>
+    </section>
   );
 }
 
