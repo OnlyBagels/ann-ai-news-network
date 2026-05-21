@@ -89,6 +89,10 @@ JSON OUTPUT
 - match the requested schema exactly.
 - use empty strings for unknown values, not "N/A" or "TBD".
 - numbers are numbers, not strings.
+
+CATEGORIES (when asked to classify into a category, use ONLY these exact strings)
+- models, open_source, coding_ai, agents, research, security, funding, regulation
+- if uncertain, omit the field. do not invent new categories.
 """
 
 

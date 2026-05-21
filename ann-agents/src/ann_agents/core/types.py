@@ -85,6 +85,23 @@ class Category(str, Enum):
     REGULATION = "regulation"
 
 
+def parse_category(value: Any) -> Optional[Category]:
+    """Best-effort parse of an LLM-supplied category string.
+
+    LLMs return free text like "Model Release", "model-release", "advisory".
+    Normalize case + separators, then try the enum. Returns None when no
+    valid match — callers should fall back to a default or skip the
+    assignment rather than letting Category(invalid) raise.
+    """
+    if value is None:
+        return None
+    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
+    try:
+        return Category(normalized)
+    except ValueError:
+        return None
+
+
 class SourceItem(BaseModel):
     """A raw source item ingested from any source."""
 

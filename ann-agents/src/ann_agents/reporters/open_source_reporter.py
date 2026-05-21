@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from ann_agents.core.base_agent import BaseAgent
-from ann_agents.core.types import AgentRole, Category, Story
+from ann_agents.core.types import AgentRole, Category, Story, parse_category
 from ann_agents.core.voice import apply_voice
 from ann_agents.llm.router import LLMTier, llm_router
 
@@ -45,8 +45,9 @@ class OpenSourceReporter(BaseAgent):
                 data = json.loads(result)
                 story.summary = data.get("summary", story.summary)
                 story.tags = list(set(story.tags + data.get("tags", [])))
-                if data.get("category"):
-                    story.category = Category(data["category"])
+                cat = parse_category(data.get("category"))
+                if cat:
+                    story.category = cat
             except json.JSONDecodeError:
                 story.summary = result[:500]
 
