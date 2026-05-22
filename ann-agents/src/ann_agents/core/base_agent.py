@@ -37,19 +37,19 @@ class BaseAgent(ABC):
             started_at=datetime.utcnow(),
         )
 
-        start_time = time.time()
+        start_ns = time.perf_counter_ns()
         try:
             logger.info(f"[{self.name}] Processing story: {story.title[:60]}...")
             story = await self.process(story)
 
-            elapsed_ms = int((time.time() - start_time) * 1000)
+            elapsed_ms = max(1, int((time.perf_counter_ns() - start_ns) / 1_000_000))
             action.state = AgentState.COMPLETED
             action.completed_at = datetime.utcnow()
             action.duration_ms = elapsed_ms
             logger.info(f"[{self.name}] Completed in {elapsed_ms}ms")
 
         except Exception as e:
-            elapsed_ms = int((time.time() - start_time) * 1000)
+            elapsed_ms = max(1, int((time.perf_counter_ns() - start_ns) / 1_000_000))
             action.state = AgentState.FAILED
             action.completed_at = datetime.utcnow()
             action.error = str(e)

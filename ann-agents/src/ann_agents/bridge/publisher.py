@@ -57,11 +57,15 @@ def _serialize_story(story: Story) -> Dict[str, Any]:
         "content": body,
         "tags": list(story.tags),
         "category": _enum_value(story.category) if story.category else None,
+        "section": story.section,
+        "region": story.region,
         "headline": story.headline,
         "storyStatus": _enum_value(story.status),
         "agentsInvolved": [_enum_value(r) for r in story.agents_involved],
         "sourcesAnalyzed": story.sources_analyzed,
         "factCheckStatus": story.fact_check_status,
+        "humanReviewer": story.human_reviewer,
+        "humanNotes": story.human_notes,
     }
 
     if not payload["url"] and story.primary_source:

@@ -13,7 +13,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from sqlalchemy import create_engine, text
+from sqlalchemy import bindparam, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from ann_agents.core.config import settings
@@ -28,7 +28,7 @@ class DatabaseBridge:
     """
 
     def __init__(self):
-        self.engine = create_engine(settings.database_url)
+        self.engine = create_engine(settings.sqlalchemy_database_url)
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def save_story(self, story: Story) -> Optional[str]:
@@ -97,8 +97,8 @@ class DatabaseBridge:
                     "createdAt", "updatedAt"
                 ) VALUES (
                     gen_random_uuid()::text, :title, :slug, :url, :source, :source_url, :author,
-                    :published_at, :summary, :tl_dr, :content, :tags, :category::"Category",
-                    :status::"StoryStatus", :agents, :sources_analyzed,
+                    :published_at, :summary, :tl_dr, :content, :tags, CAST(:category AS "Category"),
+                    CAST(:status AS "StoryStatus"), :agents, :sources_analyzed,
                     :fact_check_status,
                     :overall_confidence, :source_quality, :controversy_score,
                     :citation_count, :verified_claims, :unverified_claims,
@@ -152,8 +152,8 @@ class DatabaseBridge:
                     "tlDr" = :tl_dr,
                     content = :content,
                     tags = :tags,
-                    category = :category::"Category",
-                    "storyStatus" = :status::"StoryStatus",
+                    category = CAST(:category AS "Category"),
+                    "storyStatus" = CAST(:status AS "StoryStatus"),
                     "agentsInvolved" = :agents,
                     "sourcesAnalyzed" = :sources_analyzed,
                     "factCheckStatus" = :fact_check_status,
@@ -272,7 +272,7 @@ class DatabaseBridge:
                         "startedAt", "completedAt", output, error, "durationMs"
                     ) VALUES (
                         gen_random_uuid()::text, :article_id, :role, :state,
-                        :started_at, :completed_at, :output::jsonb, :error, :duration_ms
+                        :started_at, :completed_at, CAST(:output AS jsonb), :error, :duration_ms
                     )
                 """),
                 {
@@ -322,6 +322,23 @@ class DatabaseBridge:
                 }
                 for r in rows
             ]
+        finally:
+            session.close()
+
+    def filter_new_urls(self, urls: List[str]) -> List[str]:
+        """Return URLs that do not already exist in the Article table."""
+        deduped = [u for u in dict.fromkeys(urls) if u]
+        if not deduped:
+            return []
+
+        session = self.SessionLocal()
+        try:
+            stmt = text('SELECT url FROM "Article" WHERE url IN :urls').bindparams(
+                bindparam("urls", expanding=True)
+            )
+            rows = session.execute(stmt, {"urls": deduped}).fetchall()
+            existing = {row[0] for row in rows}
+            return [url for url in deduped if url not in existing]
         finally:
             session.close()
 

@@ -32,53 +32,68 @@ class NewsroomScheduler:
         self.db = DatabaseBridge()
         self.search = MeilisearchSync()
         self._running = False
+        self._cycle_lock = asyncio.Lock()
 
     async def run_once(self) -> int:
         """Run a single ingestion + pipeline cycle.
 
         Returns the number of stories processed.
         """
-        logger.info("=== Newsroom Scheduler: Starting ingestion cycle ===")
+        if self._cycle_lock.locked():
+            logger.warning("Ingestion cycle already in progress; skipping duplicate run request")
+            return 0
 
-        # Step 1: Ingest from all sources
-        all_items = await self._ingest_all()
-        logger.info(f"Ingested {len(all_items)} total items")
+        async with self._cycle_lock:
+            logger.info("=== Newsroom Scheduler: Starting ingestion cycle ===")
 
-        # Step 2: Deduplicate by URL
-        seen_urls: set = set()
-        unique_items: List[SourceItem] = []
-        for item in all_items:
-            if item.url not in seen_urls:
-                seen_urls.add(item.url)
-                unique_items.append(item)
+            # Step 1: Ingest from all sources
+            all_items = await self._ingest_all()
+            logger.info(f"Ingested {len(all_items)} total items")
 
-        logger.info(f"{len(unique_items)} unique items after dedup")
+            # Step 2: Deduplicate by URL
+            seen_urls: set = set()
+            unique_items: List[SourceItem] = []
+            for item in all_items:
+                if item.url not in seen_urls:
+                    seen_urls.add(item.url)
+                    unique_items.append(item)
 
-        # Step 3: Run pipeline on each item
-        processed = 0
-        for item in unique_items[:settings.max_concurrent_stories]:
-            story = Story(
-                title=item.title,
-                source_items=[item],
-                primary_source=item,
-                tags=item.tags,
-            )
+            logger.info(f"{len(unique_items)} unique items after dedup")
 
-            try:
-                result = await self.pipeline.run_full_pipeline(story)
+            candidate_urls = [item.url for item in unique_items if item.url]
+            new_urls = set(self.db.filter_new_urls(candidate_urls))
+            new_items = [item for item in unique_items if not item.url or item.url in new_urls]
+            logger.info(f"{len(new_items)} items are new since the last DB sync")
 
-                # Save to database
-                article_id = self.db.save_story(result)
-                if article_id:
-                    # Index in Meilisearch
-                    self.search.index_article(article_id)
-                    processed += 1
+            if not new_items:
+                logger.info("No new items to process this cycle")
+                return 0
 
-            except Exception as e:
-                logger.error(f"Pipeline failed for '{item.title[:60]}': {e}")
+            # Step 3: Run pipeline on each item
+            processed = 0
+            for item in new_items[:settings.max_concurrent_stories]:
+                story = Story(
+                    title=item.title,
+                    source_items=[item],
+                    primary_source=item,
+                    tags=item.tags,
+                )
 
-        logger.info(f"=== Cycle complete: {processed}/{len(unique_items)} stories processed ===")
-        return processed
+                try:
+                    result = await self.pipeline.run_full_pipeline(story)
+
+                    # Save to database
+                    article_id = self.db.save_story(result)
+                    if article_id:
+                        # Index in Meilisearch
+                        self.search.index_article(article_id)
+                        processed += 1
+
+                except Exception as e:
+                    logger.error(f"Pipeline failed for '{item.title[:60]}': {e}")
+
+            logger.info(f"=== Cycle complete: {processed}/{len(new_items)} new stories processed ===")
+            return processed
 
     async def run_forever(self, interval_minutes: int = 15):
         """Run the ingestion cycle on a loop."""

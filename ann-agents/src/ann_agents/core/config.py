@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Dict, Optional
+from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from pydantic_settings import BaseSettings
 from pydantic import Field
 
@@ -35,6 +36,10 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
 
+    scheduler_enabled: bool = Field(default=True, alias="ANN_SCHEDULER_ENABLED")
+    scheduler_interval_minutes: int = Field(default=15, alias="ANN_SCHEDULER_INTERVAL_MINUTES")
+    scheduler_startup_delay_seconds: int = Field(default=5, alias="ANN_SCHEDULER_STARTUP_DELAY_SECONDS")
+
     # Meilisearch
     meilisearch_host: str = Field(default="http://localhost:7700", alias="MEILISEARCH_HOST")
     meilisearch_api_key: Optional[str] = Field(default=None, alias="MEILISEARCH_API_KEY")
@@ -51,6 +56,24 @@ class Settings(BaseSettings):
     llm_premium_model: str = Field(default="claude-sonnet-4")  # Claude/GPT
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @property
+    def sqlalchemy_database_url(self) -> str:
+        """Normalize Prisma-style DATABASE_URL for SQLAlchemy drivers.
+
+        Prisma commonly appends `?schema=public`, but psycopg/libpq does not
+        recognize `schema` as a valid DSN key. Strip it for Python services.
+        """
+        parsed = urlparse(self.database_url)
+        if not parsed.query:
+            return self.database_url
+
+        query_items = parse_qsl(parsed.query, keep_blank_values=True)
+        filtered = [(key, value) for key, value in query_items if key.lower() != "schema"]
+        if len(filtered) == len(query_items):
+            return self.database_url
+
+        return urlunparse(parsed._replace(query=urlencode(filtered)))
 
 
 settings = Settings()

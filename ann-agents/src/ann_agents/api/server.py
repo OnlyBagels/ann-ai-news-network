@@ -10,6 +10,7 @@ Provides endpoints that the Next.js frontend can call to:
 from __future__ import annotations
 
 import asyncio
+from contextlib import suppress
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -39,6 +40,7 @@ pipeline_state: Dict[str, any] = {
     "stories_processed": 0,
     "is_running": False,
 }
+_scheduler_task: Optional[asyncio.Task] = None
 
 
 class IngestRequest(BaseModel):
@@ -229,9 +231,58 @@ async def create_assignment(
 @app.on_event("startup")
 async def startup():
     """Initialize on server start."""
+    global _scheduler_task
     logger.info("ANN Agent Service starting up...")
-    # Run initial ingestion in background
+    if settings.scheduler_enabled:
+        logger.info(
+            "Scheduler loop enabled (interval={}m, delay={}s)",
+            settings.scheduler_interval_minutes,
+            settings.scheduler_startup_delay_seconds,
+        )
+        _scheduler_task = asyncio.create_task(_run_scheduler_loop())
+        return
+
+    # Fallback mode: single startup cycle only.
     asyncio.create_task(_initial_ingest())
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    """Stop background scheduler loop cleanly."""
+    global _scheduler_task
+    scheduler.stop()
+    if _scheduler_task and not _scheduler_task.done():
+        _scheduler_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await _scheduler_task
+
+
+async def _run_scheduler_loop():
+    """Run the scheduler forever and keep pipeline health state updated."""
+    delay_seconds = max(0, settings.scheduler_startup_delay_seconds)
+    if delay_seconds:
+        await asyncio.sleep(delay_seconds)
+
+    interval_minutes = max(1, settings.scheduler_interval_minutes)
+    scheduler._running = True
+    logger.info(f"Scheduler started, running every {interval_minutes} minutes")
+
+    while scheduler._running:
+        pipeline_state["is_running"] = True
+        pipeline_state["status"] = "running"
+        try:
+            processed = await scheduler.run_once()
+            pipeline_state["last_run"] = datetime.utcnow().isoformat()
+            pipeline_state["stories_processed"] += processed
+            pipeline_state["status"] = "idle"
+        except Exception as exc:
+            pipeline_state["status"] = "error"
+            logger.error(f"Scheduled ingestion cycle failed: {exc}")
+        finally:
+            pipeline_state["is_running"] = False
+
+        logger.info(f"Sleeping for {interval_minutes} minutes...")
+        await asyncio.sleep(interval_minutes * 60)
 
 
 async def _initial_ingest():

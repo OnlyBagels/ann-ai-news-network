@@ -23,7 +23,7 @@ class MeilisearchSync:
     def __init__(self):
         self.meili = Client(settings.meilisearch_host, settings.meilisearch_api_key)
         self.index = self.meili.index("articles")
-        self.engine = create_engine(settings.database_url)
+        self.engine = create_engine(settings.sqlalchemy_database_url)
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def index_article(self, article_id: str) -> bool:

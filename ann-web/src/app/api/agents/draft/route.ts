@@ -51,12 +51,17 @@ interface DraftStory {
   content?: string | null;
   tags?: string[];
   category?: string;
+  section?: string;
+  region?: string;
+  subCategory?: string;
   source?: string;
   sourceUrl?: string | null;
   author?: string | null;
   publishedAt?: string;
   headline?: string | null;
   storyStatus?: string;
+  humanReviewer?: string | null;
+  humanNotes?: string | null;
   agentsInvolved?: string[];
   sourcesAnalyzed?: number;
   factCheckStatus?: string;
@@ -115,6 +120,22 @@ function sanitizeStatus(s: string | undefined): (typeof VALID_STATUSES)[number] 
   return "needs_human_review";
 }
 
+const VALID_SECTIONS = [
+  "world", "politics", "business", "tech", "science",
+  "climate", "health", "sports", "culture", "opinion",
+] as const;
+const VALID_REGIONS = [
+  "us", "eu", "uk", "asia", "africa", "me", "latam", "oceania",
+  "ru", "ua", "cn", "jp", "global",
+] as const;
+
+function sanitizeSection(s: string | undefined): string {
+  return s && (VALID_SECTIONS as readonly string[]).includes(s) ? s : "tech";
+}
+function sanitizeRegion(s: string | undefined): string {
+  return s && (VALID_REGIONS as readonly string[]).includes(s) ? s : "global";
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -151,6 +172,8 @@ export async function POST(req: NextRequest) {
   const slug =
     s.slug || `${slugify(s.title)}-${(s.id || Date.now().toString()).slice(-6)}`;
   const category = sanitizeCategory(s.category);
+  const section = sanitizeSection(s.section);
+  const region = sanitizeRegion(s.region);
   const storyStatus = sanitizeStatus(s.storyStatus);
   const publishedAt = s.publishedAt ? new Date(s.publishedAt) : new Date();
 
@@ -161,10 +184,15 @@ export async function POST(req: NextRequest) {
     content: s.content ?? null,
     tags: s.tags || [],
     category,
+    section,
+    region,
+    subCategory: s.subCategory ?? null,
     storyStatus,
     agentsInvolved: s.agentsInvolved || [],
     sourcesAnalyzed: s.sourcesAnalyzed || 0,
     factCheckStatus: s.factCheckStatus || "pending",
+    humanReviewer: s.humanReviewer ?? null,
+    humanNotes: s.humanNotes ?? null,
     overallConfidence: s.confidence?.overallConfidence ?? null,
     sourceQuality: s.confidence?.sourceQuality ?? null,
     controversyScore: s.confidence?.controversyScore ?? null,
