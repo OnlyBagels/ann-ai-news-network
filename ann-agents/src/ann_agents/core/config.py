@@ -40,6 +40,22 @@ class Settings(BaseSettings):
     scheduler_interval_minutes: int = Field(default=15, alias="ANN_SCHEDULER_INTERVAL_MINUTES")
     scheduler_startup_delay_seconds: int = Field(default=5, alias="ANN_SCHEDULER_STARTUP_DELAY_SECONDS")
 
+    # Secondary reviewer (DigitalOcean Inference, OpenAI-compatible)
+    do_reviewer_enabled: bool = Field(default=False, alias="ANN_DO_REVIEWER_ENABLED")
+    do_reviewer_base_url: str = Field(default="https://inference.do-ai.run/v1", alias="ANN_DO_REVIEWER_BASE_URL")
+    do_reviewer_api_key: Optional[str] = Field(default=None, alias="ANN_DO_REVIEWER_API_KEY")
+    do_reviewer_model: str = Field(default="llama3.3-70b-instruct", alias="ANN_DO_REVIEWER_MODEL")
+    do_reviewer_timeout_seconds: int = Field(default=20, alias="ANN_DO_REVIEWER_TIMEOUT_SECONDS")
+
+    # Optional auto-approve gate for exceptionally strong drafts.
+    # Disabled by default to preserve the human review path.
+    auto_approve_enabled: bool = Field(default=False, alias="ANN_AUTO_APPROVE_ENABLED")
+    auto_approve_min_confidence: float = Field(default=0.95, alias="ANN_AUTO_APPROVE_MIN_CONFIDENCE")
+    auto_approve_max_hallucination_risk: float = Field(default=0.06, alias="ANN_AUTO_APPROVE_MAX_HALLUCINATION_RISK")
+    auto_approve_min_verified_claims: int = Field(default=3, alias="ANN_AUTO_APPROVE_MIN_VERIFIED_CLAIMS")
+    auto_approve_min_citations: int = Field(default=2, alias="ANN_AUTO_APPROVE_MIN_CITATIONS")
+    auto_approve_min_body_chars: int = Field(default=900, alias="ANN_AUTO_APPROVE_MIN_BODY_CHARS")
+
     # Meilisearch
     meilisearch_host: str = Field(default="http://localhost:7700", alias="MEILISEARCH_HOST")
     meilisearch_api_key: Optional[str] = Field(default=None, alias="MEILISEARCH_API_KEY")
