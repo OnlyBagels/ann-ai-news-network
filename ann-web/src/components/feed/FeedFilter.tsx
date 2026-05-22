@@ -2,34 +2,78 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { CATEGORIES, type Category } from "@/types";
+import {
+  CATEGORIES,
+  COUNTRIES,
+  GEO_FILTERS,
+  REGIONS,
+  type Category,
+  type GeoFilter,
+  type Region,
+  type Country,
+} from "@/types";
 import { SlidersHorizontal } from "lucide-react";
 
 interface FeedFilterProps {
   activeCategory?: Category;
   activeSort?: "signal" | "newest" | "trending";
+  activeGeo?: GeoFilter;
+  activeRegion?: Region;
+  activeCountry?: Country;
 }
 
-export function FeedFilter({ activeCategory, activeSort = "signal" }: FeedFilterProps) {
+export function FeedFilter({
+  activeCategory,
+  activeSort = "signal",
+  activeGeo,
+  activeRegion,
+  activeCountry,
+}: FeedFilterProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const setCategory = (category?: Category) => {
+  const setParams = (updates: Record<string, string | undefined>) => {
     const params = new URLSearchParams(searchParams.toString());
-    if (category) {
-      params.set("category", category);
-    } else {
-      params.delete("category");
+    for (const [key, value] of Object.entries(updates)) {
+      if (value && value.trim().length > 0) {
+        params.set(key, value);
+      } else {
+        params.delete(key);
+      }
     }
     params.delete("page");
-    router.push(`/?${params.toString()}`);
+    router.push(`/feed?${params.toString()}`);
+  };
+
+  const setCategory = (category?: Category) => {
+    setParams({ category: category || undefined });
   };
 
   const setSort = (sort: "signal" | "newest" | "trending") => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("sort", sort);
-    params.delete("page");
-    router.push(`/?${params.toString()}`);
+    setParams({ sort });
+  };
+
+  const setGeo = (geo?: GeoFilter) => {
+    // Geo groups are high-level presets; clear lower-level selectors.
+    setParams({
+      geo: geo || undefined,
+      region: undefined,
+      country: undefined,
+    });
+  };
+
+  const setRegion = (region?: Region) => {
+    setParams({
+      region: region || undefined,
+      geo: undefined,
+    });
+  };
+
+  const setCountry = (country?: Country) => {
+    setParams({
+      country: country || undefined,
+      geo: undefined,
+    });
   };
 
   return (
@@ -53,6 +97,57 @@ export function FeedFilter({ activeCategory, activeSort = "signal" }: FeedFilter
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Geography Controls */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <label className="space-y-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted">Geo Group</span>
+          <select
+            value={activeGeo || ""}
+            onChange={(e) => setGeo((e.target.value as GeoFilter) || undefined)}
+            className="terminal-input w-full text-xs"
+          >
+            <option value="">All geographies</option>
+            {GEO_FILTERS.map((geo) => (
+              <option key={geo.id} value={geo.id}>
+                {geo.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted">Region</span>
+          <select
+            value={activeRegion || ""}
+            onChange={(e) => setRegion((e.target.value as Region) || undefined)}
+            className="terminal-input w-full text-xs"
+          >
+            <option value="">All regions</option>
+            {REGIONS.map((region) => (
+              <option key={region.id} value={region.id}>
+                {region.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="space-y-1">
+          <span className="text-[10px] font-mono uppercase tracking-wider text-muted">Country</span>
+          <select
+            value={activeCountry || ""}
+            onChange={(e) => setCountry((e.target.value as Country) || undefined)}
+            className="terminal-input w-full text-xs"
+          >
+            <option value="">All countries</option>
+            {COUNTRIES.map((country) => (
+              <option key={country.id} value={country.id}>
+                {country.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {/* Category Chips */}

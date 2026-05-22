@@ -6,7 +6,6 @@ import Link from "next/link";
 import {
   ArrowLeft,
   ArrowUpRight,
-  Clock,
   ExternalLink,
   Lock,
   MessageSquare,
@@ -81,6 +80,8 @@ export default function ArticlePage() {
   const categoryColor = category?.color ?? "text-muted";
   const byline = bylineFor(article.category);
   const readMinutes = readingTime(article);
+  const externalSourceUrl =
+    article.sourceUrl || (article.url.startsWith("http") ? article.url : undefined);
 
   return (
     <article className="max-w-3xl mx-auto">
@@ -127,15 +128,19 @@ export default function ArticlePage() {
         {/* Source link (right-aligned) */}
         <div className="mt-4 flex items-center justify-between gap-3 text-xs font-mono text-muted-foreground">
           <span>Source: {article.source}</span>
-          <a
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green transition-colors"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            Open original
-          </a>
+          {externalSourceUrl ? (
+            <a
+              href={externalSourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green transition-colors"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              Open original
+            </a>
+          ) : (
+            <span className="text-[11px] text-muted-foreground/70">No external source link</span>
+          )}
         </div>
       </header>
 

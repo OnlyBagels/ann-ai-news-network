@@ -59,6 +59,7 @@ def _serialize_story(story: Story) -> Dict[str, Any]:
         "category": _enum_value(story.category) if story.category else None,
         "section": story.section,
         "region": story.region,
+        "country": story.country,
         "headline": story.headline,
         "storyStatus": _enum_value(story.status),
         "agentsInvolved": [_enum_value(r) for r in story.agents_involved],

@@ -20,9 +20,21 @@ interface ReviewArticle {
   id: string;
   title: string;
   slug: string;
+  url: string;
+  source: string;
+  sourceUrl: string | null;
+  author: string | null;
+  publishedAt: string;
   summary: string;
+  tlDr: string | null;
+  content: string | null;
+  tags: string[];
   category: string;
+  section: string | null;
+  region: string | null;
+  country: string | null;
   storyStatus: string;
+  sourcesAnalyzed: number;
   riskLevel: string;
   requiresHumanReview: boolean;
   overallConfidence: number | null;
@@ -208,6 +220,27 @@ export default function ReviewQueuePage() {
                     <p className="text-xs text-muted mt-1 line-clamp-2 font-mono">
                       {article.summary}
                     </p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-muted">
+                      {article.section && (
+                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
+                          {article.section}
+                        </span>
+                      )}
+                      {article.region && (
+                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
+                          {article.region}
+                        </span>
+                      )}
+                      {article.country && article.country !== "global" && (
+                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
+                          {article.country}
+                        </span>
+                      )}
+                      <span className="inline-flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatDate(article.publishedAt)}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Quick Actions */}
@@ -337,6 +370,76 @@ export default function ReviewQueuePage() {
                     </div>
                   )}
 
+                  {/* Draft body and source pack */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-mono text-muted">Draft article</p>
+                    <div className="border border-border rounded-md bg-terminal-bg/60 p-3 space-y-3">
+                      {article.tlDr && (
+                        <div className="text-xs font-mono text-accent-cyan border-l border-accent-cyan/40 pl-2">
+                          <span className="text-accent-cyan/70">TL;DR </span>
+                          {article.tlDr}
+                        </div>
+                      )}
+                      <div className="space-y-3 text-sm leading-relaxed text-foreground/90">
+                        {splitArticleBody(article.content || article.summary).length > 0 ? (
+                          splitArticleBody(article.content || article.summary).map((paragraph, idx) => (
+                            <p key={idx}>{paragraph}</p>
+                          ))
+                        ) : (
+                          <p className="text-xs text-muted">No draft body generated.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-mono text-muted">Sources</p>
+                    <div className="border border-border rounded-md bg-terminal-bg/60 p-3 space-y-2 text-xs font-mono text-muted">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-foreground">{article.source}</span>
+                        {article.author && <span>by {article.author}</span>}
+                        <span className="text-muted/70">
+                          {article.sourcesAnalyzed} source
+                          {article.sourcesAnalyzed === 1 ? "" : "s"} analyzed
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4">
+                        <a
+                          href={article.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          Canonical story URL
+                        </a>
+                        {article.sourceUrl && (
+                          <a
+                            href={article.sourceUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green"
+                          >
+                            <ExternalLink className="w-3 h-3" />
+                            Original source link
+                          </a>
+                        )}
+                      </div>
+                      {article.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {article.tags.slice(0, 10).map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-[10px] text-muted border border-border rounded px-1.5 py-0.5"
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Agent Actions */}
                   {article.agentActions.length > 0 && (
                     <div>
@@ -429,6 +532,13 @@ export default function ReviewQueuePage() {
       )}
     </div>
   );
+}
+
+function splitArticleBody(text: string): string[] {
+  return text
+    .split(/\n{2,}/)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
 function DetailBox({

@@ -53,6 +53,7 @@ interface DraftStory {
   category?: string;
   section?: string;
   region?: string;
+  country?: string;
   subCategory?: string;
   source?: string;
   sourceUrl?: string | null;
@@ -136,6 +137,14 @@ function sanitizeRegion(s: string | undefined): string {
   return s && (VALID_REGIONS as readonly string[]).includes(s) ? s : "global";
 }
 
+const COUNTRY_CODE_RE = /^[a-z]{2}$/;
+function sanitizeCountry(s: string | undefined): string {
+  if (!s) return "global";
+  const value = s.trim().toLowerCase();
+  if (value === "global") return "global";
+  return COUNTRY_CODE_RE.test(value) ? value : "global";
+}
+
 function slugify(text: string): string {
   return text
     .toLowerCase()
@@ -174,6 +183,7 @@ export async function POST(req: NextRequest) {
   const category = sanitizeCategory(s.category);
   const section = sanitizeSection(s.section);
   const region = sanitizeRegion(s.region);
+  const country = sanitizeCountry(s.country);
   const storyStatus = sanitizeStatus(s.storyStatus);
   const publishedAt = s.publishedAt ? new Date(s.publishedAt) : new Date();
 
@@ -186,6 +196,7 @@ export async function POST(req: NextRequest) {
     category,
     section,
     region,
+    country,
     subCategory: s.subCategory ?? null,
     storyStatus,
     agentsInvolved: s.agentsInvolved || [],

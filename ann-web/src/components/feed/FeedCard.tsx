@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowUpRight, Clock, Tag } from "lucide-react";
+import { ArrowUpRight, Clock } from "lucide-react";
 import { cn, formatDate, scoreColor, scoreBg } from "@/lib/utils";
 import type { Article } from "@/types";
-import { CATEGORIES } from "@/types";
+import { CATEGORIES, SECTIONS } from "@/types";
 
 interface FeedCardProps {
   article: Article;
@@ -12,7 +12,14 @@ interface FeedCardProps {
 
 export function FeedCard({ article }: FeedCardProps) {
   const category = CATEGORIES.find((c) => c.id === article.category);
+  const section = article.section ? SECTIONS.find((s) => s.id === article.section) : undefined;
+  const showSectionBadge = !!section && article.section !== "tech";
   const categoryColor = category?.color ?? "text-muted";
+  const sectionColor = section?.color ?? "text-muted";
+  const badgeLabel = showSectionBadge
+    ? section?.label || article.section
+    : category?.label || article.category;
+  const badgeColor = showSectionBadge ? sectionColor : categoryColor;
 
   return (
     <article className="group border border-border rounded-sm bg-terminal-card hover:bg-terminal-hover transition-all duration-200 hover:border-accent-cyan/20">
@@ -22,11 +29,11 @@ export function FeedCard({ article }: FeedCardProps) {
           <span
             className={cn(
               "category-badge",
-              categoryColor,
-              categoryColor.replace("text-", "border-") + "/30"
+              badgeColor,
+              badgeColor.replace("text-", "border-") + "/30"
             )}
           >
-            {category?.label ?? article.category}
+            {badgeLabel}
           </span>
           <span className="flex items-center gap-1 text-[11px] font-mono text-muted">
             <Clock className="w-3 h-3" />

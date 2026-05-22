@@ -48,6 +48,8 @@ STRUCTURE (inverted pyramid)
 ATTRIBUTION
 - Cite the source by name when you quote a number, claim, or direct
   phrase.
+- When the dossier contains multiple sources, name at least two distinct
+  sources in the article body.
 - Do not invent facts not present in the source or the research
   dossier.
 

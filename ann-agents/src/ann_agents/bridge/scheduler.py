@@ -1,10 +1,11 @@
 """Scheduler - Periodically ingests sources and runs the agent pipeline.
 
 Runs on a configurable interval to:
-1. Ingest from all configured sources (RSS, HN, arXiv, GitHub, HuggingFace)
-2. Run the agent pipeline on each story
-3. Save results to the database
-4. Index in Meilisearch
+1. Ingest from broad all-news feeds by default
+2. Optionally add AI-specialist sources when explicitly enabled
+3. Run the agent pipeline on each story
+4. Save results to the database
+5. Index in Meilisearch
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
 class NewsroomScheduler:
-    """Orchestrates periodic ingestion and processing of AI news."""
+    """Orchestrates periodic ingestion and processing of all-news coverage."""
 
     def __init__(self):
         self.ingester = SourceIngester()
@@ -118,36 +119,25 @@ class NewsroomScheduler:
         """Ingest from all configured sources."""
         all_items: List[SourceItem] = []
 
-        # RSS Feeds (AI news sources)
-        rss_feeds = [
-            "https://openai.com/blog/rss.xml",
-            "https://www.anthropic.com/feed.xml",
-            "https://blog.google/technology/ai/rss/",
-            "https://ai.meta.com/blog/rss/",
-            "https://deepmind.google/blog/rss.xml",
-            "https://mistral.ai/news/rss/",
-            "https://huggingface.co/blog/feed.xml",
-            "https://news.ycombinator.com/rss",
-        ]
+        # Default: broad all-news feed mix (world, politics, business, tech,
+        # science, climate, health, sports, culture).
+        news_items = await self.ingester.ingest_news_feeds(
+            limit_per_feed=max(1, settings.all_news_limit_per_feed)
+        )
+        all_items.extend(news_items)
 
-        for feed_url in rss_feeds:
-            items = await self.ingester.ingest_rss(feed_url)
-            all_items.extend(items)
+        # Optional: AI-specialist sources for users who explicitly want them.
+        if settings.include_ai_specialist_sources:
+            hn_items = await self.ingester.ingest_hn(top_n=20)
+            all_items.extend(hn_items)
 
-        # Hacker News
-        hn_items = await self.ingester.ingest_hn(top_n=30)
-        all_items.extend(hn_items)
+            arxiv_items = await self.ingester.ingest_arxiv(max_results=12)
+            all_items.extend(arxiv_items)
 
-        # arXiv
-        arxiv_items = await self.ingester.ingest_arxiv(max_results=20)
-        all_items.extend(arxiv_items)
+            github_items = await self.ingester.ingest_github_trending()
+            all_items.extend(github_items)
 
-        # GitHub Trending
-        github_items = await self.ingester.ingest_github_trending()
-        all_items.extend(github_items)
-
-        # HuggingFace
-        hf_items = await self.ingester.ingest_huggingface(limit=20)
-        all_items.extend(hf_items)
+            hf_items = await self.ingester.ingest_huggingface(limit=12)
+            all_items.extend(hf_items)
 
         return all_items

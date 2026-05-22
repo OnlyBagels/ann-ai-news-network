@@ -189,6 +189,15 @@ class Story(BaseModel):
     tags: List[str] = Field(default_factory=list)
     category: Optional[Category] = None
 
+    # All-News taxonomy: top-level newsroom section + geographic region.
+    # `section` is one of the 10 ANN sections (world, politics, business,
+    # tech, science, climate, health, sports, culture, opinion). `region`
+    # is a geographic tag (us, eu, asia, etc.) — independent of section.
+    # TriageEditor sets both; the article inherits them in the DB.
+    section: Optional[str] = None
+    region: Optional[str] = None
+    country: Optional[str] = None
+
     # Pipeline state
     status: StoryStatus = StoryStatus.RAW
     agent_actions: List[AgentAction] = Field(default_factory=list)

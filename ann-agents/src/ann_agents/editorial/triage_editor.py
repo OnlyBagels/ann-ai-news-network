@@ -1,18 +1,19 @@
-"""TriageEditor — the assigning editor.
+"""TriageEditor - the assigning editor.
 
 The old pipeline ran all six beat reporters on every story in parallel.
-Wasteful and not how a real newsroom works: an editor reads the
-incoming wire, decides if it's worth covering, picks the right beat,
-and hands it to one reporter. That reporter then owns the story.
+Wasteful and not how a real newsroom works: an editor reads the incoming
+wire, decides if it's worth covering, picks the right beat, and hands it
+to one reporter. That reporter then owns the story.
 
-TriageEditor does exactly that. One cheap LLM call up front. Outputs
-the assigned reporter role; the pipeline then runs only that reporter
-instead of fanning out to six.
+TriageEditor does exactly that. One cheap LLM call up front. Outputs the
+assigned reporter role; the pipeline then runs only that reporter instead
+of fanning out to six.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from typing import Optional
 
 from loguru import logger
@@ -26,8 +27,8 @@ from ann_agents.llm.router import LLMTier, llm_router
 _BEAT_TO_REPORTER = {
     Category.MODELS: AgentRole.MODEL_REPORTER,
     Category.OPEN_SOURCE: AgentRole.OPEN_SOURCE_REPORTER,
-    Category.CODING_AI: AgentRole.MODEL_REPORTER,        # closest match
-    Category.AGENTS: AgentRole.OPEN_SOURCE_REPORTER,     # closest match
+    Category.CODING_AI: AgentRole.MODEL_REPORTER,  # closest match
+    Category.AGENTS: AgentRole.OPEN_SOURCE_REPORTER,  # closest match
     Category.RESEARCH: AgentRole.RESEARCH_REPORTER,
     Category.SECURITY: AgentRole.SECURITY_REPORTER,
     Category.REGULATION: AgentRole.REGULATION_REPORTER,
@@ -36,26 +37,101 @@ _BEAT_TO_REPORTER = {
 
 
 _TRIAGE_PROMPT = """\
-You are the Triage Editor at ANN. Incoming wire stories cross your
-desk. For each one you decide:
+You are the Triage Editor at ANN. Incoming wire stories cross your desk.
+ANN is a global newsroom covering all beats, all regions, all countries.
 
-1. Which beat owns it (one of: models, open_source, coding_ai,
-   agents, research, security, funding, regulation).
-2. How load-bearing the story is (interest_score 0-100). High score =
-   readers actively need to know this today. Low score = filler,
-   incremental, or already widely covered.
+For each story you decide five things:
 
-You see the title, source, and an excerpt of the body. Return a JSON
-object exactly:
+1) Which top-level SECTION owns it. One of:
+   world, politics, business, tech, science, climate, health, sports,
+   culture, opinion
+
+2) If the section is "tech" and the story is specifically AI-related,
+   also pick a CATEGORY for finer routing. One of:
+   models, open_source, coding_ai, agents, research, security, funding,
+   regulation.
+   For non-AI tech stories, or any non-tech section, set category to the
+   closest fit or null.
+
+3) Which broad REGION the story centers on. One of:
+   us, eu, uk, asia, africa, me, latam, oceania, ru, ua, cn, jp, global
+
+4) Which COUNTRY is the center of gravity, using lowercase 2-letter code
+   when clear (for example: us, ca, mx, br, gb, fr, de, in, cn, jp, au).
+   Use "global" when no single country dominates.
+
+5) How load-bearing the story is, interest_score 0-100.
+   High means readers actively need it today.
+
+Return a JSON object exactly:
 {
-  "category": "models" | "open_source" | "coding_ai" | "agents" |
-              "research" | "security" | "funding" | "regulation",
+  "section": "world" | "politics" | "business" | "tech" | "science"
+            | "climate" | "health" | "sports" | "culture" | "opinion",
+  "category": "models" | "open_source" | "coding_ai" | "agents"
+             | "research" | "security" | "funding" | "regulation"
+             | null,
+  "region": "us" | "eu" | "uk" | "asia" | "africa" | "me" | "latam"
+           | "oceania" | "ru" | "ua" | "cn" | "jp" | "global",
+  "country": "<2-letter code or global>",
   "interest_score": 0-100,
-  "rationale": "one short sentence explaining why this beat fits"
+  "rationale": "one short sentence on section + region + country choice"
 }
 
-Be decisive. Pick the single best beat — do not return arrays.
+Be decisive. Single section, region, and country only. No arrays.
 """
+
+_VALID_SECTIONS = {
+    "world",
+    "politics",
+    "business",
+    "tech",
+    "science",
+    "climate",
+    "health",
+    "sports",
+    "culture",
+    "opinion",
+}
+_VALID_REGIONS = {
+    "us",
+    "eu",
+    "uk",
+    "asia",
+    "africa",
+    "me",
+    "latam",
+    "oceania",
+    "ru",
+    "ua",
+    "cn",
+    "jp",
+    "global",
+}
+_COUNTRY_CODE_RE = re.compile(r"^[a-z]{2}$")
+
+
+def _normalize_country(value: object) -> Optional[str]:
+    """Normalize a triage country code to lowercase ISO-like form."""
+    if value is None:
+        return None
+
+    country = str(value).strip().lower()
+    if country == "global":
+        return "global"
+    if _COUNTRY_CODE_RE.match(country):
+        return country
+    return None
+
+
+def _default_country_for_region(region: Optional[str]) -> str:
+    """Map singleton regions to country code when triage omits country."""
+    if region == "us":
+        return "us"
+    if region == "uk":
+        return "gb"
+    if region in {"cn", "jp", "ru", "ua"}:
+        return region
+    return "global"
 
 
 class TriageEditor(BaseAgent):
@@ -76,7 +152,7 @@ class TriageEditor(BaseAgent):
             f"TITLE: {story.title}\n"
             f"SOURCE: {src.source_name if src else 'unknown'}\n"
             f"URL: {src.url if src else 'unknown'}\n"
-            f"EXCERPT:\n{excerpt or '(no body — title only)'}"
+            f"EXCERPT:\n{excerpt or '(no body - title only)'}"
         )
 
         result = await llm_router.complete(
@@ -84,27 +160,60 @@ class TriageEditor(BaseAgent):
             system_prompt=apply_voice(_TRIAGE_PROMPT),
             user_prompt=user_prompt,
             response_format={"type": "json_object"},
-            max_tokens=300,
+            max_tokens=360,
         )
 
         if not result:
-            # graceful default: route to the model reporter (the most
-            # general beat) so the pipeline still produces a draft.
+            # Graceful fallback: keep caller values when present. If not,
+            # fall back to tech/models so the pipeline still produces a draft.
+            story.section = story.section or "tech"
+            story.region = story.region or "global"
+            story.country = story.country or _default_country_for_region(story.region)
             story.category = story.category or Category.MODELS
             return story
 
         try:
             data = json.loads(result)
-            cat = parse_category(data.get("category")) or Category.MODELS
-            story.category = cat
+
+            section = (data.get("section") or "").lower().strip()
+            if section in _VALID_SECTIONS:
+                story.section = section
+            else:
+                story.section = story.section or "tech"
+
+            region = (data.get("region") or "").lower().strip()
+            if region in _VALID_REGIONS:
+                story.region = region
+            else:
+                story.region = story.region or "global"
+
+            country = _normalize_country(data.get("country"))
+            if country:
+                story.country = country
+            else:
+                story.country = story.country or _default_country_for_region(story.region)
+
+            # Category is optional now - only set when the story sits in
+            # an AI sub-category. Default to MODELS for tech stories that
+            # do not specify a sub-category so routing still has a fallback.
+            cat = parse_category(data.get("category"))
+            if cat:
+                story.category = cat
+            elif story.section == "tech":
+                story.category = story.category or Category.MODELS
+
             rationale = data.get("rationale") or ""
             interest = data.get("interest_score")
+            cat_label = story.category.value if story.category else "-"
             logger.info(
-                f"[triage] {story.title[:50]} → {cat.value} "
-                f"(interest={interest}) — {rationale[:80]}"
+                f"[triage] {story.title[:50]} -> {story.section}/{story.region}/{story.country} "
+                f"(cat={cat_label}, interest={interest}) - {rationale[:80]}"
             )
         except json.JSONDecodeError as e:
-            logger.warning(f"[triage] bad json from llm: {e}; falling back to MODELS")
+            logger.warning(f"[triage] bad json from llm: {e}; falling back to tech/models")
+            story.section = story.section or "tech"
+            story.region = story.region or "global"
+            story.country = story.country or _default_country_for_region(story.region)
             story.category = story.category or Category.MODELS
 
         return story
@@ -113,10 +222,16 @@ class TriageEditor(BaseAgent):
 def assigned_reporter(story: Story) -> Optional[AgentRole]:
     """Map the triaged category to a reporter role.
 
-    Returns None if no reporter handles the category (defensive — the
-    enum mapping covers all known categories today).
+    Returns None if no reporter handles the category (defensive - the enum
+    mapping covers all known categories today).
     """
+    # Legacy beat reporters are AI-specialists. For non-tech sections,
+    # skip this stage and let the research/editorial stack carry the story.
+    if story.section and story.section != "tech":
+        return None
+
     if not story.category:
-        return AgentRole.MODEL_REPORTER
+        return None
+
     cat = story.category if isinstance(story.category, Category) else Category(story.category)
     return _BEAT_TO_REPORTER.get(cat, AgentRole.MODEL_REPORTER)

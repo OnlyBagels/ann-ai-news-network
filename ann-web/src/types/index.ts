@@ -14,6 +14,7 @@ export interface Article {
   category: Category;
   section?: Section;
   region?: Region;
+  country?: Country;
   subCategory?: string;
   scores: Scores;
   imageUrl?: string;
@@ -216,10 +217,68 @@ export const REGIONS: RegionInfo[] = [
   { id: "jp", label: "Japan" },
 ];
 
+export type Country = string;
+
+export interface CountryInfo {
+  id: Country;
+  label: string;
+}
+
+export const COUNTRIES: CountryInfo[] = [
+  { id: "us", label: "United States" },
+  { id: "ca", label: "Canada" },
+  { id: "mx", label: "Mexico" },
+  { id: "br", label: "Brazil" },
+  { id: "ar", label: "Argentina" },
+  { id: "co", label: "Colombia" },
+  { id: "gb", label: "United Kingdom" },
+  { id: "fr", label: "France" },
+  { id: "de", label: "Germany" },
+  { id: "es", label: "Spain" },
+  { id: "it", label: "Italy" },
+  { id: "in", label: "India" },
+  { id: "cn", label: "China" },
+  { id: "jp", label: "Japan" },
+  { id: "kr", label: "South Korea" },
+  { id: "au", label: "Australia" },
+  { id: "nz", label: "New Zealand" },
+  { id: "za", label: "South Africa" },
+  { id: "ng", label: "Nigeria" },
+  { id: "eg", label: "Egypt" },
+];
+
+export type GeoFilter =
+  | "north-america"
+  | "america"
+  | "americas"
+  | "europe"
+  | "asia"
+  | "africa"
+  | "middle-east"
+  | "oceania";
+
+export interface GeoFilterInfo {
+  id: GeoFilter;
+  label: string;
+}
+
+export const GEO_FILTERS: GeoFilterInfo[] = [
+  { id: "north-america", label: "North America" },
+  { id: "america", label: "America (US)" },
+  { id: "americas", label: "Americas" },
+  { id: "europe", label: "Europe" },
+  { id: "asia", label: "Asia" },
+  { id: "africa", label: "Africa" },
+  { id: "middle-east", label: "Middle East" },
+  { id: "oceania", label: "Oceania" },
+];
+
 export interface FeedQuery {
   category?: Category;
   section?: Section;
   region?: Region;
+  country?: Country;
+  geo?: GeoFilter;
   search?: string;
   sort?: "signal" | "newest" | "trending";
   page?: number;

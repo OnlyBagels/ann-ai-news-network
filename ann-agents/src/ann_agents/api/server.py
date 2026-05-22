@@ -142,6 +142,7 @@ class AssignmentRequest(BaseModel):
     topic: str = Field(..., min_length=1, max_length=500)
     section: Optional[str] = None
     region: Optional[str] = None
+    country: Optional[str] = None
     category: Optional[str] = None
     notes: Optional[str] = None
 
@@ -168,6 +169,10 @@ def _build_assignment_story(req: AssignmentRequest) -> Story:
         url=None,
         primary_source=None,
     )
+    if req.region:
+        story.region = req.region
+    if req.country:
+        story.country = req.country
 
     # Pre-seed category from the request so TriageEditor has a starting hint.
     if req.category:
@@ -191,6 +196,7 @@ def _build_assignment_story(req: AssignmentRequest) -> Story:
             "assignment": True,
             **({"section": req.section} if req.section else {}),
             **({"region": req.region} if req.region else {}),
+            **({"country": req.country} if req.country else {}),
             **({"notes": req.notes} if req.notes else {}),
         },
     )

@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireAdminApi } from "@/lib/auth/server";
 
 /**
  * GET /api/admin/review
  * Returns articles needing human review (risk flags, low confidence, etc.)
  */
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireAdminApi(req);
+  if (auth.response) return auth.response;
+
   try {
     const articles = await prisma.article.findMany({
       where: {
@@ -33,9 +37,21 @@ export async function GET() {
         id: a.id,
         title: a.title,
         slug: a.slug,
+        url: a.url,
+        source: a.source,
+        sourceUrl: a.sourceUrl,
+        author: a.author,
+        publishedAt: a.publishedAt.toISOString(),
         summary: a.summary,
+        tlDr: a.tlDr,
+        content: a.content,
+        tags: a.tags,
         category: a.category,
+        section: a.section,
+        region: a.region,
+        country: a.country,
         storyStatus: a.storyStatus,
+        sourcesAnalyzed: a.sourcesAnalyzed,
         riskLevel: a.riskLevel,
         requiresHumanReview: a.requiresHumanReview,
         overallConfidence: a.overallConfidence,
@@ -70,9 +86,12 @@ export async function GET() {
  * Approve or reject an article
  */
 export async function POST(request: NextRequest) {
+  const auth = await requireAdminApi(request);
+  if (auth.response) return auth.response;
+
   try {
     const body = await request.json();
-    const { articleId, action, reviewer, notes } = body;
+    const { articleId, action, notes } = body;
 
     if (!articleId || !action) {
       return NextResponse.json(
@@ -86,7 +105,7 @@ export async function POST(request: NextRequest) {
         where: { id: articleId },
         data: {
           storyStatus: "approved",
-          humanReviewer: reviewer || "system",
+          humanReviewer: auth.user.email,
           publishedAtReal: new Date(),
         },
       });

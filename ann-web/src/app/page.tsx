@@ -100,7 +100,7 @@ export default async function HomePage() {
           <span className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">Featured · Today</span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Signal of the day</h1>
-        <p className="text-sm text-muted-foreground mt-1">The highest-signal AI stories curated and ranked by relevance.</p>
+        <p className="text-sm text-muted-foreground mt-1">The highest-signal global stories curated and ranked by relevance.</p>
       </header>
 
       {/* Stats row */}
@@ -214,7 +214,7 @@ function EmptyState() {
           <span className="text-[11px] font-mono uppercase tracking-widest text-muted-foreground">Featured · Today</span>
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Signal of the day</h1>
-        <p className="text-sm text-muted-foreground mt-1">The highest-signal AI stories curated and ranked by relevance.</p>
+        <p className="text-sm text-muted-foreground mt-1">The highest-signal global stories curated and ranked by relevance.</p>
       </header>
       <Card className="border-border">
         <CardContent className="p-12 text-center space-y-2">

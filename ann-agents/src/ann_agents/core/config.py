@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     scheduler_enabled: bool = Field(default=True, alias="ANN_SCHEDULER_ENABLED")
     scheduler_interval_minutes: int = Field(default=15, alias="ANN_SCHEDULER_INTERVAL_MINUTES")
     scheduler_startup_delay_seconds: int = Field(default=5, alias="ANN_SCHEDULER_STARTUP_DELAY_SECONDS")
+    all_news_limit_per_feed: int = Field(default=8, alias="ANN_ALL_NEWS_LIMIT_PER_FEED")
+    include_ai_specialist_sources: bool = Field(default=False, alias="ANN_INCLUDE_AI_SPECIALIST_SOURCES")
 
     # Secondary reviewer (DigitalOcean Inference, OpenAI-compatible)
     do_reviewer_enabled: bool = Field(default=False, alias="ANN_DO_REVIEWER_ENABLED")

@@ -3,11 +3,14 @@
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { FeedCard } from "./FeedCard";
 import { NewsletterSignup } from "@/components/shared/NewsletterSignup";
-import type { Category, FeedResponse } from "@/types";
+import type { Category, FeedResponse, GeoFilter, Region, Country } from "@/types";
 import { Loader2 } from "lucide-react";
 
 interface FeedListProps {
   category?: Category;
+  region?: Region;
+  country?: Country;
+  geo?: GeoFilter;
   search?: string;
   sort?: "signal" | "newest" | "trending";
 }
@@ -15,11 +18,17 @@ interface FeedListProps {
 async function fetchFeed({
   pageParam = 1,
   category,
+  region,
+  country,
+  geo,
   search,
   sort,
 }: {
   pageParam: number;
   category?: string;
+  region?: string;
+  country?: string;
+  geo?: string;
   search?: string;
   sort?: string;
 }): Promise<FeedResponse> {
@@ -27,6 +36,9 @@ async function fetchFeed({
   params.set("page", String(pageParam));
   params.set("limit", "20");
   if (category) params.set("category", category);
+  if (region) params.set("region", region);
+  if (country) params.set("country", country);
+  if (geo) params.set("geo", geo);
   if (search) params.set("search", search);
   if (sort) params.set("sort", sort);
 
@@ -35,7 +47,14 @@ async function fetchFeed({
   return res.json();
 }
 
-export function FeedList({ category, search, sort = "signal" }: FeedListProps) {
+export function FeedList({
+  category,
+  region,
+  country,
+  geo,
+  search,
+  sort = "signal",
+}: FeedListProps) {
   const {
     data,
     fetchNextPage,
@@ -45,9 +64,9 @@ export function FeedList({ category, search, sort = "signal" }: FeedListProps) {
     isError,
     error,
   } = useInfiniteQuery({
-    queryKey: ["feed", category, search, sort],
+    queryKey: ["feed", category, region, country, geo, search, sort],
     queryFn: ({ pageParam }) =>
-      fetchFeed({ pageParam, category, search, sort }),
+      fetchFeed({ pageParam, category, region, country, geo, search, sort }),
     getNextPageParam: (lastPage) => {
       if (lastPage.page < lastPage.totalPages) {
         return lastPage.page + 1;
@@ -101,7 +120,7 @@ export function FeedList({ category, search, sort = "signal" }: FeedListProps) {
         <p className="text-xs text-muted/60">
           {search
             ? `No results for "${search}". Try a different search term.`
-            : "Check back soon for new signals."}
+            : "Check back soon for new stories."}
         </p>
       </div>
     );
@@ -133,7 +152,7 @@ export function FeedList({ category, search, sort = "signal" }: FeedListProps) {
                 Loading...
               </span>
             ) : (
-              "Load More Signals"
+              "Load More Stories"
             )}
           </button>
         </div>

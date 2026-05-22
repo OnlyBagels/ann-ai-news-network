@@ -166,7 +166,10 @@ class StoryPipeline:
         """
         role = assigned_reporter(story)
         if role is None or role not in self.reporters:
-            logger.warning(f"[pipeline] no reporter for story.category={story.category}; skipping investigate")
+            logger.info(
+                f"[pipeline] no specialist reporter for section={story.section} "
+                f"category={story.category}; skipping beat-reporter stage"
+            )
             return story
 
         reporter = self.reporters[role]

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdminApi } from "@/lib/auth/server";
 
 /**
  * POST /api/agents/assignment
@@ -29,11 +30,15 @@ interface AssignmentBody {
   topic: string;
   section?: string;
   region?: string;
+  country?: string;
   category?: string;
   notes?: string;
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await requireAdminApi(req);
+  if (auth.response) return auth.response;
+
   let body: AssignmentBody;
   try {
     body = (await req.json()) as AssignmentBody;
@@ -85,6 +90,7 @@ export async function POST(req: NextRequest) {
     topic,
     ...(body.section ? { section: body.section } : {}),
     ...(body.region ? { region: body.region } : {}),
+    ...(body.country ? { country: body.country } : {}),
     ...(body.category ? { category: body.category } : {}),
     ...(body.notes ? { notes: body.notes } : {}),
   };

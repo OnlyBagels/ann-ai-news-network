@@ -2,7 +2,6 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Radio, Globe, Rss, Database } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface Source {
   id: string;
@@ -31,16 +30,17 @@ const sourceIcons: Record<string, React.ElementType> = {
 };
 
 const defaultSources = [
-  { name: "OpenAI Blog", type: "rss", url: "https://openai.com/blog/rss.xml" },
-  { name: "Anthropic Feed", type: "rss", url: "https://www.anthropic.com/feed.xml" },
-  { name: "Google AI Blog", type: "rss", url: "https://blog.google/technology/ai/rss/" },
-  { name: "Meta AI Blog", type: "rss", url: "https://ai.meta.com/blog/rss/" },
-  { name: "DeepMind Blog", type: "rss", url: "https://deepmind.google/blog/rss.xml" },
-  { name: "Mistral AI News", type: "rss", url: "https://mistral.ai/news/rss/" },
-  { name: "HuggingFace Blog", type: "rss", url: "https://huggingface.co/blog/feed.xml" },
-  { name: "Hacker News", type: "api", url: "https://news.ycombinator.com" },
-  { name: "arXiv", type: "api", url: "https://arxiv.org" },
-  { name: "GitHub Trending", type: "api", url: "https://github.com/trending" },
+  { name: "Reuters Top News", type: "rss", url: "https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best" },
+  { name: "BBC News", type: "rss", url: "https://feeds.bbci.co.uk/news/rss.xml" },
+  { name: "Al Jazeera English", type: "rss", url: "https://www.aljazeera.com/xml/rss/all.xml" },
+  { name: "The Guardian World", type: "rss", url: "https://www.theguardian.com/world/rss" },
+  { name: "The Guardian Politics", type: "rss", url: "https://www.theguardian.com/politics/rss" },
+  { name: "NPR News", type: "rss", url: "https://feeds.npr.org/1001/rss.xml" },
+  { name: "Bloomberg Markets", type: "rss", url: "https://feeds.bloomberg.com/markets/news.rss" },
+  { name: "The Verge", type: "rss", url: "https://www.theverge.com/rss/index.xml" },
+  { name: "Nature", type: "rss", url: "https://www.nature.com/nature.rss" },
+  { name: "ESPN Headlines", type: "rss", url: "https://www.espn.com/espn/rss/news" },
+  { name: "Variety", type: "rss", url: "https://variety.com/feed/" },
 ];
 
 export default function SourcesPage() {

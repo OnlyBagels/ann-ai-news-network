@@ -26,7 +26,7 @@ const REGIONS = [
   { value: "asia", label: "Asia" },
   { value: "latam", label: "Latin America" },
   { value: "africa", label: "Africa" },
-  { value: "mena", label: "Middle East & N. Africa" },
+  { value: "me", label: "Middle East" },
 ] as const;
 
 const TOPIC_MAX = 500;
