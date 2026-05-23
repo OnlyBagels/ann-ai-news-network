@@ -12,6 +12,16 @@ class AgentRole(str, Enum):
     """All agent roles in the ANN newsroom."""
 
     # Reporter Agents
+    WORLD_REPORTER = "world_reporter"
+    POLITICS_REPORTER = "politics_reporter"
+    BUSINESS_DESK_REPORTER = "business_desk_reporter"
+    TECH_REPORTER = "tech_reporter"
+    SCIENCE_REPORTER = "science_reporter"
+    CLIMATE_REPORTER = "climate_reporter"
+    HEALTH_REPORTER = "health_reporter"
+    SPORTS_REPORTER = "sports_reporter"
+    CULTURE_REPORTER = "culture_reporter"
+    OPINION_REPORTER = "opinion_reporter"
     MODEL_REPORTER = "model_reporter"
     OPEN_SOURCE_REPORTER = "open_source_reporter"
     RESEARCH_REPORTER = "research_reporter"

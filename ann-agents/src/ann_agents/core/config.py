@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     scheduler_startup_delay_seconds: int = Field(default=5, alias="ANN_SCHEDULER_STARTUP_DELAY_SECONDS")
     all_news_limit_per_feed: int = Field(default=8, alias="ANN_ALL_NEWS_LIMIT_PER_FEED")
     include_ai_specialist_sources: bool = Field(default=False, alias="ANN_INCLUDE_AI_SPECIALIST_SOURCES")
+    reporter_execution_mode: str = Field(default="all", alias="ANN_REPORTER_EXECUTION_MODE")
+    reporter_parallel_limit: int = Field(default=24, alias="ANN_REPORTER_PARALLEL_LIMIT")
 
     # Secondary reviewer (DigitalOcean Inference, OpenAI-compatible)
     do_reviewer_enabled: bool = Field(default=False, alias="ANN_DO_REVIEWER_ENABLED")

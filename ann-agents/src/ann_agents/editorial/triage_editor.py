@@ -35,6 +35,38 @@ _BEAT_TO_REPORTER = {
     Category.FUNDING: AgentRole.BUSINESS_REPORTER,
 }
 
+_SECTION_TO_REPORTER = {
+    "world": AgentRole.WORLD_REPORTER,
+    "politics": AgentRole.POLITICS_REPORTER,
+    "business": AgentRole.BUSINESS_DESK_REPORTER,
+    "tech": AgentRole.TECH_REPORTER,
+    "science": AgentRole.SCIENCE_REPORTER,
+    "climate": AgentRole.CLIMATE_REPORTER,
+    "health": AgentRole.HEALTH_REPORTER,
+    "sports": AgentRole.SPORTS_REPORTER,
+    "culture": AgentRole.CULTURE_REPORTER,
+    "opinion": AgentRole.OPINION_REPORTER,
+}
+
+ALL_REPORTER_ROLES = [
+    AgentRole.WORLD_REPORTER,
+    AgentRole.POLITICS_REPORTER,
+    AgentRole.BUSINESS_DESK_REPORTER,
+    AgentRole.TECH_REPORTER,
+    AgentRole.SCIENCE_REPORTER,
+    AgentRole.CLIMATE_REPORTER,
+    AgentRole.HEALTH_REPORTER,
+    AgentRole.SPORTS_REPORTER,
+    AgentRole.CULTURE_REPORTER,
+    AgentRole.OPINION_REPORTER,
+    AgentRole.MODEL_REPORTER,
+    AgentRole.OPEN_SOURCE_REPORTER,
+    AgentRole.RESEARCH_REPORTER,
+    AgentRole.SECURITY_REPORTER,
+    AgentRole.REGULATION_REPORTER,
+    AgentRole.BUSINESS_REPORTER,
+]
+
 
 _TRIAGE_PROMPT = """\
 You are the Triage Editor at ANN. Incoming wire stories cross your desk.
@@ -225,13 +257,36 @@ def assigned_reporter(story: Story) -> Optional[AgentRole]:
     Returns None if no reporter handles the category (defensive - the enum
     mapping covers all known categories today).
     """
-    # Legacy beat reporters are AI-specialists. For non-tech sections,
-    # skip this stage and let the research/editorial stack carry the story.
-    if story.section and story.section != "tech":
-        return None
+    section = (story.section or "").lower().strip()
+    if section and section != "tech":
+        return _SECTION_TO_REPORTER.get(section)
 
-    if not story.category:
-        return None
+    # Tech desk: prefer explicit AI category route when present.
+    if story.category:
+        cat = story.category if isinstance(story.category, Category) else Category(story.category)
+        return _BEAT_TO_REPORTER.get(cat, AgentRole.MODEL_REPORTER)
 
-    cat = story.category if isinstance(story.category, Category) else Category(story.category)
-    return _BEAT_TO_REPORTER.get(cat, AgentRole.MODEL_REPORTER)
+    # Non-AI tech or unclassified tech fallback.
+    if section == "tech":
+        return AgentRole.TECH_REPORTER
+
+    return None
+
+
+def reporter_roles_for_story(story: Story, execution_mode: str) -> list[AgentRole]:
+    """Resolve which reporter roles should run for this story."""
+    mode = (execution_mode or "assigned").strip().lower()
+    primary = assigned_reporter(story)
+
+    if mode == "all":
+        roles: list[AgentRole] = []
+        if primary:
+            roles.append(primary)
+        for role in ALL_REPORTER_ROLES:
+            if role not in roles:
+                roles.append(role)
+        return roles
+
+    if primary is None:
+        return []
+    return [primary]

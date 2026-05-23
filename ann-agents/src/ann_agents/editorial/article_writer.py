@@ -77,8 +77,10 @@ class ArticleWriter(BaseAgent):
         source_summary = (src.summary if src else None) or story.summary or story.tl_dr
 
         dossier = ""
+        reporter_briefs = []
         if src and src.metadata:
             dossier = (src.metadata.get("research_dossier") or "").strip()
+            reporter_briefs = src.metadata.get("reporter_briefs") or []
 
         body_chars = len((body or "").strip())
         summary_chars = len((source_summary or "").strip())
@@ -99,6 +101,25 @@ class ArticleWriter(BaseAgent):
                 f"{dossier[:6000]}\n"
             )
 
+        reporter_briefs_block = ""
+        if reporter_briefs:
+            lines = []
+            for brief in reporter_briefs[:16]:
+                if not isinstance(brief, dict):
+                    continue
+                reporter = str(brief.get("reporter") or "desk")
+                summary = str(brief.get("summary") or "").strip()
+                if summary:
+                    lines.append(f"- {reporter}: {summary}")
+            if lines:
+                reporter_briefs_block = (
+                    "\n---\n"
+                    "REPORTER DESK BRIEFS (parallel newsroom pass).\n"
+                    "Use these angles as secondary context, but do not invent facts.\n\n"
+                    + "\n".join(lines)
+                    + "\n"
+                )
+
         persona = reporter_for_section(story.section) or reporter_for_category(story.category)
         role_prompt = _build_role_prompt(persona)
 
@@ -110,6 +131,7 @@ class ArticleWriter(BaseAgent):
             f"TAGS: {', '.join(story.tags) if story.tags else '(none)'}\n"
             f"\nSOURCE CONTENT:\n{source_text}"
             f"{dossier_block}"
+            f"{reporter_briefs_block}"
         )
 
         result = await llm_router.complete(
