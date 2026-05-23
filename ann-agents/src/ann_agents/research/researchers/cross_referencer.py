@@ -74,7 +74,7 @@ def _extract_urls(text: str, exclude_host: str = "") -> List[str]:
 class CrossReferenceResearcher:
     name = "cross_ref_researcher"
 
-    async def research(self, story: Story) -> str:
+    async def research(self, story: Story, peer_context: str = "") -> str:
         src = story.primary_source
         if not src or not src.content:
             return ""
@@ -117,12 +117,17 @@ class CrossReferenceResearcher:
             "products, benchmarks, papers.\n"
             "Cite the URL inline. Do not invent details not in the pages.\n"
         )
+        peer_block = ""
+        if peer_context.strip():
+            peer_block = f"\n\nPEER RESEARCH CONTEXT:\n{peer_context[:2500]}"
+
         notes = await llm_router.complete(
             tier=LLMTier.CHEAP,
             system_prompt=apply_voice(synthesis_prompt),
             user_prompt=(
                 f"STORY: {story.title}\n\n"
                 f"LINKED PAGES FROM SOURCE BODY:\n{raw_block[:8000]}"
+                f"{peer_block}"
             ),
             temperature=0.3,
             max_tokens=600,

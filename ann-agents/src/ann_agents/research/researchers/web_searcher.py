@@ -116,7 +116,7 @@ async def _search(query: str, max_results: int = 5) -> List[dict]:
     return await _ddg_search(query, max_results)
 
 
-async def _generate_queries(story: Story) -> List[str]:
+async def _generate_queries(story: Story, peer_context: str = "") -> List[str]:
     """One LLM call to turn a story into 3 distinct search queries."""
     src = story.primary_source
     excerpt = ""
@@ -138,6 +138,11 @@ async def _generate_queries(story: Story) -> List[str]:
         f"BEAT: {story.category.value if story.category else 'unknown'}\n"
         f"EXCERPT:\n{excerpt or '(no body — title only)'}"
     )
+    if peer_context.strip():
+        user_prompt += (
+            "\n\nPEER RESEARCH CONTEXT (earlier round notes):\n"
+            f"{peer_context[:2500]}"
+        )
     result = await llm_router.complete(
         tier=LLMTier.CHEAP,
         system_prompt=apply_voice(role_prompt),
@@ -161,9 +166,9 @@ class WebSearchResearcher:
 
     name = "web_search_researcher"
 
-    async def research(self, story: Story) -> str:
+    async def research(self, story: Story, peer_context: str = "") -> str:
         """Return research notes as a string. Empty string on no findings."""
-        queries = await _generate_queries(story)
+        queries = await _generate_queries(story, peer_context=peer_context)
         logger.info(
             f"[{self.name}] {len(queries)} queries: {queries}"
         )
@@ -217,12 +222,17 @@ class WebSearchResearcher:
             "Cite source titles inline like (Source Title) — do not invent\n"
             "facts not present in the results.\n"
         )
+        peer_block = ""
+        if peer_context.strip():
+            peer_block = f"\n\nPEER RESEARCH CONTEXT:\n{peer_context[:2500]}"
+
         notes = await llm_router.complete(
             tier=LLMTier.CHEAP,
             system_prompt=apply_voice(synthesis_prompt),
             user_prompt=(
                 f"STORY: {story.title}\n\n"
                 f"RAW SEARCH RESULTS:\n{raw_block[:8000]}"
+                f"{peer_block}"
             ),
             temperature=0.3,
             max_tokens=800,

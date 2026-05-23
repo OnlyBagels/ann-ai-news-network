@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from typing import Dict
 
+from ann_agents.collaboration.team_chat import format_team_context_block
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.personas import reporter_for_category, reporter_for_section
 from ann_agents.core.types import AgentRole, Story, parse_category
@@ -104,6 +105,9 @@ RULES
                 parts.append(f"SOURCE SUMMARY:\n{src.summary}")
             if src.content:
                 parts.append(f"SOURCE CONTENT:\n{self._truncate(src.content, max_chars=7000)}")
+        context = format_team_context_block(story, "reporters")
+        if context:
+            parts.append(context)
         return "\n\n".join(parts)
 
 

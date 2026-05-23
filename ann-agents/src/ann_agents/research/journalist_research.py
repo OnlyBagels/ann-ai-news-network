@@ -18,7 +18,9 @@ from typing import List, Tuple
 
 from loguru import logger
 
+from ann_agents.collaboration.team_chat import append_team_round, get_team_context
 from ann_agents.core.base_agent import BaseAgent
+from ann_agents.core.config import settings
 from ann_agents.core.types import AgentRole, Story
 from ann_agents.research.researchers import (
     CrossReferenceResearcher,
@@ -46,18 +48,42 @@ class JournalistResearcher(BaseAgent):
         if not story.title or not story.primary_source:
             return story
 
-        tasks = [r.research(story) for r in self.researchers]
-        results: List = await asyncio.gather(*tasks, return_exceptions=True)
+        rounds = max(1, settings.team_chat_rounds) if settings.team_chat_enabled else 1
+        latest_sections: dict[str, str] = {}
+        peer_context = get_team_context(story, "research")
 
-        sections: List[Tuple[str, str]] = []
-        for researcher, result in zip(self.researchers, results):
-            if isinstance(result, Exception):
-                logger.warning(f"[{researcher.name}] raised: {result}")
-                continue
-            if not isinstance(result, str) or not result.strip():
-                continue
-            sections.append((researcher.name, result.strip()))
+        for round_idx in range(1, rounds + 1):
+            tasks = [r.research(story, peer_context=peer_context) for r in self.researchers]
+            results: List = await asyncio.gather(*tasks, return_exceptions=True)
 
+            round_sections: List[Tuple[str, str]] = []
+            round_notes: List[str] = []
+            for researcher, result in zip(self.researchers, results):
+                if isinstance(result, Exception):
+                    logger.warning(f"[{researcher.name}] raised: {result}")
+                    continue
+                if not isinstance(result, str) or not result.strip():
+                    continue
+                note = result.strip()
+                round_sections.append((researcher.name, note))
+                latest_sections[researcher.name] = note
+                round_notes.append(f"{researcher.name}: {note[:240].replace(chr(10), ' ')}")
+
+            if round_notes:
+                append_team_round(
+                    story,
+                    "research",
+                    round_idx,
+                    round_notes,
+                    max_chars=settings.team_chat_context_chars,
+                )
+                peer_context = get_team_context(story, "research")
+                logger.info(
+                    f"[journalist_researcher] round {round_idx}/{rounds}: "
+                    f"{len(round_sections)}/3 researcher notes"
+                )
+
+        sections = list(latest_sections.items())
         if not sections:
             logger.info("[journalist_researcher] no researcher returned notes")
             return story

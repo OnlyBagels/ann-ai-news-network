@@ -8,6 +8,7 @@ from datetime import datetime
 from loguru import logger
 
 from ann_agents.bridge.publisher import publisher
+from ann_agents.collaboration.team_chat import append_team_round
 from ann_agents.core.config import settings
 from ann_agents.core.types import AgentRole, Story, StoryStatus
 from ann_agents.editorial.article_writer import ArticleWriter
@@ -144,98 +145,193 @@ class StoryPipeline:
         max_roles = max(1, settings.reporter_parallel_limit)
         roles = roles[:max_roles]
 
-        if len(roles) == 1:
-            role = roles[0]
-            reporter = self.reporters.get(role)
-            if reporter is None:
-                logger.warning(f"[pipeline] reporter missing for role={role.value}")
-                return story
-            logger.info(
-                f"[pipeline] reporter mode={settings.reporter_execution_mode}; assigned={role.value}"
-            )
-            return await reporter.run(story)
-
-        logger.info(
-            f"[pipeline] reporter mode={settings.reporter_execution_mode}; "
-            f"running {len(roles)} desks in parallel"
-        )
-
-        role_task_pairs = []
-        for role in roles:
-            reporter = self.reporters.get(role)
-            if reporter is None:
-                logger.warning(f"[pipeline] reporter missing for role={role.value}")
-                continue
-            role_task_pairs.append((role, reporter.run(story.copy(deep=True))))
-
-        if not role_task_pairs:
-            return story
-
-        results = await asyncio.gather(
-            *(task for _, task in role_task_pairs),
-            return_exceptions=True,
-        )
-
+        rounds = self._team_rounds()
         owner_role = assigned_reporter(story)
-        owner_summary = None
-        briefs = []
+        latest_briefs: dict[str, dict] = {}
 
-        for (role, _), result in zip(role_task_pairs, results):
-            if isinstance(result, Exception):
-                logger.error(f"Reporter {role.value} failed: {result}")
-                continue
-            if not isinstance(result, Story):
-                continue
-
-            if result.summary:
-                if role == owner_role:
-                    owner_summary = result.summary
-                briefs.append(
-                    {
+        for round_idx in range(1, rounds + 1):
+            if len(roles) == 1:
+                role = roles[0]
+                reporter = self.reporters.get(role)
+                if reporter is None:
+                    logger.warning(f"[pipeline] reporter missing for role={role.value}")
+                    return story
+                logger.info(
+                    f"[pipeline] reporters round {round_idx}/{rounds}; "
+                    f"mode={settings.reporter_execution_mode}; assigned={role.value}"
+                )
+                result = await reporter.run(story)
+                story = self._merge_stories(story, result)
+                if result.summary:
+                    latest_briefs[role.value] = {
                         "reporter": role.value,
                         "summary": result.summary,
                         "tags": result.tags[:8],
                     }
+                    append_team_round(
+                        story,
+                        "reporters",
+                        round_idx,
+                        [f"{role.value}: {result.summary[:260]}"],
+                        max_chars=settings.team_chat_context_chars,
+                    )
+                continue
+
+            logger.info(
+                f"[pipeline] reporters round {round_idx}/{rounds}; "
+                f"mode={settings.reporter_execution_mode}; running {len(roles)} desks in parallel"
+            )
+
+            role_task_pairs = []
+            for role in roles:
+                reporter = self.reporters.get(role)
+                if reporter is None:
+                    logger.warning(f"[pipeline] reporter missing for role={role.value}")
+                    continue
+                role_task_pairs.append((role, reporter.run(story.copy(deep=True))))
+
+            if not role_task_pairs:
+                return story
+
+            results = await asyncio.gather(
+                *(task for _, task in role_task_pairs),
+                return_exceptions=True,
+            )
+
+            owner_summary = None
+            round_notes = []
+            for (role, _), result in zip(role_task_pairs, results):
+                if isinstance(result, Exception):
+                    logger.error(f"Reporter {role.value} failed: {result}")
+                    continue
+                if not isinstance(result, Story):
+                    continue
+
+                if result.summary:
+                    if role == owner_role:
+                        owner_summary = result.summary
+                    latest_briefs[role.value] = {
+                        "reporter": role.value,
+                        "summary": result.summary,
+                        "tags": result.tags[:8],
+                    }
+                    round_notes.append(f"{role.value}: {result.summary[:260]}")
+
+                story = self._merge_stories(story, result)
+
+            if owner_summary:
+                story.summary = owner_summary
+            if round_notes:
+                append_team_round(
+                    story,
+                    "reporters",
+                    round_idx,
+                    round_notes,
+                    max_chars=settings.team_chat_context_chars,
                 )
 
-            story = self._merge_stories(story, result)
-
-        if owner_summary:
-            story.summary = owner_summary
-
         if story.primary_source is not None:
-            story.primary_source.metadata["reporter_briefs"] = briefs
+            story.primary_source.metadata["reporter_briefs"] = list(latest_briefs.values())
 
         return story
 
     async def _run_editorial(self, story: Story) -> Story:
-        """Run all editorial agents in parallel."""
-        tasks = [agent.run(story.copy(deep=True)) for agent in self.editorial_agents.values()]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        """Run editorial team in collaborative rounds."""
+        rounds = self._team_rounds()
+        for round_idx in range(1, rounds + 1):
+            role_task_pairs = [
+                (role, agent.run(story.copy(deep=True)))
+                for role, agent in self.editorial_agents.items()
+            ]
+            results = await asyncio.gather(
+                *(task for _, task in role_task_pairs),
+                return_exceptions=True,
+            )
 
-        for result in results:
-            if isinstance(result, Story):
+            round_notes = []
+            for (role, _), result in zip(role_task_pairs, results):
+                if isinstance(result, Exception):
+                    logger.error(f"Editorial agent {role.value} failed: {result}")
+                    continue
+                if not isinstance(result, Story):
+                    continue
+
                 story = self._merge_stories(story, result)
-            elif isinstance(result, Exception):
-                logger.error(f"Editorial agent failed: {result}")
 
+                if role == AgentRole.HEADLINE_EDITOR and result.headline:
+                    story.headline = result.headline
+                    round_notes.append(f"{role.value}: {result.headline}")
+                elif role == AgentRole.SUMMARY_EDITOR:
+                    if result.tl_dr:
+                        story.tl_dr = result.tl_dr
+                        round_notes.append(f"{role.value} TLDR: {result.tl_dr[:220]}")
+                    if result.summary:
+                        story.summary = result.summary
+                elif role == AgentRole.TECHNICAL_EDITOR and result.primary_source:
+                    tech = result.primary_source.metadata.get("technical_review")
+                    if tech:
+                        round_notes.append(f"{role.value}: technical issues reviewed")
+                elif role == AgentRole.STYLE_EDITOR and result.primary_source:
+                    style = result.primary_source.metadata.get("style_review")
+                    if style:
+                        round_notes.append(f"{role.value}: style issues reviewed")
+
+            if round_notes:
+                append_team_round(
+                    story,
+                    "editorial",
+                    round_idx,
+                    round_notes,
+                    max_chars=settings.team_chat_context_chars,
+                )
         return story
 
     async def _run_oversight(self, story: Story) -> Story:
-        """Run oversight agents (except EIC) in parallel."""
-        tasks = []
-        for role, agent in self.oversight_agents.items():
-            if role == AgentRole.EDITOR_IN_CHIEF:
-                continue
-            tasks.append(agent.run(story.copy(deep=True)))
+        """Run oversight team in collaborative rounds (excluding EIC)."""
+        rounds = self._team_rounds()
+        for round_idx in range(1, rounds + 1):
+            role_task_pairs = []
+            for role, agent in self.oversight_agents.items():
+                if role == AgentRole.EDITOR_IN_CHIEF:
+                    continue
+                role_task_pairs.append((role, agent.run(story.copy(deep=True))))
 
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        for result in results:
-            if isinstance(result, Story):
+            results = await asyncio.gather(
+                *(task for _, task in role_task_pairs),
+                return_exceptions=True,
+            )
+
+            round_notes = []
+            for (role, _), result in zip(role_task_pairs, results):
+                if isinstance(result, Exception):
+                    logger.error(f"Oversight agent {role.value} failed: {result}")
+                    continue
+                if not isinstance(result, Story):
+                    continue
+
                 story = self._merge_stories(story, result)
-            elif isinstance(result, Exception):
-                logger.error(f"Oversight agent failed: {result}")
+
+                if result.risk is not None:
+                    story.risk = result.risk
+                    round_notes.append(
+                        f"{role.value}: risk={result.risk.risk_level.value}, "
+                        f"flags={len(result.risk.risk_factors)}"
+                    )
+
+            if round_notes:
+                append_team_round(
+                    story,
+                    "oversight",
+                    round_idx,
+                    round_notes,
+                    max_chars=settings.team_chat_context_chars,
+                )
         return story
+
+    def _team_rounds(self) -> int:
+        if not settings.team_chat_enabled:
+            return 1
+        return max(1, settings.team_chat_rounds)
 
     def _merge_stories(self, original: Story, updated: Story) -> Story:
         """Merge one agent's output back onto the shared story."""

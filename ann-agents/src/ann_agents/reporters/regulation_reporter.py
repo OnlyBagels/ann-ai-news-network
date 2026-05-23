@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ann_agents.collaboration.team_chat import format_team_context_block
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, Category, Story, parse_category
 from ann_agents.core.voice import apply_voice
@@ -67,4 +68,7 @@ class RegulationReporter(BaseAgent):
                 parts.append(f"Content: {self._truncate(src.content)}")
             if src.summary:
                 parts.append(f"Summary: {src.summary}")
+        context = format_team_context_block(story, "reporters")
+        if context:
+            parts.append(context)
         return "\n".join(parts)

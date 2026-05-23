@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ann_agents.collaboration.team_chat import format_team_context_block
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, SignalScores, Story
 from ann_agents.core.voice import apply_voice
@@ -17,6 +18,7 @@ class HeadlineEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Generate headline options for a story."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}\nTags: {', '.join(story.tags)}"
+        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
@@ -54,6 +56,7 @@ class TechnicalEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Review and improve technical accuracy."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}\nContent: {self._truncate(story.content or 'N/A', max_chars=5000)}"
+        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
@@ -90,6 +93,7 @@ class StyleEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Apply ANN style guidelines to the story."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}"
+        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
@@ -127,6 +131,7 @@ class SummaryEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Generate TL;DR and improve summary."""
         source_text = f"Title: {story.title}\nContent: {self._truncate(story.content or story.summary or 'N/A', max_chars=4000)}"
+        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,

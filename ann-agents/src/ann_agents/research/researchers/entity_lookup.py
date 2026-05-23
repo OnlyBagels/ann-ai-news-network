@@ -221,7 +221,7 @@ def _classify_source(story: Story) -> tuple[str, str]:
 class EntityLookupResearcher:
     name = "entity_lookup_researcher"
 
-    async def research(self, story: Story) -> str:
+    async def research(self, story: Story, peer_context: str = "") -> str:
         kind, ident = _classify_source(story)
         if kind == "none" or not ident:
             return ""
@@ -250,12 +250,17 @@ class EntityLookupResearcher:
             "dates, names, license, sentiment from comments. Keep it to 1-2\n"
             "paragraphs of prose. Cite specific values; do not invent."
         )
+        peer_block = ""
+        if peer_context.strip():
+            peer_block = f"\n\nPEER RESEARCH CONTEXT:\n{peer_context[:2500]}"
+
         notes = await llm_router.complete(
             tier=LLMTier.CHEAP,
             system_prompt=apply_voice(synthesis_prompt),
             user_prompt=(
                 f"STORY: {story.title}\n\n"
                 f"RAW {kind.upper()} DATA:\n{raw[:6000]}"
+                f"{peer_block}"
             ),
             temperature=0.3,
             max_tokens=500,

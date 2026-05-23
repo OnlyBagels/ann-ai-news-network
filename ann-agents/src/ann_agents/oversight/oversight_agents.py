@@ -6,6 +6,7 @@ import json
 
 import httpx
 
+from ann_agents.collaboration.team_chat import format_team_context_block
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.config import settings
 from ann_agents.core.types import (
@@ -52,6 +53,7 @@ class RiskAgent(BaseAgent):
             f"Summary: {story.summary or 'N/A'}\n"
             f"Content: {self._truncate(story.content or 'N/A', max_chars=5000)}"
         )
+        source_text += format_team_context_block(story, "oversight")
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
@@ -92,6 +94,7 @@ class LegalAgent(BaseAgent):
             f"Summary: {story.summary or 'N/A'}\n"
             f"Sources: {len(story.source_items)}"
         )
+        source_text += format_team_context_block(story, "oversight")
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
@@ -131,6 +134,7 @@ class BiasAgent(BaseAgent):
             f"Summary: {story.summary or 'N/A'}\n"
             f"Tags: {', '.join(story.tags)}"
         )
+        source_text += format_team_context_block(story, "oversight")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
@@ -258,6 +262,7 @@ class EditorInChief(BaseAgent):
             "ARTICLE_SNIPPET:\n"
             f"{(story.content or '')[:3000] or '(none)'}\n"
         )
+        user_prompt += format_team_context_block(story, "oversight")
 
         if settings.do_reviewer_enabled and settings.do_reviewer_api_key:
             do_result = await self._run_do_secondary_review(user_prompt)

@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     include_ai_specialist_sources: bool = Field(default=False, alias="ANN_INCLUDE_AI_SPECIALIST_SOURCES")
     reporter_execution_mode: str = Field(default="all", alias="ANN_REPORTER_EXECUTION_MODE")
     reporter_parallel_limit: int = Field(default=24, alias="ANN_REPORTER_PARALLEL_LIMIT")
+    team_chat_enabled: bool = Field(default=True, alias="ANN_TEAM_CHAT_ENABLED")
+    team_chat_rounds: int = Field(default=2, alias="ANN_TEAM_CHAT_ROUNDS")
+    team_chat_context_chars: int = Field(default=9000, alias="ANN_TEAM_CHAT_CONTEXT_CHARS")
 
     # Secondary reviewer (DigitalOcean Inference, OpenAI-compatible)
     do_reviewer_enabled: bool = Field(default=False, alias="ANN_DO_REVIEWER_ENABLED")
