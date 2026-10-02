@@ -174,7 +174,8 @@ Any server with an OpenAI-compatible `/v1/chat/completions` works: Ollama, llama
 
 ```
 LOCAL_LLM_BASE_URLS=http://ollama:11434/v1      # the local-models profile on this box
-LOCAL_LLM_MODEL=qwen2.5:7b
+LOCAL_LLM_MODEL=gemma4:e4b
+LOCAL_LLM_REASONING_EFFORT=none
 BROADCAST_LLM=local
 ```
 
@@ -231,7 +232,7 @@ WaterSheep's model card reports 61% accuracy on datasets it wasn't trained on. T
 Run a model server on each extra machine:
 
 ```bash
-LOCAL_LLM_MODEL=qwen2.5:7b docker compose -f deploy/model-server.compose.yml up -d
+LOCAL_LLM_MODEL=gemma4:e4b docker compose -f deploy/model-server.compose.yml up -d
 ```
 
 Then list them all on the main server and give the director one writer per server:
