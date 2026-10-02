@@ -129,3 +129,17 @@ def test_existing_urls(monkeypatch, engine):
     monkeypatch.setattr(settings, "database_url", str(engine.url.render_as_string(hide_password=False)))
     insert_article(engine, "a1", "Story")
     assert DatabaseBridge().existing_urls(["https://example.org/a1", "https://example.org/nope"]) == {"https://example.org/a1"}
+
+
+async def test_lean_pipeline_makes_fewer_calls_and_still_fact_checks(monkeypatch):
+    calls = []
+
+    async def fake_complete(self, tier, system_prompt, user_prompt, **kwargs):
+        calls.append(system_prompt[:40])
+        return canned_reply(system_prompt)
+
+    monkeypatch.setattr(router_module.LLMRouter, "complete", fake_complete)
+    story = await StoryPipeline(lean=True).run_full_pipeline(make_story())
+    assert story.status == StoryStatus.APPROVED
+    assert any("Fact-Check Agent" in c for c in calls)
+    assert len(calls) == 5

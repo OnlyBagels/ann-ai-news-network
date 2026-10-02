@@ -137,3 +137,16 @@ def test_router_puts_local_first_for_configured_tiers(monkeypatch):
     assert router._resolve(LLMTier.CHEAP)[0] == "local"
     assert router._resolve(LLMTier.PREMIUM)[0] == "anthropic"
     monkeypatch.setattr(local_module, "_pool", None)
+
+
+async def test_split_newsroom_writes_on_one_backend_and_checks_on_another(store, engine):
+    from ann_agents.broadcast.writer import SplitNewsroom
+
+    insert_article(engine, "a1", "Lab ships a model with a 1M token context window", summary=SUMMARY)
+    store.check_in("v", "web", NOW)
+    writer_pool, desk_pool = FakePool(), FakePool()
+    room = SplitNewsroom(LocalNewsroom(writer_pool, "small", "small"), LocalNewsroom(desk_pool, "big", "big"))
+    result = await director(store, room).tick(NOW)
+    assert result.segment.kind == "story"
+    assert writer_pool.calls == [("small", "DraftScript")]
+    assert desk_pool.calls == [("big", "DeskReview")]

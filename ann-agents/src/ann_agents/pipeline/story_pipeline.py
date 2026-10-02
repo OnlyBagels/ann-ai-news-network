@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import List, Optional
+from typing import Optional
 
 from loguru import logger
 
+from ann_agents.core.config import settings
 from ann_agents.core.types import AgentRole, Story, StoryStatus
 from ann_agents.reporters.model_reporter import ModelReporter
 from ann_agents.reporters.open_source_reporter import OpenSourceReporter
@@ -41,7 +42,12 @@ class StoryPipeline:
     → Editor-in-chief review → Human approval (optional) → Publish
     """
 
-    def __init__(self):
+    def __init__(self, lean: Optional[bool] = None):
+        # Lean mode (NEWSROOM_LEAN=true) is for slow, self-hosted models: one
+        # reporter, no research pass, the headline and summary editors, and
+        # the risk check. The fact-check and the editor-in-chief always run.
+        self.lean = settings.newsroom_lean if lean is None else lean
+
         # Reporter Agents (6)
         self.reporters = {
             AgentRole.MODEL_REPORTER: ModelReporter(),
@@ -74,6 +80,13 @@ class StoryPipeline:
             AgentRole.EDITOR_IN_CHIEF: EditorInChief(),
         }
 
+        if self.lean:
+            self.reporters = {AgentRole.MODEL_REPORTER: self.reporters[AgentRole.MODEL_REPORTER]}
+            for role in (AgentRole.TECHNICAL_EDITOR, AgentRole.STYLE_EDITOR):
+                del self.editorial_agents[role]
+            for role in (AgentRole.LEGAL_AGENT, AgentRole.BIAS_AGENT):
+                del self.oversight_agents[role]
+
     async def run_full_pipeline(self, story: Story) -> Story:
         """Run the complete agent pipeline on a story.
 
@@ -87,7 +100,8 @@ class StoryPipeline:
         story.status = StoryStatus.ENRICHED
 
         # Step 2: Research Agent enriches
-        story = await self.research_agent.run(story)
+        if not self.lean:
+            story = await self.research_agent.run(story)
 
         # Step 3: Fact-Check Agent verifies
         story = await self.fact_check_agent.run(story)

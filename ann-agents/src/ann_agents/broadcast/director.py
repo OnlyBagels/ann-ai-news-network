@@ -36,7 +36,7 @@ from ann_agents.broadcast.standards import apply_rules, check_line, segment_surv
 from ann_agents.broadcast.store import BroadcastStore
 from ann_agents.broadcast.timing import lay_out
 from ann_agents.broadcast.tts import NoVoice, Voice
-from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroom
+from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroom, SplitNewsroom
 
 LEAD = timedelta(seconds=2)  # never book a segment to start in the past
 IDENT_WINDOW = timedelta(minutes=10)  # a show open only airs near the top of its slot
@@ -69,7 +69,7 @@ class Director:
         self,
         store: BroadcastStore,
         lineup: Lineup,
-        newsroom: Optional[Union[ClaudeNewsroom, LocalNewsroom]],
+        newsroom: Optional[Union[ClaudeNewsroom, LocalNewsroom, SplitNewsroom]],
         voice: Voice = NoVoice(),
         daily_budget_usd: float = 5.0,
         viewer_window_seconds: int = 180,

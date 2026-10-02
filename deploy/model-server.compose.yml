@@ -1,0 +1,35 @@
+# A CPU model server for ANN. Run this on each extra machine:
+#
+#   LOCAL_LLM_MODEL=qwen2.5:7b docker compose -f model-server.compose.yml up -d
+#
+# then add http://<this machine>:11434/v1 to LOCAL_LLM_BASE_URLS on the main
+# server and raise BROADCAST_WRITERS by one. Ollama has no authentication:
+# expose port 11434 only on a private network or firewall it to the main server.
+services:
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    environment:
+      OLLAMA_KEEP_ALIVE: "-1"
+      OLLAMA_NUM_PARALLEL: "1"
+      OLLAMA_MAX_LOADED_MODELS: "2"
+    volumes:
+      - ollama:/root/.ollama
+
+  pull:
+    image: ollama/ollama:latest
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        for i in $$(seq 1 30); do ollama list >/dev/null 2>&1 && break; sleep 2; done
+        for m in ${LOCAL_LLM_MODEL:-qwen2.5:7b} ${LOCAL_LLM_PREMIUM_MODEL:-}; do ollama pull "$$m"; done
+    depends_on:
+      - ollama
+
+volumes:
+  ollama:

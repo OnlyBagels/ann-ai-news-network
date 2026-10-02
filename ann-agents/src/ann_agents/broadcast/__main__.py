@@ -18,7 +18,7 @@ from ann_agents.broadcast.director import Director
 from ann_agents.broadcast.lineup import load_lineup
 from ann_agents.broadcast.store import BroadcastStore, make_engine
 from ann_agents.broadcast.tts import make_voice
-from ann_agents.broadcast.writer import ClaudeNewsroom, LocalNewsroom
+from ann_agents.broadcast.writer import ClaudeNewsroom, LocalNewsroom, SplitNewsroom
 from ann_agents.core.config import settings
 from ann_agents.llm.local import local_pool
 
@@ -26,34 +26,45 @@ TICK_SECONDS = 5
 PRUNE_AFTER = timedelta(days=7)
 
 
+def _claude() -> ClaudeNewsroom:
+    if not settings.anthropic_api_key:
+        raise SystemExit("Claude was chosen for the broadcast but ANTHROPIC_API_KEY is not set")
+    from anthropic import AsyncAnthropic
+
+    return ClaudeNewsroom(
+        AsyncAnthropic(api_key=settings.anthropic_api_key),
+        writer_model=settings.broadcast_writer_model,
+        feature_model=settings.broadcast_feature_model,
+        standards_model=settings.broadcast_standards_model,
+    )
+
+
+def _local() -> LocalNewsroom:
+    pool = local_pool()
+    if pool is None:
+        raise SystemExit("Local models were chosen for the broadcast but LOCAL_LLM_BASE_URLS is not set")
+    writer = settings.broadcast_local_writer_model or settings.local_llm_model
+    standards = settings.broadcast_local_standards_model or settings.local_llm_premium_model or writer
+    logger.info(f"[broadcast] local models: {writer} writes, {standards} checks, across {len(pool.urls)} server(s)")
+    return LocalNewsroom(pool, writer_model=writer, standards_model=standards)
+
+
 def build_newsroom():
-    """Claude, self-hosted models, or nothing, per BROADCAST_LLM."""
+    """Claude, self-hosted models, or nothing, per BROADCAST_LLM and BROADCAST_DESK_LLM."""
     choice = settings.broadcast_llm.lower()
     if choice == "auto":
         choice = "claude" if settings.anthropic_api_key else "local" if local_pool() else "none"
+    if choice == "none":
+        logger.warning("[broadcast] no model configured; airing headline reads only")
+        return None
 
-    if choice == "claude":
-        if not settings.anthropic_api_key:
-            raise SystemExit("BROADCAST_LLM=claude needs ANTHROPIC_API_KEY")
-        from anthropic import AsyncAnthropic
-
-        return ClaudeNewsroom(
-            AsyncAnthropic(api_key=settings.anthropic_api_key),
-            writer_model=settings.broadcast_writer_model,
-            feature_model=settings.broadcast_feature_model,
-            standards_model=settings.broadcast_standards_model,
-        )
-    if choice == "local":
-        pool = local_pool()
-        if pool is None:
-            raise SystemExit("BROADCAST_LLM=local needs LOCAL_LLM_BASE_URLS")
-        writer = settings.broadcast_local_writer_model or settings.local_llm_model
-        standards = settings.broadcast_local_standards_model or settings.local_llm_premium_model or writer
-        logger.info(f"[broadcast] writing on {writer} across {len(pool.urls)} server(s)")
-        return LocalNewsroom(pool, writer_model=writer, standards_model=standards)
-
-    logger.warning("[broadcast] no model configured; airing headline reads only")
-    return None
+    writer = _claude() if choice == "claude" else _local()
+    desk_choice = settings.broadcast_desk_llm.lower()
+    if desk_choice in ("same", choice):
+        return writer
+    desk = _claude() if desk_choice == "claude" else _local()
+    logger.info(f"[broadcast] {choice} writes, {desk_choice} runs the standards desk")
+    return SplitNewsroom(writer, desk)
 
 
 def build_director() -> Director:
@@ -85,7 +96,7 @@ async def writer_loop(director: Director, watch: bool, once: bool) -> None:
         if watch:
             director.store.check_in("director-watch", "web", now)
         try:
-            result = await director.tick(now)
+            result = await director.tick()
             if result.action != "booked":
                 logger.debug(f"[broadcast] {result.action}: {result.note}")
         except Exception as e:

@@ -10,6 +10,7 @@ Provides endpoints that the Next.js frontend can call to:
 from __future__ import annotations
 
 import asyncio
+import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -131,8 +132,10 @@ async def get_stats():
 async def startup():
     """Initialize on server start."""
     logger.info("ANN Agent Service starting up...")
-    # Run initial ingestion in background
-    asyncio.create_task(_initial_ingest())
+    # Skip this when a separate newsroom process (python -m ann_agents.main
+    # --newsroom) runs the cycle, so the two don't ingest at the same time.
+    if os.environ.get("AGENT_API_INGEST_ON_START", "true").lower() != "false":
+        asyncio.create_task(_initial_ingest())
 
 
 async def _initial_ingest():

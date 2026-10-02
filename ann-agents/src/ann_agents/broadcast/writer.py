@@ -263,3 +263,17 @@ class LocalNewsroom:
             elif not verdict.supported:
                 unsupported[i] = verdict.reason or "not supported by the facts"
         return DeskResult(unsupported=unsupported, spend=spend, ok=True)
+
+
+class SplitNewsroom:
+    """One backend writes, another runs the standards desk."""
+
+    def __init__(self, writer: Any, desk: Any):
+        self.writer = writer
+        self.desk = desk
+
+    async def write(self, *args: Any, **kwargs: Any) -> WriterResult:
+        return await self.writer.write(*args, **kwargs)
+
+    async def review(self, facts: Sequence[Fact], lines: List[DraftLine]) -> DeskResult:
+        return await self.desk.review(facts, lines)

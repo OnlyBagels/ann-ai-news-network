@@ -63,11 +63,18 @@ class Settings(BaseSettings):
     local_llm_tiers: str = Field(default="cheap,long_context,social,premium", alias="LOCAL_LLM_TIERS")
     local_llm_timeout_seconds: float = Field(default=300.0, alias="LOCAL_LLM_TIMEOUT_SECONDS")
 
+    # Fewer agent calls per story (about 5 instead of 14), for CPU models.
+    newsroom_lean: bool = Field(default=False, alias="NEWSROOM_LEAN")
+
     # Live broadcast
     # Who writes the anchors' lines: auto (Claude if ANTHROPIC_API_KEY is
     # set, else local models if LOCAL_LLM_BASE_URLS is set), claude, local,
     # or none (headline reads only).
     broadcast_llm: str = Field(default="auto", alias="BROADCAST_LLM")
+    # Who runs the standards desk: same (whoever writes), claude, or local.
+    # "claude" with BROADCAST_LLM=local writes on your own servers for free
+    # and pays only for the short review.
+    broadcast_desk_llm: str = Field(default="same", alias="BROADCAST_DESK_LLM")
     broadcast_local_writer_model: Optional[str] = Field(default=None, alias="BROADCAST_LOCAL_WRITER_MODEL")
     broadcast_local_standards_model: Optional[str] = Field(default=None, alias="BROADCAST_LOCAL_STANDARDS_MODEL")
     # Scripts written at once. Set it to the number of model servers.

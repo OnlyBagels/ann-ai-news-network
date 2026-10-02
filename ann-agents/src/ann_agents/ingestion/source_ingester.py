@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import AsyncGenerator, List, Optional
+from typing import List, Optional
 
 from loguru import logger
 
@@ -73,14 +73,15 @@ class SourceIngester:
 
         return items
 
-    async def ingest_arxiv(self, query: str = "cat:cs.AI+OR+cat:cs.LG", max_results: int = 50) -> List[SourceItem]:
+    async def ingest_arxiv(self, query: str = "cat:cs.AI OR cat:cs.LG", max_results: int = 50) -> List[SourceItem]:
         """Ingest papers from arXiv."""
         import arxiv
 
         items: List[SourceItem] = []
         try:
             search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
-            for result in search.results():
+            # arxiv 2.x removed Search.results(); a Client runs the search.
+            for result in arxiv.Client().results(search):
                 item = SourceItem(
                     title=result.title,
                     url=result.entry_id,
@@ -146,10 +147,10 @@ class SourceIngester:
         items: List[SourceItem] = []
         try:
             api = HfApi()
+            # huggingface_hub renamed the task filter to pipeline_tag.
             models = api.list_models(
-                task=task,
+                pipeline_tag=task,
                 sort="downloads",
-                direction=-1,
                 limit=limit,
             )
             for model in models:
@@ -158,8 +159,8 @@ class SourceIngester:
                     url=f"https://huggingface.co/{model.modelId}",
                     source_name="HuggingFace",
                     source_type="api",
-                    published_at=model.created_at or datetime.utcnow(),
-                    summary=model.description or "",
+                    published_at=getattr(model, "created_at", None) or datetime.utcnow(),
+                    summary=getattr(model, "description", None) or "",
                     tags=["open-source", "model"] + (model.tags or []),
                     metadata={
                         "downloads": getattr(model, "downloads", 0),

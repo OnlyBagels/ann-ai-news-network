@@ -139,6 +139,91 @@ The database tests truncate every table, so point `TEST_DATABASE_URL` at a separ
 
 ---
 
+## Deploying
+
+Everything runs on CPU: the site, the newsroom agents, the live channel, the voices (Piper), the picture and the stream encode. Models can be self-hosted on CPU servers, Claude, or both.
+
+### One server
+
+```bash
+cp .env.example .env        # set POSTGRES_PASSWORD, MEILI_MASTER_KEY, and who writes (below)
+docker compose --profile local-models --profile youtube up -d --build
+```
+
+| Service | What it does |
+|---|---|
+| `postgres`, `meilisearch` | Database and search |
+| `migrate` | Applies `ann-web/prisma/migrations`, then exits |
+| `web` | The site on `WEB_PORT` (default 3000) |
+| `newsroom` | Ingests sources, runs the agents, saves stories every `NEWSROOM_INTERVAL_MINUTES` |
+| `agents-api` | The API the admin pages call to start a cycle by hand |
+| `voices` | Downloads the anchors' Piper voices once |
+| `director` | Keeps the live timeline written |
+| `streamer` (profile `youtube`) | Sends the channel to YouTube with `YOUTUBE_STREAM_KEY` |
+| `ollama`, `ollama-pull` (profile `local-models`) | A CPU model server, and a one-off pull of `LOCAL_LLM_MODEL` |
+
+Put a reverse proxy with TLS (Caddy, nginx) in front of `web`. The admin pages have no login yet, so keep `/admin` and `/api/admin` behind the proxy's auth or off the public internet until they do.
+
+### Self-hosted models on CPU
+
+Any server with an OpenAI-compatible `/v1/chat/completions` works: Ollama, llama.cpp's `llama-server`, LM Studio, vLLM. Set:
+
+```
+LOCAL_LLM_BASE_URLS=http://ollama:11434/v1      # the local-models profile on this box
+LOCAL_LLM_MODEL=qwen2.5:7b
+BROADCAST_LLM=local
+```
+
+Local models take every agent tier ahead of hosted providers (narrow that with `LOCAL_LLM_TIERS`), and write and check the anchors' lines with output held to a JSON schema. The standards rules run the same way whatever the model.
+
+CPU models write slower than a segment airs. The director copes in three ways: it writes `BROADCAST_LOOKAHEAD_SECONDS` ahead, it airs a straight headline read whenever less than `BROADCAST_MIN_RUNWAY_SECONDS` is queued, and it drops a script that takes longer than `BROADCAST_WRITE_TIMEOUT_SECONDS`. `.env.example` has settings for CPU. The share of airtime that is written dialogue rather than headline reads grows with the number of model servers.
+
+Measured on a 4 vCPU, 16 GB machine with Ollama and nothing else competing for it:
+
+| Job | `qwen2.5:3b` | `qwen2.5:7b` |
+|---|---|---|
+| One anchor segment, written and reviewed | about 30 s | about 95 s |
+| One story through the lean newsroom (`NEWSROOM_LEAN=true`, 5 calls) | not measured | about 2 min 40 s |
+| One story through the full newsroom (14 calls) | not measured | did not finish one in 2 min 30 s |
+
+What that means in practice:
+
+- The 3B model wrote fast but lost most of its lines to the standards check, so most of what aired was headline reads. Use 7B or larger.
+- The 7B model's script passed. It did add one small detail the source didn't have ("tools for small businesses" where the article said "tools for builders"), and the 7B standards desk let it through.
+- The rules in code catch wrong figures and invented quotes, not wording like that. For a stricter desk, use a bigger local model for the review (`BROADCAST_LOCAL_STANDARDS_MODEL`, or `LOCAL_LLM_PREMIUM_MODEL` on a bigger box), or send only the review to Claude with `BROADCAST_DESK_LLM=claude`. Reviews are short, so that costs little.
+- On CPU, set `NEWSROOM_LEAN=true`. The full newsroom makes about 14 model calls per story.
+
+Pick the model by testing it on your own hardware: run the director with `--once` and check the `writer` and `script.dropped` columns of `BroadcastSegment` for how many lines survive the standards check. A model that loses most lines airs mostly headline reads.
+
+### More CPU servers
+
+Run a model server on each extra machine:
+
+```bash
+LOCAL_LLM_MODEL=qwen2.5:7b docker compose -f deploy/model-server.compose.yml up -d
+```
+
+Then list them all on the main server and give the director one writer per server:
+
+```
+LOCAL_LLM_BASE_URLS=http://10.0.0.11:11434/v1,http://10.0.0.12:11434/v1
+BROADCAST_WRITERS=2
+```
+
+Requests rotate across the servers and skip any that are down. Ollama has no authentication, so keep port 11434 on a private network or firewalled to the main server.
+
+### A Mac (Mac Studio, Mac mini)
+
+Docker on macOS can't use the Mac's GPU, so run Ollama natively (`brew install ollama`, then `ollama serve`) and point the containers at it: `LOCAL_LLM_BASE_URLS=http://host.docker.internal:11434/v1`. Leave out the `local-models` profile.
+
+### Operating it
+
+- Logs: `docker compose logs -f director` shows each booked segment, its writer, its cost and how many lines were cut.
+- Backups: `docker compose exec postgres pg_dump -U ann ann > ann.sql`.
+- Updates: `git pull && docker compose up -d --build`. Migrations run before the site and agents start.
+
+---
+
 ## Running locally
 
 You bring the infra (Postgres, Redis, Meilisearch) and the API keys.

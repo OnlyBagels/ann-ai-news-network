@@ -4,6 +4,7 @@ Usage:
     python -m ann_agents.main                    # Run a demo story through the pipeline
     python -m ann_agents.main --ingest           # Ingest from all sources and process
     python -m ann_agents.main --pipeline         # Run pipeline on existing stories
+    python -m ann_agents.main --newsroom         # Ingest, check and save on a loop (NEWSROOM_INTERVAL_MINUTES)
 """
 
 from __future__ import annotations
@@ -135,7 +136,13 @@ async def main() -> None:
 
     args = sys.argv[1:]
 
-    if "--ingest" in args:
+    if "--newsroom" in args:
+        import os
+
+        from ann_agents.bridge.scheduler import NewsroomScheduler
+
+        await NewsroomScheduler().run_forever(int(os.environ.get("NEWSROOM_INTERVAL_MINUTES", "15")))
+    elif "--ingest" in args:
         await run_ingest()
     elif "--pipeline" in args:
         logger.info("Pipeline mode - would process existing stories from database")
