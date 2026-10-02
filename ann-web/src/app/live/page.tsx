@@ -10,7 +10,7 @@ import { getYouTubeConfig } from "@/lib/youtube";
 export const metadata: Metadata = {
   title: "Live",
   description:
-    "ANN's 24-hour channel: pixel-art anchors read the day's AI news from published ANN stories, checked line by line before air.",
+    "ANN's 24-hour channel: pixel-art anchors read the day's news from published ANN stories, checked line by line before air.",
 };
 
 // The YouTube settings are read per request.

@@ -15,7 +15,7 @@ export default function TermsPage() {
       <Prose>
         <h2>What ANN is</h2>
         <p>
-          ANN publishes short news stories about AI, written by AI and checked by software against their sources (see{" "}
+          ANN publishes news stories written by AI from other outlets&rsquo; reporting and checked by software against those sources (see{" "}
           <Link href="/legal/ai-disclosure">how ANN uses AI</Link>). Stories can contain mistakes. They are for
           information only and are not financial, legal or professional advice. Check the linked source before relying
           on a detail.

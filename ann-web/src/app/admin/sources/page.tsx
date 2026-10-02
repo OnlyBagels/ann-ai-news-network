@@ -159,7 +159,7 @@ export default function SourcesPage() {
           </label>
           <label className="text-xs font-mono text-muted-foreground flex items-center gap-2 sm:pt-6">
             <input id="source-ai-only" type="checkbox" checked={form.aiOnly} onChange={(e) => setForm({ ...form, aiOnly: e.target.checked })} />
-            <span>Every item is AI news (skip WaterSheep&rsquo;s screen)</span>
+            <span>Every item is AI news (skip WaterSheep&rsquo;s screen, file under an AI beat)</span>
           </label>
         </div>
         {formError && <p role="alert" className="text-xs font-mono text-brand">{formError}</p>}

@@ -1,8 +1,8 @@
 # ANN — AI News Network
 
-AI ecosystem intelligence for builders, founders, and operators. No hype. Just signal.
+News from every desk, from world and politics to markets, sports and the internet, written from other outlets' reporting with each one credited and linked. A 24-hour pixel-art channel reads it on air.
 
-ANN ingests AI models, repos, papers, benchmarks, and news, drafts briefings and explainers through an agent pipeline, scores signal vs. hype, runs review under a human editorial gate, then ships to a website, newsletter, and social channels.
+ANN reads 205 feeds, picks the stories that many outlets are covering, and fetches each article. A local model then writes ANN's own report from that text, crediting every outlet it draws on. A fact-check, a second model and an editor decide whether it publishes. ANN takes no political side: related reports are drawn from outlets across Ad Fontes Media's bias ratings, no section takes more than a third of a cycle's picks, and loaded wording sends a story to human review.
 
 **Status:** active development. End-to-end pipeline runs locally. Source is public; contributions welcome.
 
@@ -11,10 +11,12 @@ ANN ingests AI models, repos, papers, benchmarks, and news, drafts briefings and
 ## Pipeline
 
 ```
-sources → ingest → normalize → dedupe → summarize → score → review → human gate → publish
+feeds → screen → pick → corroborate → fetch text → assign beat → write → fact-check → judge → editor → publish
 ```
 
-Sources: 58 RSS feeds plus arXiv, Hacker News, GitHub Trending and Hugging Face models. The feeds cover lab blogs (OpenAI, Google DeepMind, Microsoft Research, Apple, NVIDIA, Mistral, Ai2), AI desks at news sites (The Verge, TechCrunch, Ars Technica, MIT Technology Review, Wired), developer tools (GitHub, JetBrains, LangChain, MCP), open models (Hugging Face, Ollama, vLLM), research (Google Research, METR, Epoch AI), AI security (OWASP GenAI, Trail of Bits, Embrace The Red), funding (Crunchbase, TechCrunch Venture, Sifted) and policy (Federal Register, FTC, the EU AI Act newsletter). The list is `DEFAULT_SOURCES` in `ann-agents/src/ann_agents/ingestion/source_registry.py`; it seeds the `Source` table once, and after that sources are managed at `/admin/sources`.
+Sources: 205 in all. 142 are general news feeds across 14 sections: world, US, politics, business, crypto, tech, AI, science, climate, health, sports, entertainment, games and the internet. They run from wire-heavy outlets (ABC News, CBS News, PBS NewsHour, BBC News, Al Jazeera, DW, France 24) to beat outlets such as STAT, KFF Health News, Carbon Brief, CoinDesk, Variety and Polygon, and include outlets Ad Fontes Media rates left, center and right. 65 carry an Ad Fontes rating, which the story page shows beside each source. Each general feed was fetched on 2026-10-02 and had posted within the previous 7 days.
+
+The other 63 are the AI sources ANN started with: 58 RSS feeds plus arXiv, Hacker News, GitHub Trending and Hugging Face models. The feeds cover lab blogs (OpenAI, Google DeepMind, Microsoft Research, Apple, NVIDIA, Mistral, Ai2), AI desks at news sites (The Verge, TechCrunch, Ars Technica, MIT Technology Review, Wired), developer tools (GitHub, JetBrains, LangChain, MCP), open models (Hugging Face, Ollama, vLLM), research (Google Research, METR, Epoch AI), AI security (OWASP GenAI, Trail of Bits, Embrace The Red), funding (Crunchbase, TechCrunch Venture, Sifted) and policy (Federal Register, FTC, the EU AI Act newsletter). The list is `DEFAULT_SOURCES` in `ann-agents/src/ann_agents/ingestion/source_registry.py`; it seeds the `Source` table once, and after that sources are managed at `/admin/sources`.
 
 Each feed was checked on 2026-10-02: it answered, parsed, and had a post in the last 60 days. Gaps: Anthropic publishes no feed, so ANN reads the community mirror at github.com/Olshansk/rss-feeds; Meta AI, xAI and Cohere have no working feed. Feeds that carry only headlines are fine, because the newsroom fetches each article before writing it. Paywalled sites are left out because their text can't be fetched to check against.
 
@@ -83,7 +85,7 @@ The direction and every design token are at the top of `ann-web/src/app/globals.
 
 ## ANN Live
 
-A 24-hour channel streamed to YouTube and embedded on the site: on the front page and, with the transcript, schedule and links to each story on air, at `/live`. Pixel-art anchors read the AI news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
+A 24-hour channel streamed to YouTube and embedded on the site: on the front page and, with the transcript, schedule and links to each story on air, at `/live`. Pixel-art anchors read the news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
 
 **How a segment is made** (`ann-agents/src/ann_agents/broadcast/`)
 
@@ -95,6 +97,17 @@ A 24-hour channel streamed to YouTube and embedded on the site: on the front pag
 6. The segment is appended to the timeline in Postgres (`BroadcastSegment`).
 
 Each show opens with a short intro at the top of its slot.
+
+**What's on.** The grid runs on US Eastern time (`hourEt` in `lineup.json`): ANN Overnight from midnight, Press Start at 4, ANN Morning at 5, Block by Block at 9, ANN Daytime at 10 and 2, Midday Markets at noon, The AI Hour at 1, Sports Desk at 4, ANN Evening News at 5, Capitol Report at 7, Up Late with Vince Calloway at 8, Crypto After Hours at 9 and ANN Tonight at 10. Between stories the director books:
+
+- **Data hits** (`datadesk/`): the weather wall in the first 12 minutes of each hour, the scoreboard from :15 to :25 and the markets wall from :30 to :40, on shows that carry them. The walls show only figures fetched for that segment (Open-Meteo, ESPN, CoinGecko), with the source and an as-of time on screen. With no data, the hit is skipped.
+- **Viewer questions** (`desk/questions.py`), at most one every 20 minutes. See below.
+- **Desk banter** (`broadcast/bits.py`), a short exchange between the anchors, at most every 30 minutes (every 10 on the late-night set). Banter stays away from the news: code drops any line with a number or a political word, and WaterSheep drops lines that read as factual claims. Turn it off with `BROADCAST_BITS=false`.
+- **Correspondents.** On about one story in three, the reporter whose byline is on the article joins the desk, standing beside the anchors.
+
+The studio has five sets (`studio.ts`): the news desk, the weather wall, the sports desk, the markets wall and the late-night set with a guest couch. Anchors act out each line's mood (`face.ts`, `gesture.ts`): faces, eyes and mouths change with the words, and hands gesture, read notes, take notes and drink coffee.
+
+**Viewer questions.** Anyone with an account (`/account/signup`) can send the desk up to 3 questions a day at `/ask`. WaterSheep screens each one, then Gemma decides whether the desk can answer it from ANN's own reporting: it declines requests for opinions, advice or predictions. An accepted question is answered only from ANN articles that WaterSheep agrees support the answer, and it airs with those articles linked. Answered questions are listed at `/questions`. Accounts need `SESSION_SECRET` set in `ann-web/.env.local` (any long random string); without it, sign-up is closed.
 
 **Cost controls**
 
@@ -124,7 +137,7 @@ cd ann-web && YOUTUBE_STREAM_KEY=xxxx npx tsx scripts/stream.ts
 - To embed the stream on the site, set `YOUTUBE_CHANNEL_ID` (your channel's `UC...` id) in `ann-web/.env.local`, or `YOUTUBE_VIDEO_ID` for one live video. YouTube runs 15 to 30 seconds behind real time, so the transcript and "on air" panel wait `YOUTUBE_DELAY_SECONDS` (default 20) to match the picture. With neither set, the site draws the channel itself from the timeline.
 - To check the output without going live, record a file instead: `npx tsx scripts/stream.ts --out test.mp4 --seconds 30`.
 
-**Voices.** Install Piper with `pip install piper-tts`. Then download the four voices named in `lineup.json` from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) into `voices/`. You need both the `.onnx` and the `.onnx.json` file for each voice. Then set these in `ann-agents/.env`:
+**Voices.** Install Piper with `pip install piper-tts`. Then download the voices named in `lineup.json` (25 of them) from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) into `voices/`. You need both the `.onnx` and the `.onnx.json` file for each voice. Then set these in `ann-agents/.env`:
 
 ```
 BROADCAST_TTS=piper
@@ -134,7 +147,7 @@ BROADCAST_AUDIO_DIR=/abs/path/broadcast-audio
 
 Set the same `BROADCAST_AUDIO_DIR` in `ann-web/.env.local`.
 
-**Changing the lineup.** Edit `ann-web/src/broadcast/lineup.json`, which holds the anchors (look, voice, persona), the shows (anchors, categories, set colour) and the 24-hour grid in UTC. To preview the set, run `npx tsx scripts/render-preview.ts`, which writes frames to `ann-web/.preview/`.
+**Changing the lineup.** Edit `ann-web/src/broadcast/lineup.json`, which holds the anchors (look, voice, persona), the reporters, the shows (anchors, categories, set, and which data walls they carry) and the 24-hour grid in US Eastern time. To preview the set, run `npx tsx scripts/render-preview.ts`, which writes frames to `ann-web/.preview/`.
 
 ### Tests
 
@@ -219,12 +232,13 @@ How they split the work:
 
 | Step | Gemma 4 | WaterSheep |
 |---|---|---|
-| Find | Picks the stories from a shortlist, like an assignment editor (`pipeline/assignment.py`) | Screens the general feeds (Hacker News, GitHub Trending) with "is this about AI?". Items from AI-only feeds (`NEWSROOM_AI_SOURCES`) pass without the question. |
+| Find | Picks the stories from a shortlist, like an assignment editor, favoring stories more outlets cover (`pipeline/assignment.py`) | Screens every item with "is this a news report about real events, rather than an advertisement, a promotion, a job listing or an opinion column?". Confirms which other outlets' reports cover the same event (`pipeline/corroborate.py`). |
+| Assign | | Picks the section, and so the reporter (`pipeline/beat.py`). Items from AI-only feeds go straight to an AI beat. |
 | Write | Writes the summary and headline from the article's text, which is fetched when the feed only gives a teaser | |
-| Decide | Fact-checks against the source text | Scores whether the summary is supported by the source, and whether the headline is clickbait (`oversight/watersheep_judge.py`) |
+| Decide | Fact-checks against the source text | Scores whether the article is supported by its sources, whether the headline is clickbait, and whether the wording is loaded (`oversight/watersheep_judge.py`) |
 | Air | Writes the dialogue and reviews it at the standards desk | Checks every line that states a fact against the fact sheet |
 
-A story publishes only when both pass it: Gemma's fact-check, and WaterSheep's support (`WATERSHEEP_MIN_SUPPORT`) and clickbait (`WATERSHEEP_MAX_CLICKBAIT`) thresholds. Off-topic items are rejected, and anything else in doubt goes to the review queue with the reason attached. A story whose source text is under `NEWSROOM_MIN_SOURCE_CHARS` never publishes on its own: in testing, Gemma wrote confident and invented summaries from headline-only feed items, and both checks passed them until the article text was fetched.
+A story publishes only when both pass it: Gemma's fact-check, and WaterSheep's support (`WATERSHEEP_MIN_SUPPORT`) and clickbait (`WATERSHEEP_MAX_CLICKBAIT`) thresholds. Items that aren't news reports are rejected, loaded wording (`WATERSHEEP_MAX_LOADED`) goes to review, and anything else in doubt goes to the review queue with the reason attached. A story whose source text is under `NEWSROOM_MIN_SOURCE_CHARS` never publishes on its own: in testing, Gemma wrote confident and invented summaries from headline-only feed items, and both checks passed them until the article text was fetched.
 
 Measured on 4 vCPU, with the article text fetched:
 
