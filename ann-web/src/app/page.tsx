@@ -10,7 +10,9 @@ import type { Article, Category } from "@/types";
 import { formatDate } from "@/lib/utils";
 import { prisma } from "@/lib/prisma";
 import { PUBLIC_STATUSES, toArticle } from "@/lib/articles";
-import { getLiveNow, lineup } from "@/lib/live";
+import { lineup } from "@/lib/live";
+import { getYouTubeConfig } from "@/lib/youtube";
+import { LivePlayer } from "@/components/live/LivePlayer";
 
 export const dynamic = "force-dynamic";
 
@@ -29,21 +31,13 @@ async function loadHome() {
       });
     let rows = await query(new Date(now - 2 * DAY_MS));
     if (rows.length < 4) rows = await query();
-    const [lastDay, live] = await Promise.all([
-      prisma.article.count({
-        where: { storyStatus: { in: PUBLIC_STATUSES }, publishedAt: { gte: new Date(now - DAY_MS) } },
-      }),
-      getLiveNow(new Date(now)).catch(() => null),
-    ]);
-    const onAir =
-      live?.segments.find((s) => {
-        const start = Date.parse(s.startsAt);
-        return start <= now && now < start + s.durationMs;
-      }) ?? null;
-    return { articles: rows.map(toArticle), lastDay, onAir, ok: true };
+    const lastDay = await prisma.article.count({
+      where: { storyStatus: { in: PUBLIC_STATUSES }, publishedAt: { gte: new Date(now - DAY_MS) } },
+    });
+    return { articles: rows.map(toArticle), lastDay, ok: true };
   } catch (error) {
     console.error("Failed to load the front page:", error);
-    return { articles: [] as Article[], lastDay: 0, onAir: null, ok: false };
+    return { articles: [] as Article[], lastDay: 0, ok: false };
   }
 }
 
@@ -52,21 +46,34 @@ function categoryMeta(c: Category) {
 }
 
 export default async function HomePage() {
-  const { articles: FEATURED, lastDay, onAir, ok } = await loadHome();
-  const show = onAir ? lineup.shows.find((s) => s.id === onAir.showId) : null;
+  const { articles: FEATURED, lastDay, ok } = await loadHome();
+  const youtube = getYouTubeConfig();
   const liveBlock = (
-    <Link
-      href="/live"
-      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border border-foreground rounded-sm px-4 py-3 hover:bg-terminal-hover transition-colors"
-    >
-      <span className="text-[11px] font-mono font-semibold uppercase tracking-widest">ANN Live</span>
-      <span className="text-sm text-foreground/80 min-w-0">
-        {onAir && show ? `${show.name}: ${onAir.title}` : "The 24-hour AI news desk"}
-      </span>
-      <span className="ml-auto inline-flex items-center gap-1 text-xs font-mono">
-        Watch <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
-      </span>
-    </Link>
+    <section aria-labelledby="live-title" className="grid gap-5 md:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] items-start">
+      <LivePlayer lineup={lineup} youtube={youtube} variant="compact" />
+      <div className="min-w-0">
+        <h2 id="live-title" className="text-base font-semibold tracking-tight text-foreground">ANN Live</h2>
+        <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+          The AI news desk, around the clock. Four anchors read the stories on this page, each line checked against
+          its source before air.
+        </p>
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3 text-xs font-mono">
+          <Link href="/live" className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-muted-foreground">
+            Schedule and transcript <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+          </Link>
+          {youtube && (
+            <a
+              href={youtube.watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-muted-foreground"
+            >
+              Watch on YouTube <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+            </a>
+          )}
+        </div>
+      </div>
+    </section>
   );
 
   if (FEATURED.length === 0) {

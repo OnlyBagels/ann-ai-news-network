@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Captions, CaptionsOff, ExternalLink, Volume2, VolumeX } from "lucide-react";
 import { drawFrame, currentLine, WIDTH, HEIGHT } from "@/broadcast/scene";
 import type { LiveNow, Lineup, Segment } from "@/broadcast/types";
+import type { YouTubeConfig } from "@/lib/youtube";
 
 const POLL_MS = 10_000;
 const CHECKIN_MS = 60_000;
@@ -32,7 +33,19 @@ function onAir(segments: Segment[], nowMs: number) {
   return { segment, upcoming };
 }
 
-export function LivePlayer({ lineup }: { lineup: Lineup }) {
+interface LivePlayerProps {
+  lineup: Lineup;
+  // When set, the picture is the YouTube stream and the panels follow it
+  // `delayMs` behind real time. Without it, the page draws the channel itself.
+  youtube?: YouTubeConfig | null;
+  // "full" for /live; "compact" is the picture and one line, for the front page.
+  variant?: "full" | "compact";
+}
+
+const clock = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+
+export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePlayerProps) {
+  const delayMs = youtube?.delayMs ?? 0;
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<LiveNow | null>(null);
   const offsetRef = useRef(0); // server clock minus this clock
@@ -93,30 +106,32 @@ export function LivePlayer({ lineup }: { lineup: Lineup }) {
     };
   }, []);
 
-  // Render loop.
+  // Render loop. With YouTube it only keeps the panels in step with the stream.
   useEffect(() => {
-    const ctx = canvasRef.current?.getContext("2d");
-    if (!ctx) return;
+    const ctx = youtube ? null : canvasRef.current?.getContext("2d");
+    if (!youtube && !ctx) return;
     let frame = 0;
     let shownId: string | null = null;
     let shownCount = -1;
     let upcomingKey = "";
 
     const render = () => {
-      const nowMs = Date.now() + offsetRef.current;
+      const nowMs = Date.now() + offsetRef.current - delayMs;
       const segments = liveRef.current?.segments ?? [];
       const { segment: seg, upcoming: next } = onAir(segments, nowMs);
       const elapsed = seg ? nowMs - Date.parse(seg.startsAt) : 0;
 
-      drawFrame(ctx, {
-        lineup,
-        nowMs,
-        segment: seg,
-        segmentElapsedMs: elapsed,
-        upcoming: next,
-        clockLabel: new Date(nowMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false }),
-        captions: captionsRef.current,
-      });
+      if (ctx) {
+        drawFrame(ctx, {
+          lineup,
+          nowMs,
+          segment: seg,
+          segmentElapsedMs: elapsed,
+          upcoming: next,
+          clockLabel: clock(nowMs),
+          captions: captionsRef.current,
+        });
+      }
 
       const cur = seg ? currentLine(seg, elapsed) : null;
       const count = seg ? seg.lines.filter((l) => l.startMs <= elapsed).length : 0;
@@ -135,7 +150,7 @@ export function LivePlayer({ lineup }: { lineup: Lineup }) {
       // Voice: play the clip for the line on air, started at the right offset.
       const line = cur?.line;
       const audioKey = seg && line?.audio ? `${seg.id}:${cur!.index}` : "";
-      if (soundRef.current && audioKey && audioRef.current?.key !== audioKey) {
+      if (ctx && soundRef.current && audioKey && audioRef.current?.key !== audioKey) {
         audioRef.current?.el.pause();
         const el = new Audio(`/api/live/audio/${line!.audio}`);
         el.currentTime = Math.max(0, cur!.lineElapsedMs / 1000);
@@ -153,7 +168,7 @@ export function LivePlayer({ lineup }: { lineup: Lineup }) {
       window.cancelAnimationFrame(frame);
       audioRef.current?.el.pause();
     };
-  }, [lineup]);
+  }, [lineup, youtube, delayMs]);
 
   const toggleCaptions = () => {
     captionsRef.current = !captionsRef.current;
@@ -168,30 +183,73 @@ export function LivePlayer({ lineup }: { lineup: Lineup }) {
   const names = Object.fromEntries(lineup.anchors.map((a) => [a.id, a.name]));
   const transcript = segment ? segment.lines.slice(0, spokenCount) : [];
 
+  const picture = youtube ? (
+    <div className="relative w-full aspect-video border border-foreground bg-foreground">
+      <iframe
+        src={youtube.embedUrl}
+        title="ANN Live on YouTube"
+        className="absolute inset-0 w-full h-full"
+        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        referrerPolicy="strict-origin-when-cross-origin"
+      />
+    </div>
+  ) : (
+    <div className="border border-foreground bg-foreground">
+      <canvas
+        ref={canvasRef}
+        width={WIDTH}
+        height={HEIGHT}
+        className="block w-full h-auto [image-rendering:pixelated]"
+        role="img"
+        aria-label={segment ? `On air: ${segment.title}` : "ANN station card"}
+      />
+    </div>
+  );
+
+  if (variant === "compact") {
+    return (
+      <div className="min-w-0">
+        {picture}
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mt-2 text-sm">
+          <span className="font-mono text-[11px] font-semibold uppercase tracking-widest">On air</span>
+          <span className="min-w-0 text-foreground/80">
+            {show && segment ? `${show.name}: ${segment.title}` : "Station break"}
+          </span>
+          <Link href="/live" className="ml-auto text-xs font-mono underline underline-offset-4 hover:text-muted-foreground">
+            Transcript and schedule
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
       <div className="min-w-0">
-        <div className="border border-foreground bg-foreground">
-          <canvas
-            ref={canvasRef}
-            width={WIDTH}
-            height={HEIGHT}
-            className="block w-full h-auto [image-rendering:pixelated]"
-            role="img"
-            aria-label={segment ? `On air: ${segment.title}` : "ANN station card"}
-          />
-        </div>
+        {picture}
         <div className="flex flex-wrap items-center gap-2 mt-2">
-          <button
-            type="button"
-            onClick={toggleCaptions}
-            aria-pressed={captions}
-            className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
-          >
-            {captions ? <Captions className="w-4 h-4" /> : <CaptionsOff className="w-4 h-4" />}
-            Captions {captions ? "on" : "off"}
-          </button>
-          {hasAudio && (
+          {youtube ? (
+            <a
+              href={youtube.watchUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
+            >
+              Watch on YouTube <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleCaptions}
+              aria-pressed={captions}
+              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
+            >
+              {captions ? <Captions className="w-4 h-4" /> : <CaptionsOff className="w-4 h-4" />}
+              Captions {captions ? "on" : "off"}
+            </button>
+          )}
+          {!youtube && hasAudio && (
             <button
               type="button"
               onClick={toggleSound}
@@ -264,7 +322,7 @@ export function LivePlayer({ lineup }: { lineup: Lineup }) {
               {upcoming.slice(0, 5).map((s) => (
                 <li key={s.id} className="py-2 leading-snug">
                   <span className="block font-mono text-[11px] text-muted-foreground">
-                    {new Date(s.startsAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    {clock(Date.parse(s.startsAt) + delayMs)}
                   </span>
                   {s.title}
                 </li>

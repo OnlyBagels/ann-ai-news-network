@@ -75,7 +75,7 @@ Ingestion: feedparser · BeautifulSoup · lxml · arxiv · PRAW · huggingface-h
 
 ## ANN Live
 
-A 24-hour channel on the site at `/live` and on YouTube. Pixel-art anchors read the AI news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
+A 24-hour channel streamed to YouTube and embedded on the site: on the front page and, with the transcript, schedule and links to each story on air, at `/live`. Pixel-art anchors read the AI news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
 
 **How a segment is made** (`ann-agents/src/ann_agents/broadcast/`)
 
@@ -113,6 +113,7 @@ cd ann-web && YOUTUBE_STREAM_KEY=xxxx npx tsx scripts/stream.ts
 
 - Set `ANTHROPIC_API_KEY` in `ann-agents/.env`. Without it, the channel airs headline reads only.
 - The YouTube stream key comes from YouTube Studio, under Go live, then Stream. The streamer sends 1080p30 H.264 with AAC audio. It needs `ffmpeg` on the PATH.
+- To embed the stream on the site, set `YOUTUBE_CHANNEL_ID` (your channel's `UC...` id) in `ann-web/.env.local`, or `YOUTUBE_VIDEO_ID` for one live video. YouTube runs 15 to 30 seconds behind real time, so the transcript and "on air" panel wait `YOUTUBE_DELAY_SECONDS` (default 20) to match the picture. With neither set, the site draws the channel itself from the timeline.
 - To check the output without going live, record a file instead: `npx tsx scripts/stream.ts --out test.mp4 --seconds 30`.
 
 **Voices.** Install Piper with `pip install piper-tts`. Then download the four voices named in `lineup.json` from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) into `voices/`. You need both the `.onnx` and the `.onnx.json` file for each voice. Then set these in `ann-agents/.env`:

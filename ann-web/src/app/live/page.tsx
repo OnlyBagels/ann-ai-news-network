@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LivePlayer } from "@/components/live/LivePlayer";
 import { Schedule } from "@/components/live/Schedule";
 import { lineup } from "@/lib/live";
+import { getYouTubeConfig } from "@/lib/youtube";
 
 export const metadata: Metadata = {
   title: "Live",
@@ -10,9 +11,11 @@ export const metadata: Metadata = {
     "ANN's 24-hour channel: pixel-art anchors read the day's AI news from approved ANN stories, checked line by line before air.",
 };
 
-const youtubeUrl = process.env.NEXT_PUBLIC_YOUTUBE_URL;
+// The YouTube settings are read per request.
+export const dynamic = "force-dynamic";
 
 export default function LivePage() {
+  const youtube = getYouTubeConfig();
   return (
     <div className="space-y-10">
       <header className="border-b border-border pb-5">
@@ -20,19 +23,10 @@ export default function LivePage() {
         <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
           The AI news desk, around the clock. Every line is written from an approved ANN story and checked against
           it before air. Figures that don&rsquo;t match the source get cut.
-          {youtubeUrl && (
-            <>
-              {" "}
-              <a href={youtubeUrl} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
-                Watch on YouTube
-              </a>
-              .
-            </>
-          )}
         </p>
       </header>
 
-      <LivePlayer lineup={lineup} />
+      <LivePlayer lineup={lineup} youtube={youtube} />
 
       <section aria-labelledby="schedule-title">
         <h2 id="schedule-title" className="text-base font-semibold mb-3">Schedule</h2>
