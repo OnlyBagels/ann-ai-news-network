@@ -97,6 +97,7 @@ def build_director() -> Director:
         desk_review=settings.broadcast_llm_standards,
         write_timeout_seconds=settings.broadcast_write_timeout_seconds,
         min_runway_seconds=settings.broadcast_min_runway_seconds,
+        always_on=settings.broadcast_always_on,
         watersheep=_watersheep(),
         min_support=settings.watersheep_min_support,
     )

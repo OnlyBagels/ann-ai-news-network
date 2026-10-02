@@ -115,14 +115,17 @@ class Settings(BaseSettings):
     broadcast_write_timeout_seconds: float = Field(default=180.0, alias="BROADCAST_WRITE_TIMEOUT_SECONDS")
     # With less than this much queued, air a headline read now instead of
     # waiting on a script. Raise it for slow (CPU) models.
-    broadcast_min_runway_seconds: int = Field(default=20, alias="BROADCAST_MIN_RUNWAY_SECONDS")
+    broadcast_min_runway_seconds: int = Field(default=120, alias="BROADCAST_MIN_RUNWAY_SECONDS")
     broadcast_writer_model: str = Field(default="claude-haiku-4-5", alias="BROADCAST_WRITER_MODEL")
     broadcast_feature_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_FEATURE_MODEL")
     broadcast_standards_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_STANDARDS_MODEL")
     broadcast_llm_standards: bool = Field(default=True, alias="BROADCAST_LLM_STANDARDS")
     broadcast_daily_budget_usd: float = Field(default=5.0, alias="BROADCAST_DAILY_BUDGET_USD")
     broadcast_viewer_window_seconds: int = Field(default=180, alias="BROADCAST_VIEWER_WINDOW_SECONDS")
-    broadcast_lookahead_seconds: int = Field(default=150, alias="BROADCAST_LOOKAHEAD_SECONDS")
+    broadcast_lookahead_seconds: int = Field(default=600, alias="BROADCAST_LOOKAHEAD_SECONDS")
+    # Keep writing whether or not anyone is watching (a 24-hour channel). Off,
+    # the director only writes while a viewer has checked in recently.
+    broadcast_always_on: bool = Field(default=True, alias="BROADCAST_ALWAYS_ON")
     broadcast_story_cooldown_hours: int = Field(default=6, alias="BROADCAST_STORY_COOLDOWN_HOURS")
     broadcast_tts: str = Field(default="none", alias="BROADCAST_TTS")  # none | piper
     broadcast_audio_dir: str = Field(default="./broadcast-audio", alias="BROADCAST_AUDIO_DIR")

@@ -98,11 +98,11 @@ Each show opens with a short intro at the top of its slot.
 
 **Cost controls**
 
-- Nothing is written while nobody is watching. Browsers on `/live` and the streamer check in, and the director stops writing once no one has checked in within `BROADCAST_VIEWER_WINDOW_SECONDS`.
+- The channel runs 24 hours, keeping 5 to 10 minutes of finished segments queued (`BROADCAST_LOOKAHEAD_SECONDS`, default 600). Set `BROADCAST_ALWAYS_ON=false` to write only while someone is watching: browsers on `/live` and the streamer check in, and the director stops once no one has checked in within `BROADCAST_VIEWER_WINDOW_SECONDS`.
 - Claude spend is tracked per UTC day in `BroadcastSpend`. When `BROADCAST_DAILY_BUDGET_USD` is used up, the channel switches to headline reads, which cost nothing.
-- The director only writes `BROADCAST_LOOKAHEAD_SECONDS` ahead of air.
+- When less than `BROADCAST_MIN_RUNWAY_SECONDS` (default 120) is queued, the director airs headline reads, which are instant, to rebuild the buffer.
 
-**Rendering.** `ann-web/src/broadcast/scene.ts` draws a 320x180 frame using only `fillRect`. The web player (`src/components/live/LivePlayer.tsx`) and the streamer (`scripts/stream.ts`) both use it, so the site and YouTube show the same picture.
+**Rendering.** `ann-web/src/broadcast/scene.ts` draws a 640x360 frame using only `fillRect`: the set from `studio.ts`, the cast from `character.ts` (faces from `face.ts`, hands and props from `gesture.ts`). The web player (`src/components/live/LivePlayer.tsx`) and the streamer (`scripts/stream.ts`) both use it, so the site and YouTube show the same picture.
 
 ### Running it
 

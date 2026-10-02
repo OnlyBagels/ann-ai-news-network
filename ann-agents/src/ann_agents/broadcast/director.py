@@ -82,6 +82,7 @@ class Director:
         min_runway_seconds: int = 0,
         watersheep: Any = None,
         min_support: float = 0.5,
+        always_on: bool = False,
     ):
         self.store = store
         self.lineup = lineup
@@ -98,6 +99,7 @@ class Director:
         self.watersheep = watersheep
         self.min_support = min_support
         self.min_runway = timedelta(seconds=min_runway_seconds)
+        self.always_on = always_on
         # Several ticks can run at once (one per model server). These keep
         # them from writing the same story, opening a show twice, or booking
         # into the same slot.
@@ -110,7 +112,7 @@ class Director:
         """One pass. Pass `now` to run against a fixed clock (tests, replays)."""
         fixed = now is not None
         now = now or datetime.now(timezone.utc)
-        if self.store.active_viewers(now, self.viewer_window) == 0:
+        if not self.always_on and self.store.active_viewers(now, self.viewer_window) == 0:
             return TickResult("idle", note="no one is watching")
 
         start = self._next_start(now)
