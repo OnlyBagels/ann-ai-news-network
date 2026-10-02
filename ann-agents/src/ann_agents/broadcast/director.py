@@ -10,10 +10,11 @@ the same moment.
 
 from __future__ import annotations
 
+import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Sequence
+from typing import List, Optional, Set, Union
 
 from loguru import logger
 
@@ -31,15 +32,16 @@ from ann_agents.broadcast.models import (
     StoryInput,
 )
 from ann_agents.broadcast.reel import headline_read, show_open
-from ann_agents.broadcast.standards import apply_rules, check_line, segment_survives
+from ann_agents.broadcast.standards import apply_rules, check_line, segment_survives, tidy_line
 from ann_agents.broadcast.store import BroadcastStore
 from ann_agents.broadcast.timing import lay_out
 from ann_agents.broadcast.tts import NoVoice, Voice
-from ann_agents.broadcast.writer import ClaudeNewsroom
+from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroom
 
 LEAD = timedelta(seconds=2)  # never book a segment to start in the past
 IDENT_WINDOW = timedelta(minutes=10)  # a show open only airs near the top of its slot
 FEATURE_SCORE = 80  # stories at or above this score get the bigger writer model
+INFLIGHT_ESTIMATE = timedelta(seconds=30)  # airtime a script being written will likely fill
 
 
 @dataclass
@@ -67,13 +69,15 @@ class Director:
         self,
         store: BroadcastStore,
         lineup: Lineup,
-        newsroom: Optional[ClaudeNewsroom],
+        newsroom: Optional[Union[ClaudeNewsroom, LocalNewsroom]],
         voice: Voice = NoVoice(),
         daily_budget_usd: float = 5.0,
         viewer_window_seconds: int = 180,
         lookahead_seconds: int = 150,
         cooldown_hours: int = 6,
         desk_review: bool = True,
+        write_timeout_seconds: float = 180.0,
+        min_runway_seconds: int = 0,
     ):
         self.store = store
         self.lineup = lineup
@@ -84,6 +88,15 @@ class Director:
         self.lookahead = timedelta(seconds=lookahead_seconds)
         self.cooldown = timedelta(hours=cooldown_hours)
         self.desk_review = desk_review
+        self.write_timeout = write_timeout_seconds
+        self.min_runway = timedelta(seconds=min_runway_seconds)
+        # Several ticks can run at once (one per model server). These keep
+        # them from writing the same story, opening a show twice, or booking
+        # into the same slot.
+        self._inflight_ids: Set[str] = set()
+        self._writing = 0
+        self._ident_pending = False
+        self._book_lock = asyncio.Lock()
 
     async def tick(self, now: Optional[datetime] = None) -> TickResult:
         """One pass. Pass `now` to run against a fixed clock (tests, replays)."""
@@ -93,23 +106,41 @@ class Director:
             return TickResult("idle", note="no one is watching")
 
         start = self._next_start(now)
-        if start - now >= self.lookahead:
-            return TickResult("full", note=f"queued until {start:%H:%M:%S}")
+        queued = start - now
+        if queued + self._writing * INFLIGHT_ESTIMATE >= self.lookahead:
+            return TickResult("full", note=f"queued until {start:%H:%M:%S}, {self._writing} being written")
 
         show = grid.show_at(self.lineup, start)
         slot_began = grid.slot_start(self.lineup, start)
+        clock = None if fixed else (lambda: datetime.now(timezone.utc))
 
-        if start - slot_began < IDENT_WINDOW and not self.store.ident_aired_since(slot_began):
-            draft = self._ident(show)
+        if (
+            start - slot_began < IDENT_WINDOW
+            and not self._ident_pending
+            and not self.store.ident_aired_since(slot_began)
+        ):
+            self._ident_pending = True
+            try:
+                draft = self._ident(show)
+                segment = await self._book(draft, show, now, clock)
+            finally:
+                self._ident_pending = False
         else:
             story = self._pick_story(show, now)
             if story is None:
                 return TickResult("empty", note="no approved stories to air")
-            draft = await self._story(story, show, now)
+            # Short on runway: air the article as written now rather than
+            # leave dead air while a slow model writes.
+            write = self.newsroom is not None and queued >= self.min_runway
+            self._inflight_ids.add(story.id)
+            self._writing += 1 if write else 0
+            try:
+                draft = await self._story(story, show, now, write=write)
+                segment = await self._book(draft, show, now, clock)
+            finally:
+                self._inflight_ids.discard(story.id)
+                self._writing -= 1 if write else 0
 
-        # Writing takes time; re-read the queue so segments never overlap.
-        after = now if fixed else datetime.now(timezone.utc)
-        segment = await self._book(draft, show, self._next_start(after))
         self.store.record_spend(now.strftime("%Y-%m-%d"), draft.spend)
         logger.info(
             f"[broadcast] booked {segment.kind} '{segment.title[:50]}' on {show.name} "
@@ -125,11 +156,16 @@ class Director:
 
     def _pick_story(self, show: Show, now: datetime) -> Optional[StoryInput]:
         since = now - self.cooldown
+        busy = self._inflight_ids
         for categories in (show.categories, []):
-            stories = self.store.candidate_stories(categories, aired_since=since, limit=1)
+            stories = self.store.candidate_stories(categories, aired_since=since, limit=1 + len(busy))
+            stories = [s for s in stories if s.id not in busy]
             if stories:
                 return stories[0]
-        return self.store.least_recently_aired(show.categories) or self.store.least_recently_aired([])
+        return (
+            self.store.least_recently_aired(show.categories, exclude=busy)
+            or self.store.least_recently_aired([], exclude=busy)
+        )
 
     def _ident(self, show: Show) -> Draft:
         anchors = [grid.anchor(self.lineup, a) for a in show.anchors]
@@ -144,7 +180,7 @@ class Director:
             dropped=[],
         )
 
-    async def _story(self, story: StoryInput, show: Show, now: datetime) -> Draft:
+    async def _story(self, story: StoryInput, show: Show, now: datetime, write: bool = True) -> Draft:
         facts = build_fact_sheet(story)
         article = SegmentArticle(id=story.id, title=story.title, source=story.source, url=story.url)
         desk = list(show.anchors)
@@ -152,20 +188,32 @@ class Director:
         dropped: List[DroppedLine] = []
 
         spent_today = self.store.spent_on(now.strftime("%Y-%m-%d"))
-        if self.newsroom and can_spend(spent_today, self.daily_budget_usd):
-            written = await self.newsroom.write(
-                story, facts, show, desk, self.lineup, self.store.last_line(), now,
-                feature=story.overall_score >= FEATURE_SCORE,
-            )
+        written = None
+        if write and self.newsroom and can_spend(spent_today, self.daily_budget_usd):
+            try:
+                written = await asyncio.wait_for(
+                    self.newsroom.write(
+                        story, facts, show, desk, self.lineup, self.store.last_line(), now,
+                        feature=story.overall_score >= FEATURE_SCORE,
+                    ),
+                    self.write_timeout,
+                )
+            except asyncio.TimeoutError:
+                logger.warning(f"[broadcast] script for '{story.title[:50]}' took over {self.write_timeout:.0f}s")
+        if written is not None:
             spend = spend + written.spend
             if written.script is not None:
-                drafted = written.script.lines
+                names = {a.id: a.name for a in self.lineup.anchors}
+                drafted = [tidy_line(line, names) for line in written.script.lines]
                 rules = apply_rules(drafted, facts, desk, now)
                 dropped.extend(rules.dropped)
                 kept = rules.kept
 
                 if self.desk_review and kept:
-                    review = await self.newsroom.review(facts, kept)
+                    try:
+                        review = await asyncio.wait_for(self.newsroom.review(facts, kept), self.write_timeout)
+                    except asyncio.TimeoutError:
+                        review = DeskResult(unsupported={}, spend=Spend(), ok=False)
                     spend = spend + review.spend
                     if not review.ok:
                         kept = []
@@ -212,7 +260,8 @@ class Director:
             dropped=dropped,
         )
 
-    async def _book(self, draft: Draft, show: Show, start: datetime) -> Segment:
+    async def _book(self, draft: Draft, show: Show, now: datetime, clock=None) -> Segment:
+        """Voice the lines, then append the segment to the end of the timeline."""
         segment_id = uuid.uuid4().hex[:16]
         measured: List[Optional[int]] = []
         for i, line in enumerate(draft.lines):
@@ -224,18 +273,21 @@ class Director:
             measured.append(clip.duration_ms if clip else None)
         duration = lay_out(draft.lines, measured)
 
-        segment = Segment(
-            id=segment_id,
-            show_id=show.id,
-            kind=draft.kind,  # type: ignore[arg-type]
-            starts_at=start,
-            duration_ms=duration,
-            title=draft.title,
-            anchors=draft.anchors,
-            articles=draft.articles,
-            lines=draft.lines,
-        )
-        self.store.insert_segment(segment, draft.writer, draft.spend.usd, draft.dropped)
+        async with self._book_lock:
+            # Re-read the queue: other ticks may have booked while this one wrote.
+            start = self._next_start(clock() if clock else now)
+            segment = Segment(
+                id=segment_id,
+                show_id=show.id,
+                kind=draft.kind,  # type: ignore[arg-type]
+                starts_at=start,
+                duration_ms=duration,
+                title=draft.title,
+                anchors=draft.anchors,
+                articles=draft.articles,
+                lines=draft.lines,
+            )
+            self.store.insert_segment(segment, draft.writer, draft.spend.usd, draft.dropped)
         return segment
 
 

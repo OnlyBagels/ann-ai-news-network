@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from loguru import logger
 
 from ann_agents.core.config import settings
+from ann_agents.llm.local import local_pool
 
 
 class LLMTier(str, Enum):
@@ -60,9 +61,19 @@ class LLMRouter:
     def _has_key(self, provider: str) -> bool:
         return bool(getattr(settings, f"{provider}_api_key", None))
 
+    def _providers(self, tier: LLMTier) -> List[str]:
+        """Providers to try for a tier: self-hosted first when it covers the tier."""
+        order = list(TIER_PROVIDERS[tier])
+        local_tiers = {t.strip() for t in settings.local_llm_tiers.split(",")}
+        if local_pool() is not None and tier.value in local_tiers:
+            order.insert(0, "local")
+        return order
+
     def _resolve(self, tier: LLMTier) -> Optional[Tuple[str, Any]]:
         """Pick the first configured provider for a tier."""
-        for provider in TIER_PROVIDERS[tier]:
+        for provider in self._providers(tier):
+            if provider == "local":
+                return provider, local_pool()
             if self._has_key(provider):
                 return provider, self._get_client(provider)
         return None
@@ -96,6 +107,10 @@ class LLMRouter:
         return client
 
     def _model_for(self, provider: str, tier: LLMTier) -> str:
+        if provider == "local":
+            if tier in (LLMTier.PREMIUM, LLMTier.LONG_CONTEXT) and settings.local_llm_premium_model:
+                return settings.local_llm_premium_model
+            return settings.local_llm_model
         if provider == "anthropic":
             if tier in (LLMTier.CHEAP, LLMTier.SOCIAL):
                 return settings.anthropic_cheap_model
@@ -141,7 +156,13 @@ class LLMRouter:
         wants_json = bool(response_format and response_format.get("type") == "json_object")
 
         try:
-            if provider == "anthropic":
+            if provider == "local":
+                reply = await client.chat(
+                    model, system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature,
+                    response_format={"type": "json_object"} if wants_json else None,
+                )
+                text = reply.text
+            elif provider == "anthropic":
                 text = await self._complete_anthropic(client, model, system_prompt, user_prompt, max_tokens, wants_json)
             elif provider == "gemini":
                 text = await self._complete_gemini(client, model, system_prompt, user_prompt, temperature, max_tokens)

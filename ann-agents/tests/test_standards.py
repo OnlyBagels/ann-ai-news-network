@@ -91,3 +91,15 @@ def test_segment_survival():
     assert "only 1" in segment_survives(3, good[:1])
     assert "were cut" in segment_survives(6, good)
     assert "cites the story" in segment_survives(2, [line("Hm."), line("Yes.", speaker="oscar")])
+
+
+def test_tidy_line_maps_names_and_strips_citation_notes():
+    from ann_agents.broadcast.standards import tidy_line
+
+    anchors = {"marla": "Marla Quill", "oscar": "Oscar Byrne"}
+    tidy = tidy_line(DraftLine(speaker="Marla", text="Big news [Cite Fact 1, Fact 2]. More (3).", fact_ids=[1]), anchors)
+    assert tidy.speaker == "marla" and tidy.text == "Big news. More."
+    assert tidy_line(DraftLine(speaker="Oscar Byrne", text="Hi.", fact_ids=[]), anchors).speaker == "oscar"
+    # A figure in parentheses that isn't a citation stays.
+    kept = tidy_line(DraftLine(speaker="juno", text="Version (4.5) ships.", fact_ids=[]), anchors)
+    assert kept.speaker == "juno" and kept.text == "Version (4.5) ships."

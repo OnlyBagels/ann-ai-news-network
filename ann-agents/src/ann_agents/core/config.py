@@ -52,7 +52,30 @@ class Settings(BaseSettings):
     anthropic_cheap_model: str = Field(default="claude-haiku-4-5", alias="ANTHROPIC_CHEAP_MODEL")
     anthropic_premium_model: str = Field(default="claude-sonnet-5-5", alias="ANTHROPIC_PREMIUM_MODEL")
 
+    # Self-hosted models (Ollama, llama.cpp server, LM Studio, vLLM): any
+    # OpenAI-compatible /v1 endpoint. Several servers, comma separated, share
+    # the load. When set, they take every tier listed in LOCAL_LLM_TIERS
+    # ahead of the hosted providers.
+    local_llm_base_urls: Optional[str] = Field(default=None, alias="LOCAL_LLM_BASE_URLS")
+    local_llm_api_key: Optional[str] = Field(default=None, alias="LOCAL_LLM_API_KEY")
+    local_llm_model: str = Field(default="qwen2.5:7b", alias="LOCAL_LLM_MODEL")
+    local_llm_premium_model: Optional[str] = Field(default=None, alias="LOCAL_LLM_PREMIUM_MODEL")
+    local_llm_tiers: str = Field(default="cheap,long_context,social,premium", alias="LOCAL_LLM_TIERS")
+    local_llm_timeout_seconds: float = Field(default=300.0, alias="LOCAL_LLM_TIMEOUT_SECONDS")
+
     # Live broadcast
+    # Who writes the anchors' lines: auto (Claude if ANTHROPIC_API_KEY is
+    # set, else local models if LOCAL_LLM_BASE_URLS is set), claude, local,
+    # or none (headline reads only).
+    broadcast_llm: str = Field(default="auto", alias="BROADCAST_LLM")
+    broadcast_local_writer_model: Optional[str] = Field(default=None, alias="BROADCAST_LOCAL_WRITER_MODEL")
+    broadcast_local_standards_model: Optional[str] = Field(default=None, alias="BROADCAST_LOCAL_STANDARDS_MODEL")
+    # Scripts written at once. Set it to the number of model servers.
+    broadcast_writers: int = Field(default=1, alias="BROADCAST_WRITERS")
+    broadcast_write_timeout_seconds: float = Field(default=180.0, alias="BROADCAST_WRITE_TIMEOUT_SECONDS")
+    # With less than this much queued, air a headline read now instead of
+    # waiting on a script. Raise it for slow (CPU) models.
+    broadcast_min_runway_seconds: int = Field(default=20, alias="BROADCAST_MIN_RUNWAY_SECONDS")
     broadcast_writer_model: str = Field(default="claude-haiku-4-5", alias="BROADCAST_WRITER_MODEL")
     broadcast_feature_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_FEATURE_MODEL")
     broadcast_standards_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_STANDARDS_MODEL")

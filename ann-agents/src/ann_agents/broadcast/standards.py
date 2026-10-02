@@ -131,6 +131,26 @@ def check_line(
     return None
 
 
+_CITE_NOTE = re.compile(r"\s*[\[(](?:cite[sd]?\s*)?(?:facts?\s*)?\d+(?:\s*(?:,|and)\s*(?:facts?\s*)?\d+)*[\])]", re.IGNORECASE)
+
+
+def tidy_line(line: DraftLine, anchors: Dict[str, str]) -> DraftLine:
+    """Fix the slips small models make that change nothing about the claim.
+
+    Speakers given by name ("Marla" or "Marla Quill") become their anchor id,
+    and citation notes left in the spoken text ("[Cite Fact 1]", "(3)") are
+    removed. Anything else is left for the rules to judge.
+    """
+    speaker = line.speaker.strip()
+    lowered = speaker.lower()
+    for anchor_id, name in anchors.items():
+        if lowered in (anchor_id, name.lower(), name.split()[0].lower()):
+            speaker = anchor_id
+            break
+    text = " ".join(_CITE_NOTE.sub("", line.text).split())
+    return DraftLine(speaker=speaker, text=text, fact_ids=line.fact_ids)
+
+
 def apply_rules(
     lines: Sequence[DraftLine],
     facts: Sequence[Fact],

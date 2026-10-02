@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Sequence
+from typing import Iterable, List, Optional, Sequence
 
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
@@ -100,10 +100,11 @@ class BroadcastStore:
             for r in rows
         ]
 
-    def least_recently_aired(self, categories: Sequence[str]) -> Optional[StoryInput]:
+    def least_recently_aired(self, categories: Sequence[str], exclude: Iterable[str] = ()) -> Optional[StoryInput]:
         """When every story has aired inside the cooldown, rerun the oldest airing."""
         far_future = datetime.now(timezone.utc) + timedelta(days=3650)
-        stories = self.candidate_stories(categories, aired_since=far_future, limit=50)
+        skip = set(exclude)
+        stories = [s for s in self.candidate_stories(categories, aired_since=far_future, limit=50) if s.id not in skip]
         if not stories:
             return None
         with self.engine.connect() as conn:

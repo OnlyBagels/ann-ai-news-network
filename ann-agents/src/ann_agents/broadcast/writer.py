@@ -56,7 +56,7 @@ How a segment works:
 
 Accuracy rules. These are checked by code and by an editor, and a line that breaks one is cut before air:
 - State as fact only what the fact sheet says. Opinions and questions are fine when they are clearly opinions or questions.
-- Every number, price, percentage, version or date you say must be written in digits exactly as it appears in a fact you cite. Do not round, convert or combine numbers. Do not spell figures out in words.
+- Every number, price, percentage, version or date you say must be written in digits exactly as it appears in a fact you cite. That includes numbers inside product and model names (GPT-6, Llama 4): cite the fact the name comes from. Do not round, convert or combine numbers. Do not spell figures out in words.
 - Cite in fact_ids every fact a line relies on. Lines with no factual claim (a reaction, a question) cite nothing.
 - Never invent quotes, people, benchmarks, release dates, prices or reactions from companies or the public.
 - If the facts are thin, say less. A short, accurate segment beats a padded one.
@@ -178,6 +178,82 @@ class ClaudeNewsroom:
         if response.stop_reason in ("refusal", "max_tokens") or review is None:
             return DeskResult(unsupported={}, spend=spend, ok=False)
 
+        verdicts = {v.index: v for v in review.verdicts}
+        unsupported = {}
+        for i in range(len(lines)):
+            verdict = verdicts.get(i)
+            if verdict is None:
+                unsupported[i] = "the editor returned no verdict for this line"
+            elif not verdict.supported:
+                unsupported[i] = verdict.reason or "not supported by the facts"
+        return DeskResult(unsupported=unsupported, spend=spend, ok=True)
+
+
+class LocalNewsroom:
+    """The same two jobs on self-hosted models, through an OpenAI-compatible server.
+
+    Output is constrained to the DraftScript and DeskReview schemas with
+    response_format json_schema, which Ollama, llama.cpp and vLLM all honour.
+    Local calls cost nothing, so spend records tokens at $0.
+    """
+
+    def __init__(self, pool: Any, writer_model: str, standards_model: str):
+        self.pool = pool
+        self.writer_model = writer_model
+        self.standards_model = standards_model
+
+    async def write(
+        self,
+        story: StoryInput,
+        facts: Sequence[Fact],
+        show: Show,
+        desk: Sequence[str],
+        lineup: Lineup,
+        previous_line: Optional[str],
+        now: datetime,
+        feature: bool = False,
+    ) -> WriterResult:
+        from ann_agents.llm.local import json_schema_format
+        from ann_agents.llm.router import extract_json_text
+
+        label = f"local:{self.writer_model}"
+        user = writer_user_prompt(story, facts, show, desk, lineup, previous_line, now)
+        user += f"\n\nReply with JSON: a title and the lines. speaker is one of: {', '.join(desk)}."
+        try:
+            reply = await self.pool.chat(
+                self.writer_model,
+                writer_system_prompt(lineup),
+                user,
+                max_tokens=1500,
+                response_format=json_schema_format("DraftScript", DraftScript.model_json_schema()),
+            )
+            script = DraftScript.model_validate_json(extract_json_text(reply.text))
+        except Exception as e:
+            logger.error(f"[broadcast] local script writer failed on {self.writer_model}: {e}")
+            return WriterResult(script=None, spend=Spend(), model=label)
+        spend = Spend(usd=0.0, input_tokens=reply.input_tokens, output_tokens=reply.output_tokens, calls=1)
+        return WriterResult(script=script, spend=spend, model=label)
+
+    async def review(self, facts: Sequence[Fact], lines: List[DraftLine]) -> DeskResult:
+        from ann_agents.llm.local import json_schema_format
+        from ann_agents.llm.router import extract_json_text
+
+        numbered = "\n".join(f"{i}. {line.speaker}: {line.text}" for i, line in enumerate(lines))
+        try:
+            reply = await self.pool.chat(
+                self.standards_model,
+                DESK_SYSTEM,
+                f"Fact sheet:\n{render_fact_sheet(facts)}\n\nScript:\n{numbered}\n\nReply with JSON: one verdict per line.",
+                max_tokens=1500,
+                temperature=0.0,
+                response_format=json_schema_format("DeskReview", DeskReview.model_json_schema()),
+            )
+            review = DeskReview.model_validate_json(extract_json_text(reply.text))
+        except Exception as e:
+            logger.error(f"[broadcast] local standards desk failed on {self.standards_model}: {e}")
+            return DeskResult(unsupported={}, spend=Spend(), ok=False)
+
+        spend = Spend(usd=0.0, input_tokens=reply.input_tokens, output_tokens=reply.output_tokens, calls=1)
         verdicts = {v.index: v for v in review.verdicts}
         unsupported = {}
         for i in range(len(lines)):
