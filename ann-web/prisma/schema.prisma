@@ -131,3 +131,46 @@ model Tag {
   articleCount Int      @default(0)
   createdAt    DateTime @default(now())
 }
+
+// ─── Live broadcast ───
+// Written by ann-agents/src/ann_agents/broadcast, read by /api/live and the
+// streamer. One row per segment on the single shared timeline.
+model BroadcastSegment {
+  id         String   @id
+  showId     String
+  kind       String   // story | reel | ident
+  startsAt   DateTime
+  endsAt     DateTime
+  durationMs Int
+  title      String
+  anchors    String[]
+  articleIds String[]
+  // { articles: SegmentArticle[], lines: ScriptLine[], dropped: DroppedLine[] }
+  script     Json
+  writer     String   // model id that wrote it, or "reel"
+  costUsd    Float    @default(0)
+  createdAt  DateTime @default(now())
+
+  @@index([startsAt])
+  @@index([endsAt])
+}
+
+// Claude spend per UTC day, checked against BROADCAST_DAILY_BUDGET_USD.
+model BroadcastSpend {
+  day          String   @id // YYYY-MM-DD, UTC
+  usd          Float    @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  calls        Int      @default(0)
+  updatedAt    DateTime @default(now())
+}
+
+// Who is watching. Browsers on /live and the YouTube streamer check in;
+// the broadcast writes nothing when no one has checked in recently.
+model LiveViewer {
+  id         String   @id
+  kind       String   @default("web") // web | streamer
+  lastSeenAt DateTime @default(now())
+
+  @@index([lastSeenAt])
+}

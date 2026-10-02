@@ -52,6 +52,21 @@ class Settings(BaseSettings):
     anthropic_cheap_model: str = Field(default="claude-haiku-4-5", alias="ANTHROPIC_CHEAP_MODEL")
     anthropic_premium_model: str = Field(default="claude-sonnet-5-5", alias="ANTHROPIC_PREMIUM_MODEL")
 
+    # Live broadcast
+    broadcast_writer_model: str = Field(default="claude-haiku-4-5", alias="BROADCAST_WRITER_MODEL")
+    broadcast_feature_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_FEATURE_MODEL")
+    broadcast_standards_model: str = Field(default="claude-sonnet-5-5", alias="BROADCAST_STANDARDS_MODEL")
+    broadcast_llm_standards: bool = Field(default=True, alias="BROADCAST_LLM_STANDARDS")
+    broadcast_daily_budget_usd: float = Field(default=5.0, alias="BROADCAST_DAILY_BUDGET_USD")
+    broadcast_viewer_window_seconds: int = Field(default=180, alias="BROADCAST_VIEWER_WINDOW_SECONDS")
+    broadcast_lookahead_seconds: int = Field(default=150, alias="BROADCAST_LOOKAHEAD_SECONDS")
+    broadcast_story_cooldown_hours: int = Field(default=6, alias="BROADCAST_STORY_COOLDOWN_HOURS")
+    broadcast_tts: str = Field(default="none", alias="BROADCAST_TTS")  # none | piper
+    broadcast_audio_dir: str = Field(default="./broadcast-audio", alias="BROADCAST_AUDIO_DIR")
+    broadcast_piper_bin: str = Field(default="piper", alias="BROADCAST_PIPER_BIN")
+    broadcast_piper_voices_dir: str = Field(default="./voices", alias="BROADCAST_PIPER_VOICES_DIR")
+    broadcast_lineup_path: Optional[str] = Field(default=None, alias="BROADCAST_LINEUP_PATH")
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 

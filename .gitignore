@@ -164,3 +164,7 @@ wrangler.*.local.toml
 /ann-agents/README.md
 /ann-agents/AGENTS.md
 /ann-agents/CLAUDE.md
+
+# --- Broadcast ---
+broadcast-audio/
+voices/

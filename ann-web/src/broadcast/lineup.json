@@ -1,0 +1,116 @@
+{
+  "network": "ANN",
+  "anchors": [
+    {
+      "id": "marla",
+      "name": "Marla Quill",
+      "role": "Lead anchor",
+      "voice": "en_US-amy-medium",
+      "look": { "skin": "#c68863", "hair": "#2b1d16", "hairStyle": "bob", "outfit": "#24364f", "accent": "#e0e4ea", "glasses": false },
+      "persona": "Runs the desk. Dry, quick, allergic to hype. Asks the question the press release dodged. Has a running bet with Oscar about which lab ships next and keeps the tally to herself."
+    },
+    {
+      "id": "oscar",
+      "name": "Oscar Byrne",
+      "role": "Models and coding",
+      "voice": "en_US-ryan-medium",
+      "look": { "skin": "#e9c1a0", "hair": "#b5651d", "hairStyle": "short", "outfit": "#3c4a3a", "accent": "#f2d16b", "glasses": true },
+      "persona": "Former backend engineer. Gets excited about context windows and pricing pages, then talks himself down. Tries every model on the same three test prompts and will tell you which ones."
+    },
+    {
+      "id": "juno",
+      "name": "Juno Sato",
+      "role": "Research desk",
+      "voice": "en_US-kristin-medium",
+      "look": { "skin": "#f0cfa8", "hair": "#111111", "hairStyle": "long", "outfit": "#5a3e5d", "accent": "#d9d9d9", "glasses": false },
+      "persona": "Reads the paper, not the thread about the paper. Explains methods in one plain sentence and says when a result is a single benchmark. Quietly unimpressed by leaderboards."
+    },
+    {
+      "id": "rhett",
+      "name": "Rhett Calder",
+      "role": "Security and policy",
+      "voice": "en_US-joe-medium",
+      "look": { "skin": "#8d5a3b", "hair": "#3a3a3a", "hairStyle": "buzz", "outfit": "#4a2a2a", "accent": "#c9c9c9", "glasses": false },
+      "persona": "Ex incident responder. Calm, specific, a little grim. Always says who is affected and what to do on Monday. Thinks Oscar patches too slowly and says so."
+    }
+  ],
+  "shows": [
+    {
+      "id": "the-wire",
+      "name": "The Wire",
+      "blurb": "The biggest AI stories of the hour, straight from the sources.",
+      "anchors": ["marla", "oscar"],
+      "categories": ["models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation"],
+      "color": "#1d3557",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "model-watch",
+      "name": "Model Watch",
+      "blurb": "Launches, pricing pages, benchmarks and API changes, read closely.",
+      "anchors": ["oscar", "marla"],
+      "categories": ["models", "coding_ai", "agents"],
+      "color": "#264d3b",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "open-weights",
+      "name": "Open Weights",
+      "blurb": "New repos, released weights and the licenses attached to them.",
+      "anchors": ["oscar", "juno"],
+      "categories": ["open_source", "agents", "coding_ai"],
+      "color": "#3d3a1e",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "paper-trail",
+      "name": "Paper Trail",
+      "blurb": "This week's preprints, with the method in plain words.",
+      "anchors": ["juno", "marla"],
+      "categories": ["research"],
+      "color": "#3b2a4d",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "red-team",
+      "name": "Red Team Report",
+      "blurb": "Vulnerabilities, jailbreaks and incidents, and who has to patch what.",
+      "anchors": ["rhett", "oscar"],
+      "categories": ["security"],
+      "color": "#4d1f1f",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "the-ledger",
+      "name": "The Ledger",
+      "blurb": "Rounds, acquisitions and compute deals.",
+      "anchors": ["marla", "rhett"],
+      "categories": ["funding"],
+      "color": "#1f3d4d",
+      "segmentsPerStory": 1
+    },
+    {
+      "id": "rulebook",
+      "name": "Rulebook",
+      "blurb": "AI law and policy, and what changes for builders.",
+      "anchors": ["rhett", "juno"],
+      "categories": ["regulation"],
+      "color": "#2e2e3f",
+      "segmentsPerStory": 1
+    }
+  ],
+  "grid": [
+    { "hourUtc": 0, "show": "the-wire" },
+    { "hourUtc": 2, "show": "open-weights" },
+    { "hourUtc": 4, "show": "paper-trail" },
+    { "hourUtc": 6, "show": "the-wire" },
+    { "hourUtc": 8, "show": "model-watch" },
+    { "hourUtc": 10, "show": "red-team" },
+    { "hourUtc": 12, "show": "the-wire" },
+    { "hourUtc": 14, "show": "model-watch" },
+    { "hourUtc": 16, "show": "the-ledger" },
+    { "hourUtc": 18, "show": "rulebook" },
+    { "hourUtc": 20, "show": "the-wire" },
+    { "hourUtc": 22, "show": "open-weights" }
+  ]
+}
