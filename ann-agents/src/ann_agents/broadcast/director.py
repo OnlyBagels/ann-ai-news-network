@@ -239,7 +239,7 @@ class Director:
         return segment
 
 
-def _title(preferred: str, fallback: str, limit: int = 60) -> str:
+def _title(preferred: str, fallback: str, limit: int = 90) -> str:
     title = (preferred or fallback).strip()
     if len(title) <= limit:
         return title
