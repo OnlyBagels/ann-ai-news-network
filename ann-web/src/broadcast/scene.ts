@@ -399,7 +399,10 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
 
   const show = findShow(lineup, segment.showId);
   const set: StudioSet = segment.set ?? show?.set ?? "desk";
-  const layout = layoutFor(set, segment.anchors.length);
+  // A reporter at the end of the desk list is a correspondent, standing at the side.
+  const last = segment.anchors[segment.anchors.length - 1];
+  const correspondent = segment.anchors.length >= 2 && !lineup.anchors.some((a) => a.id === last);
+  const layout = layoutFor(set, segment.anchors.length, correspondent);
   const cur = currentLine(segment, input.segmentElapsedMs);
   const article = segment.articles[0];
 
@@ -420,7 +423,13 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
   } else {
     const speakerId = cur?.line.speaker ?? segment.anchors[0];
     const tag =
-      segment.kind === "question" ? "Viewer question" : layout.set === "desk" ? (show?.name ?? lineup.network) : segment.title;
+      segment.kind === "question"
+        ? "Viewer question"
+        : segment.kind === "bit"
+          ? "Desk banter"
+          : layout.set === "desk"
+            ? (show?.name ?? lineup.network)
+            : segment.title;
     drawLowerThird(ctx, tag, speakerId ? findAnchor(lineup, speakerId) : undefined);
   }
   const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;

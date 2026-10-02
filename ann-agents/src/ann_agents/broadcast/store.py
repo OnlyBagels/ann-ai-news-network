@@ -97,7 +97,7 @@ class BroadcastStore:
         category_filter = 'AND a.category::text = ANY(:categories)' if categories else ""
         sql = f"""
             SELECT a.id, a.title, a.source, a.url, a.category::text, a.summary, a."tlDr",
-                   a."publishedAt", COALESCE(s."overallScore", 0)
+                   a."publishedAt", COALESCE(s."overallScore", 0), a.byline
             FROM "Article" a
             LEFT JOIN "Scores" s ON s."articleId" = a.id
             WHERE a."storyStatus"::text = ANY(:statuses)
@@ -121,7 +121,7 @@ class BroadcastStore:
         return [
             StoryInput(
                 id=r[0], title=r[1], source=r[2], url=r[3], category=r[4], summary=r[5] or "",
-                tl_dr=r[6], published_at=_utc(r[7]), overall_score=r[8],
+                tl_dr=r[6], published_at=_utc(r[7]), overall_score=r[8], byline=r[9],
             )
             for r in rows
         ]

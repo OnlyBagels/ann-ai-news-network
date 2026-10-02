@@ -104,6 +104,7 @@ class StoryInput(BaseModel):
     tl_dr: Optional[str] = None
     published_at: datetime
     overall_score: int = 0
+    byline: Optional[str] = None  # the reporter who wrote it, who may join the desk
 
 
 class SegmentArticle(_Camel):

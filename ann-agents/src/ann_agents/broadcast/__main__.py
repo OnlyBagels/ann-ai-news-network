@@ -100,6 +100,7 @@ def build_director() -> Director:
         min_runway_seconds=settings.broadcast_min_runway_seconds,
         always_on=settings.broadcast_always_on,
         data_desk=DataDesk() if settings.broadcast_data_desk else None,
+        bits=settings.broadcast_bits,
         watersheep=_watersheep(),
         min_support=settings.watersheep_min_support,
     )

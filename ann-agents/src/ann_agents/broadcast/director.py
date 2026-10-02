@@ -11,6 +11,7 @@ the same moment.
 from __future__ import annotations
 
 import asyncio
+import random
 import re
 import uuid
 from dataclasses import dataclass
@@ -41,6 +42,7 @@ from ann_agents.broadcast.timing import lay_out
 from ann_agents.broadcast.tts import NoVoice, Voice
 from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroom, SplitNewsroom
 from ann_agents.datadesk.scripts import markets_lines, sports_lines, weather_lines
+from ann_agents.broadcast.bits import BIT_FACT_QUESTION, write_bit
 
 LEAD = timedelta(seconds=2)  # never book a segment to start in the past
 IDENT_WINDOW = timedelta(minutes=10)  # a show open only airs near the top of its slot
@@ -89,6 +91,7 @@ class Director:
         min_support: float = 0.5,
         always_on: bool = False,
         data_desk: Any = None,
+        bits: bool = False,
     ):
         self.store = store
         self.lineup = lineup
@@ -109,6 +112,7 @@ class Director:
         # Weather, scores and prices for the data hits (datadesk.boards.DataDesk).
         self.data = data_desk
         self._data_pending: Set[str] = set()
+        self.bits = bits
         # Several ticks can run at once (one per model server). These keep
         # them from writing the same story, opening a show twice, or booking
         # into the same slot.
@@ -156,6 +160,8 @@ class Director:
             draft = self._question(question, show)
             segment = await self._book(draft, show, now, clock)
             self.store.mark_question_aired(question["id"], segment.id)
+        elif self._bit_due(show, now) and (draft := await self._bit(show)) is not None:
+            segment = await self._book(draft, show, now, clock)
         else:
             story = self._pick_story(show, now)
             if story is None:
@@ -234,6 +240,41 @@ class Director:
         return Draft(kind=kind, title=title, anchors=desk, lines=lines, articles=[], writer="data",
                      spend=Spend(), dropped=[], set=kind, board=board)
 
+    def _desk_for(self, story: StoryInput, show: Show) -> List[str]:
+        """The show's anchors, joined now and then by the reporter who wrote the story."""
+        desk = list(show.anchors)
+        reporter_ids = {r.id for r in self.lineup.reporters}
+        joins = (
+            story.byline in reporter_ids
+            and story.byline not in desk
+            and show.set == "desk"
+            and len(desk) == 2
+            and int(story.id.encode().hex()[-4:], 16) % 3 == 0  # about one story in three
+        )
+        return desk + [story.byline] if joins else desk
+
+    BIT_GAP = timedelta(minutes=30)
+    BIT_GAP_LATE = timedelta(minutes=10)
+    BIT_CHANCE = 0.5
+
+    def _bit_due(self, show: Show, now: datetime) -> bool:
+        if not self.bits:
+            return False
+        gap = self.BIT_GAP_LATE if show.set == "latenight" else self.BIT_GAP
+        return not self.store.kind_aired_since("bit", now - gap) and random.random() < self.BIT_CHANCE
+
+    async def _bit(self, show: Show) -> Optional[Draft]:
+        """Desk banter between stories: comedy with no facts in it, labeled on screen."""
+        lines = await write_bit(self.lineup, show, list(show.anchors))
+        if self.watersheep is not None and lines:
+            asks = [Ask(l.text, BIT_FACT_QUESTION) for l in lines]
+            answers = await asyncio.to_thread(self.watersheep.ask_many, asks)
+            lines = [l for l, a in zip(lines, answers) if a.p_yes <= 0.5]
+        if len(lines) < 2:
+            return None
+        return Draft(kind="bit", title="Desk banter", anchors=list(show.anchors), lines=lines, articles=[],
+                     writer="bit", spend=Spend(), dropped=[])
+
     QUESTION_GAP = timedelta(minutes=20)
 
     def _question_due(self, now: datetime) -> Optional[dict]:
@@ -271,7 +312,7 @@ class Director:
     async def _story(self, story: StoryInput, show: Show, now: datetime, write: bool = True) -> Draft:
         facts = build_fact_sheet(story)
         article = SegmentArticle(id=story.id, title=story.title, source=story.source, url=story.url)
-        desk = list(show.anchors)
+        desk = self._desk_for(story, show) if write else list(show.anchors)
         spend = Spend()
         dropped: List[DroppedLine] = []
 

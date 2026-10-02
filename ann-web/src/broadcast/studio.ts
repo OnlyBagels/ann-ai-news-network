@@ -44,7 +44,11 @@ export interface Layout {
 
 const DESK_TOP = 262;
 
-export function layoutFor(set: StudioSet, count: number): Layout {
+/**
+ * Where the cast go on a set. On the news desk, `correspondent` puts the last
+ * person (a reporter joining the anchors) standing at the right of the set.
+ */
+export function layoutFor(set: StudioSet, count: number, correspondent = false): Layout {
   const seated = (cx: number, top = DESK_TOP): Seat => ({ cx, top: top - CHAR_DESK_ROW, standing: false, boardSide: 0 });
   const floor = 332;
   const standing = (cx: number, boardSide: -1 | 0 | 1): Seat => ({ cx, top: floor - CHAR_H - LEGS_H + 6, standing: true, boardSide });
@@ -64,8 +68,13 @@ export function layoutFor(set: StudioSet, count: number): Layout {
         desks: [{ x: 388, w: 168, top: DESK_TOP, front: DESK_TOP + 12, logo: false }],
       };
     default: {
+      const desk = { x: 124, w: 392, top: DESK_TOP, front: DESK_TOP + 12, logo: true };
+      if (correspondent && count >= 2) {
+        const xs = count - 1 >= 2 ? [232, 408] : [320];
+        return { set: "desk", seats: [...xs.map((x) => seated(x)), standing(578, 0)], desks: [desk] };
+      }
       const xs = count >= 3 ? [184, 320, 456] : count === 2 ? [232, 408] : [320];
-      return { set: "desk", seats: xs.map((x) => seated(x)), desks: [{ x: 124, w: 392, top: DESK_TOP, front: DESK_TOP + 12, logo: true }] };
+      return { set: "desk", seats: xs.map((x) => seated(x)), desks: [desk] };
     }
   }
 }

@@ -130,6 +130,8 @@ class Settings(BaseSettings):
     broadcast_always_on: bool = Field(default=True, alias="BROADCAST_ALWAYS_ON")
     # Weather, scores and crypto prices from public APIs for the data hits.
     broadcast_data_desk: bool = Field(default=True, alias="BROADCAST_DATA_DESK")
+    # Desk banter between stories: fact-free comedy, labeled on screen.
+    broadcast_bits: bool = Field(default=True, alias="BROADCAST_BITS")
     broadcast_story_cooldown_hours: int = Field(default=6, alias="BROADCAST_STORY_COOLDOWN_HOURS")
     broadcast_tts: str = Field(default="none", alias="BROADCAST_TTS")  # none | piper
     broadcast_audio_dir: str = Field(default="./broadcast-audio", alias="BROADCAST_AUDIO_DIR")
