@@ -70,6 +70,13 @@ export function layoutFor(set: StudioSet, count: number): Layout {
   }
 }
 
+/** "as of 6:30 PM ET" for a board's fetch time. */
+function asOfLabel(iso: string): string {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "";
+  return `as of ${new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(t))} ET`;
+}
+
 function rect(ctx: PixelCtx, x: number, y: number, w: number, h: number, c: string): void {
   if (w <= 0 || h <= 0) return;
   ctx.fillStyle = c;
@@ -413,7 +420,7 @@ function weatherWall(ctx: PixelCtx, input: BackdropInput, r: Room): void {
     drawTextScaled(ctx, temp, bx + 13, by + 2, PAPER, 2);
     drawText(ctx, label, bx + 2, by + 20, "#cfe0ff");
   }
-  drawText(ctx, truncate(`Data: ${board.source}`, 200), 222, 254, "#cfe0ff");
+  drawText(ctx, truncate(`Data: ${board.source}, ${asOfLabel(board.asOf)}`, 380), 222, 254, "#cfe0ff");
   void r;
 }
 
@@ -441,7 +448,7 @@ function sportsWall(ctx: PixelCtx, input: BackdropInput, r: Room): void {
       drawTextScaled(ctx, truncate(g.home.toUpperCase(), 100), x + 4, y + 36, PAPER, 2);
       drawTextScaled(ctx, score(g.homeScore), x + 172 - measure(score(g.homeScore)) * 2 - 6, y + 36, "#ffd84a", 2);
     });
-    drawText(ctx, truncate(`Data: ${board.source}`, 300), 52, 184, "#c8e6b0");
+    drawText(ctx, truncate(`Data: ${board.source}, ${asOfLabel(board.asOf)}`, 300), 52, 184, "#c8e6b0");
   }
   // Pennants on the wall either side.
   for (const x of [8, 610]) {
@@ -487,7 +494,7 @@ function marketsWall(ctx: PixelCtx, input: BackdropInput, r: Room): void {
       }
     }
   });
-  drawText(ctx, truncate(`Data: ${board.source}`, 300), 34, 256, MUTED);
+  drawText(ctx, truncate(`Data: ${board.source}, ${asOfLabel(board.asOf)}`, 420), 34, 256, MUTED);
   void r;
 }
 

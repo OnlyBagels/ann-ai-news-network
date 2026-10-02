@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import lineupJson from "@/broadcast/lineup.json";
-import type { LiveNow, Lineup, ScriptLine, Segment, SegmentArticle, SegmentKind } from "@/broadcast/types";
+import { easternInstant } from "@/broadcast/time";
+import type { Board, LiveNow, Lineup, ScriptLine, Segment, SegmentArticle, SegmentKind, StudioSet } from "@/broadcast/types";
 
 export const lineup = lineupJson as Lineup;
 
@@ -12,6 +13,8 @@ const MAX_SEGMENTS = 12;
 interface StoredScript {
   articles?: SegmentArticle[];
   lines?: ScriptLine[];
+  set?: StudioSet;
+  board?: Board;
 }
 
 export async function getLiveNow(now = new Date()): Promise<LiveNow> {
@@ -40,7 +43,10 @@ export async function getLiveNow(now = new Date()): Promise<LiveNow> {
         durationMs: line.durationMs,
         audio: line.audio ?? null,
         mouth: line.mouth ?? null,
+        mood: line.mood ?? null,
       })),
+      set: script.set,
+      board: script.board ?? null,
     };
   });
 
@@ -60,15 +66,14 @@ export async function checkIn(id: string, kind: "web" | "streamer" = "web"): Pro
   return true;
 }
 
-/** The grid as concrete time ranges for one UTC day, for the schedule table. */
+/** The grid as concrete time ranges for one Eastern day, for the schedule table. */
 export function gridForDay(day: Date): { show: Lineup["shows"][number]; start: Date; end: Date }[] {
-  const midnight = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
   return lineup.grid.map((slot, i) => {
-    const next = lineup.grid[i + 1]?.hourUtc ?? 24;
+    const next = lineup.grid[i + 1];
     return {
       show: lineup.shows.find((s) => s.id === slot.show)!,
-      start: new Date(midnight + slot.hourUtc * 3_600_000),
-      end: new Date(midnight + next * 3_600_000),
+      start: new Date(easternInstant(day.getTime(), slot.hourEt)),
+      end: new Date(next ? easternInstant(day.getTime(), next.hourEt) : easternInstant(day.getTime(), 0, 1)),
     };
   });
 }

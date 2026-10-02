@@ -22,31 +22,38 @@ export default function AIDisclosurePage() {
 
         <h2>How a story is made</h2>
         <ol>
-          <li>We read public feeds from AI labs, research archives, news sites and regulators.</li>
           <li>
-            A small classifier (WaterSheep) drops items that aren&rsquo;t about AI, and a language model picks the
-            ones worth covering.
-          </li>
-          <li>We fetch the full source article. If there is too little text to check against, the story waits for a person.</li>
-          <li>
-            The classifier assigns a beat, and that beat&rsquo;s{" "}
-            <Link href="/newsroom">
-              reporter
-            </Link>{" "}
-            writes the summary from the source text only.
+            We read about 200 public feeds: wire services, public broadcasters, newspapers and specialist outlets for
+            every section, from across the political spectrum.
           </li>
           <li>
-            A fact-check pass compares the summary with the source. The classifier separately scores whether the
-            summary is supported, whether the story is about AI, and whether the headline is clickbait.
+            A small classifier (WaterSheep) drops items that aren&rsquo;t news reports: ads, promotions, job posts and
+            opinion columns. A language model then picks the stories worth covering, favoring ones that several outlets
+            are reporting, and keeps a mix of sections.
+          </li>
+          <li>
+            For each story we find up to three other outlets reporting the same event, spread across political leans
+            where we can (using Ad Fontes Media&rsquo;s ratings), and fetch every article. If there is too little text
+            to check against, the story waits for a person.
+          </li>
+          <li>
+            The classifier assigns a section, and that section&rsquo;s{" "}
+            <Link href="/newsroom">reporter</Link> writes the article from those texts only. Every claim names the
+            outlet it came from, quotes are word for word, and when outlets disagree the article says so.
+          </li>
+          <li>
+            A fact-check pass compares the article with the sources. The classifier separately scores whether the
+            article is supported, whether the headline is clickbait, and whether the language is loaded or one-sided.
           </li>
           <li>Editors write the headline and TL;DR, and a risk check looks for legal and safety problems.</li>
+          <li>Every source is listed at the end of the story, with a link, its date and its Ad Fontes rating.</li>
         </ol>
 
         <h2>Where people come in</h2>
         <p>
           Stories that pass every check are published without a person reading them first. A story goes to a human
-          editor instead when the fact-check confidence is low, the risk check flags it, the classifier scores
-          disagree with the model, or the source is too thin to check.
+          editor instead when the fact-check confidence is low, the risk check flags it, the classifier finds the
+          language loaded or the article unsupported, or the sources are too thin to check.
         </p>
 
         <h2>Models</h2>
@@ -68,6 +75,13 @@ export default function AIDisclosurePage() {
           and cuts lines that don&rsquo;t match, and a second model reviews the rest. A segment that fails airs as a
           plain reading of the story instead. The anchors&rsquo; opinions are written for the show and are not
           ANN&rsquo;s reporting.
+        </p>
+
+        <h2>Taking no side</h2>
+        <p>
+          ANN doesn&rsquo;t endorse candidates, parties or causes. Reporters are told to attribute every claim, give each
+          side&rsquo;s position in its own words, and avoid loaded labels. Outlets&rsquo; political leans are shown on
+          every story so you can judge the mix of sources yourself.
         </p>
 
         <h2>Mistakes</h2>

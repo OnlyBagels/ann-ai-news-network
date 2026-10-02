@@ -1,9 +1,15 @@
 import Link from "next/link";
 import { formatDate } from "@/lib/utils";
-import { CATEGORIES, type Article } from "@/types";
+import { CATEGORIES, sectionOf, type Article, type Category } from "@/types";
 
+/** The section a story sits in ("AI" for every AI beat). */
 export function sectionLabel(category: string): string {
-  return CATEGORIES.find((c) => c.id === category)?.label ?? category;
+  return sectionOf(category as Category)?.label ?? CATEGORIES.find((c) => c.id === category)?.label ?? category;
+}
+
+/** Where a story's section lives on the site. */
+export function sectionHref(category: string): string {
+  return `/categories/${sectionOf(category as Category)?.id ?? category}`;
 }
 
 // One headline in a ruled list: the meta column on the left, the headline

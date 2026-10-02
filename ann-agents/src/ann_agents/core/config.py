@@ -128,6 +128,8 @@ class Settings(BaseSettings):
     # Keep writing whether or not anyone is watching (a 24-hour channel). Off,
     # the director only writes while a viewer has checked in recently.
     broadcast_always_on: bool = Field(default=True, alias="BROADCAST_ALWAYS_ON")
+    # Weather, scores and crypto prices from public APIs for the data hits.
+    broadcast_data_desk: bool = Field(default=True, alias="BROADCAST_DATA_DESK")
     broadcast_story_cooldown_hours: int = Field(default=6, alias="BROADCAST_STORY_COOLDOWN_HOURS")
     broadcast_tts: str = Field(default="none", alias="BROADCAST_TTS")  # none | piper
     broadcast_audio_dir: str = Field(default="./broadcast-audio", alias="BROADCAST_AUDIO_DIR")

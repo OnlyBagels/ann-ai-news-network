@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Lineup } from "@/broadcast/types";
+import { easternInstant } from "@/broadcast/time";
 
 interface Slot {
   showId: string;
@@ -9,16 +10,15 @@ interface Slot {
   end: number;
 }
 
-// Today's grid in the viewer's own time zone, starting from the slot on now.
+// The next 24 hours of the grid (set in Eastern time), shown in the viewer's own time zone.
 function slotsFrom(lineup: Lineup, now: number): Slot[] {
-  const day = new Date(now);
-  const midnight = Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate());
   const slots: Slot[] = [];
-  for (const offset of [0, 1]) {
-    const base = midnight + offset * 86_400_000;
+  for (const offset of [-1, 0, 1]) {
     lineup.grid.forEach((slot, i) => {
-      const next = lineup.grid[i + 1]?.hourUtc ?? 24;
-      slots.push({ showId: slot.show, start: base + slot.hourUtc * 3_600_000, end: base + next * 3_600_000 });
+      const next = lineup.grid[i + 1];
+      const start = easternInstant(now, slot.hourEt, offset);
+      const end = next ? easternInstant(now, next.hourEt, offset) : easternInstant(now, lineup.grid[0].hourEt, offset + 1);
+      slots.push({ showId: slot.show, start, end });
     });
   }
   const current = slots.findIndex((s) => s.start <= now && now < s.end);
@@ -43,7 +43,7 @@ export function Schedule({ lineup }: { lineup: Lineup }) {
   }, []);
 
   if (now === null) return null;
-  const names = Object.fromEntries(lineup.anchors.map((a) => [a.id, a.name]));
+  const names = Object.fromEntries([...lineup.anchors, ...(lineup.reporters ?? [])].map((a) => [a.id, a.name]));
 
   return (
     <div className="relative overflow-x-auto">

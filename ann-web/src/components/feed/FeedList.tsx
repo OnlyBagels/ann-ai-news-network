@@ -2,10 +2,11 @@
 
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { StoryRow } from "@/components/story/StoryRow";
-import type { Category, FeedResponse } from "@/types";
+import type { FeedResponse } from "@/types";
 
 interface FeedListProps {
-  category?: Category;
+  /** A section slug ("ai") or a category slug. */
+  category?: string;
   search?: string;
 }
 

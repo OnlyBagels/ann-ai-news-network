@@ -7,7 +7,7 @@ ann-web/src/broadcast/types.ts, which the web player and the streamer read.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -61,14 +61,19 @@ class Show(_Camel):
     id: str
     name: str
     blurb: str
-    anchors: List[str]
+    anchors: List[str]  # anchor ids, or reporter ids for a guest or correspondent
     categories: List[str]
     color: str
     segments_per_story: int = 1
+    set: str = "desk"  # the studio set its stories air from
+    # Data hits the show carries, from the data desks.
+    weather: bool = False
+    sports: bool = False
+    markets: bool = False
 
 
 class GridSlot(_Camel):
-    hour_utc: int
+    hour_et: int  # hour of the day in the lineup's time zone (US Eastern)
     show: str
 
 
@@ -79,6 +84,7 @@ class Lineup(BaseModel):
     grid: List[GridSlot]
     reporters: List[Reporter] = Field(default_factory=list)
     beats: Dict[str, str] = Field(default_factory=dict)  # category -> reporter id
+    timezone: str = "America/New_York"
 
 
 class Fact(BaseModel):
@@ -128,13 +134,16 @@ class DroppedLine(BaseModel):
 class Segment(_Camel):
     id: str
     show_id: str
-    kind: Literal["story", "reel", "ident"]
+    kind: Literal["story", "reel", "ident", "weather", "sports", "markets", "bit"]
     starts_at: datetime
     duration_ms: int
     title: str
     anchors: List[str]
     articles: List[SegmentArticle]
     lines: List[ScriptLine]
+    # The studio set, when not the show's home set, and a data board for its wall.
+    set: Optional[str] = None
+    board: Optional[Dict[str, Any]] = None
 
 
 # What the script writer is asked to return. Kept free of length or range

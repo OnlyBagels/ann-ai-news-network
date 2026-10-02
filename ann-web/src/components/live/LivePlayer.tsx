@@ -180,7 +180,7 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
   };
 
   const show = segment ? lineup.shows.find((s) => s.id === segment.showId) : null;
-  const names = Object.fromEntries(lineup.anchors.map((a) => [a.id, a.name]));
+  const names = Object.fromEntries([...lineup.anchors, ...(lineup.reporters ?? [])].map((a) => [a.id, a.name]));
   const transcript = segment ? segment.lines.slice(0, spokenCount) : [];
 
   const picture = youtube ? (

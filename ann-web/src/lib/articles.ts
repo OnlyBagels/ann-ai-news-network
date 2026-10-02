@@ -1,5 +1,5 @@
 import type { Prisma, Category as DbCategory, StoryStatus } from "@prisma/client";
-import type { Article, Byline, Category } from "@/types";
+import { SECTIONS, type Article, type ArticleSource, type Byline, type Category } from "@/types";
 import { lineup } from "@/lib/live";
 
 // Only stories that passed the pipeline (or a human editor) are public.
@@ -7,10 +7,23 @@ export const PUBLIC_STATUSES: StoryStatus[] = ["approved", "published"];
 
 // The database enum uses underscores (open_source); URLs and the UI use
 // hyphens (open-source).
+const DB_CATEGORIES: string[] = [
+  "models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation",
+  "world", "us", "politics", "business", "crypto", "tech", "science", "climate", "health", "sports",
+  "entertainment", "gaming", "internet",
+];
+
 export function toDbCategory(slug: string): DbCategory | null {
   const value = slug.replace(/-/g, "_");
-  const valid: string[] = ["models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation"];
-  return valid.includes(value) ? (value as DbCategory) : null;
+  return DB_CATEGORIES.includes(value) ? (value as DbCategory) : null;
+}
+
+/** The database categories behind a section slug (e.g. "ai") or a single category slug. */
+export function dbCategoriesFor(slug: string): DbCategory[] | null {
+  const section = SECTIONS.find((s) => s.id === slug);
+  if (section) return section.categories.map((c) => toDbCategory(c)!).filter(Boolean);
+  const one = toDbCategory(slug);
+  return one ? [one] : null;
 }
 
 export function toUiCategory(category: DbCategory | string): Category {
@@ -58,6 +71,7 @@ export function toArticle(row: ArticleWithScores): Article {
     imageUrl: row.imageUrl ?? undefined,
     relatedArticles: row.relatedArticles,
     byline: bylineFor(row.byline),
+    sources: Array.isArray(row.sources) ? (row.sources as unknown as ArticleSource[]) : undefined,
   };
 }
 

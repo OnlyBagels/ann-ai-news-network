@@ -15,6 +15,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Any, List, Optional, Set, Union
+from zoneinfo import ZoneInfo
 
 from loguru import logger
 
@@ -38,6 +39,7 @@ from ann_agents.broadcast.store import BroadcastStore
 from ann_agents.broadcast.timing import lay_out
 from ann_agents.broadcast.tts import NoVoice, Voice
 from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroom, SplitNewsroom
+from ann_agents.datadesk.scripts import markets_lines, sports_lines, weather_lines
 
 LEAD = timedelta(seconds=2)  # never book a segment to start in the past
 IDENT_WINDOW = timedelta(minutes=10)  # a show open only airs near the top of its slot
@@ -64,6 +66,8 @@ class Draft:
     writer: str
     spend: Spend
     dropped: List[DroppedLine]
+    set: Optional[str] = None
+    board: Optional[dict] = None
 
 
 class Director:
@@ -83,6 +87,7 @@ class Director:
         watersheep: Any = None,
         min_support: float = 0.5,
         always_on: bool = False,
+        data_desk: Any = None,
     ):
         self.store = store
         self.lineup = lineup
@@ -100,6 +105,9 @@ class Director:
         self.min_support = min_support
         self.min_runway = timedelta(seconds=min_runway_seconds)
         self.always_on = always_on
+        # Weather, scores and prices for the data hits (datadesk.boards.DataDesk).
+        self.data = data_desk
+        self._data_pending: Set[str] = set()
         # Several ticks can run at once (one per model server). These keep
         # them from writing the same story, opening a show twice, or booking
         # into the same slot.
@@ -135,6 +143,14 @@ class Director:
                 segment = await self._book(draft, show, now, clock)
             finally:
                 self._ident_pending = False
+        elif (hit := self._data_hit(show, start)) and (board := await self.data.board(hit)) and (
+            draft := self._data(hit, board, show)
+        ):
+            self._data_pending.add(hit)
+            try:
+                segment = await self._book(draft, show, now, clock)
+            finally:
+                self._data_pending.discard(hit)
         else:
             story = self._pick_story(show, now)
             if story is None:
@@ -177,6 +193,42 @@ class Director:
             or self.store.least_recently_aired([], exclude=busy)
         )
 
+    # When in the hour each data hit airs (Eastern minutes), for shows that carry it.
+    DATA_WINDOWS = {"weather": (0, 12), "sports": (15, 25), "markets": (30, 40)}
+
+    def _data_hit(self, show: Show, start: datetime) -> Optional[str]:
+        """Which data hit, if any, is due at `start` and hasn't aired this hour."""
+        if self.data is None:
+            return None
+        local = start.astimezone(ZoneInfo(self.lineup.timezone))
+        for kind, (lo, hi) in self.DATA_WINDOWS.items():
+            if not getattr(show, kind) or kind in self._data_pending or not (lo <= local.minute < hi):
+                continue
+            since = local.replace(minute=lo, second=0, microsecond=0).astimezone(timezone.utc)
+            if not self.store.kind_aired_since(kind, since):
+                return kind
+        return None
+
+    def _data(self, kind: str, board: dict, show: Show) -> Optional[Draft]:
+        """A data hit read off the board by its regular presenter."""
+        cast = {a.id for a in self.lineup.anchors}
+        if kind == "weather":
+            desk = ["skye"] if "skye" in cast else show.anchors[:1]
+            lines = weather_lines(board, desk[0])
+            title = "Weather now"
+        elif kind == "sports":
+            desk = show.anchors if show.sports and show.set == "sports" else (["kofi"] if "kofi" in cast else []) + show.anchors[:1]
+            lines = sports_lines(board, desk)
+            title = "Scoreboard"
+        else:
+            desk = ["nora"] if "nora" in cast else show.anchors[:1]
+            lines = markets_lines(board, desk[0])
+            title = "Crypto prices"
+        if not lines:
+            return None
+        return Draft(kind=kind, title=title, anchors=desk, lines=lines, articles=[], writer="data",
+                     spend=Spend(), dropped=[], set=kind, board=board)
+
     def _ident(self, show: Show) -> Draft:
         anchors = [grid.anchor(self.lineup, a) for a in show.anchors]
         return Draft(
@@ -213,7 +265,7 @@ class Director:
         if written is not None:
             spend = spend + written.spend
             if written.script is not None:
-                names = {a.id: a.name for a in self.lineup.anchors}
+                names = {i: grid.anchor(self.lineup, i).name for i in desk}
                 drafted = [tidy_line(line, names) for line in written.script.lines]
                 rules = apply_rules(drafted, facts, desk, now)
                 dropped.extend(rules.dropped)
@@ -321,6 +373,8 @@ class Director:
                 anchors=draft.anchors,
                 articles=draft.articles,
                 lines=draft.lines,
+                set=draft.set,
+                board=draft.board,
             )
             self.store.insert_segment(segment, draft.writer, draft.spend.usd, draft.dropped)
         return segment

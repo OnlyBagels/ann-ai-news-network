@@ -58,10 +58,13 @@ class BroadcastStore:
         return script["lines"][-1]["text"]
 
     def ident_aired_since(self, since: datetime) -> bool:
+        return self.kind_aired_since("ident", since)
+
+    def kind_aired_since(self, kind: str, since: datetime) -> bool:
         with self.engine.connect() as conn:
             return conn.execute(
-                text("""SELECT EXISTS (SELECT 1 FROM "BroadcastSegment" WHERE kind = 'ident' AND "startsAt" >= :since)"""),
-                {"since": since},
+                text("""SELECT EXISTS (SELECT 1 FROM "BroadcastSegment" WHERE kind = :kind AND "startsAt" >= :since)"""),
+                {"kind": kind, "since": since},
             ).scalar_one()
 
     def candidate_stories(
@@ -126,6 +129,10 @@ class BroadcastStore:
             "lines": [line.model_dump(by_alias=True) for line in segment.lines],
             "dropped": [d.model_dump() for d in dropped],
         }
+        if segment.set:
+            script["set"] = segment.set
+        if segment.board:
+            script["board"] = segment.board
         with self.engine.begin() as conn:
             conn.execute(
                 text("""

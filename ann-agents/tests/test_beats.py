@@ -21,7 +21,12 @@ class ChoosingWaterSheep:
         self.section, self.ai_beat, self.confidence = section, ai_beat, confidence
 
     def ask(self, text, question, options=None, type=None):
-        choice = self.section if question == beat_module.SECTION_QUESTION else self.ai_beat
+        if question == beat_module.GROUP_QUESTION:
+            choice = next(g for g, members in beat_module.GROUPS.items() if self.section in members)
+        elif question == beat_module.SECTION_QUESTION:
+            choice = self.section
+        else:
+            choice = self.ai_beat
         rest = (1 - self.confidence) / (len(options) - 1)
         probs = {o: (self.confidence if o == choice else rest) for o in options}
         return Answer("single", probs, choice, self.confidence)
@@ -36,6 +41,10 @@ def test_every_beat_has_a_reporter_with_a_voice():
         reporter = reporter_for(lineup, beat)
         assert reporter is not None, beat
         assert reporter.voice and reporter.bio and reporter.style
+    # Every section sits in exactly one group, and no question has over 10 options.
+    grouped = [m for members in beat_module.GROUPS.values() for m in members]
+    assert sorted(grouped) == sorted(beat_module.SECTIONS)
+    assert max(len(beat_module.GROUPS), len(beat_module.AI_BEATS), *map(len, beat_module.GROUPS.values())) <= 10
     covered = set(beat_module.AI_BEATS.values()) | (set(beat_module.SECTIONS.values()) - {"ai"})
     assert covered == {c.value for c in Category}
     for category in covered:

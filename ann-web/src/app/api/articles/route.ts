@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis, getCacheKey, CACHE_TTL } from "@/lib/redis";
-import { PUBLIC_STATUSES, toArticle, toDbCategory } from "@/lib/articles";
+import { PUBLIC_STATUSES, dbCategoriesFor, toArticle } from "@/lib/articles";
 import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
@@ -26,11 +26,11 @@ export async function GET(request: NextRequest) {
     // Build query filters
     const where: Prisma.ArticleWhereInput = { storyStatus: { in: PUBLIC_STATUSES } };
     if (category) {
-      const dbCategory = toDbCategory(category);
-      if (!dbCategory) {
+      const categories = dbCategoriesFor(category);
+      if (!categories) {
         return NextResponse.json({ error: "Unknown category" }, { status: 400 });
       }
-      where.category = dbCategory;
+      where.category = { in: categories };
     }
     if (search) {
       where.OR = [

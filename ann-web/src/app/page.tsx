@@ -6,18 +6,27 @@ import { getYouTubeConfig } from "@/lib/youtube";
 import { aiTitle, formatDate } from "@/lib/utils";
 import { LivePlayer } from "@/components/live/LivePlayer";
 import { SectionHeading, StoryRow, sectionLabel } from "@/components/story/StoryRow";
-import type { Article } from "@/types";
+import { SECTIONS, sectionOf, type Article, type Category, type SectionInfo } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 const LATEST_COUNT = 16;
 const LEAD_WINDOW_MS = 2 * 86_400_000;
 
-async function loadFrontPage(): Promise<{ lead: Article | null; latest: Article[]; ok: boolean }> {
+const PER_SECTION = 3;
+
+interface FrontPage {
+  lead: Article | null;
+  latest: Article[];
+  bySection: { section: SectionInfo; stories: Article[] }[];
+  ok: boolean;
+}
+
+async function loadFrontPage(): Promise<FrontPage> {
   try {
     const where = { storyStatus: { in: PUBLIC_STATUSES } };
     // The lead is the highest-rated story of the last two days, or the newest.
-    const [best, newest] = await Promise.all([
+    const [best, newest, recent] = await Promise.all([
       prisma.article.findFirst({
         where: { ...where, publishedAt: { gte: new Date(Date.now() - LEAD_WINDOW_MS) } },
         orderBy: [{ scores: { overallScore: "desc" } }, { publishedAt: "desc" }],
@@ -29,13 +38,22 @@ async function loadFrontPage(): Promise<{ lead: Article | null; latest: Article[
         take: LATEST_COUNT + 1,
         include: { scores: true },
       }),
+      prisma.article.findMany({ where, orderBy: { publishedAt: "desc" }, take: 300, include: { scores: true } }),
     ]);
     const leadRow = best ?? newest[0] ?? null;
     const latest = newest.filter((row) => row.id !== leadRow?.id).slice(0, LATEST_COUNT);
-    return { lead: leadRow ? toArticle(leadRow) : null, latest: latest.map(toArticle), ok: true };
+    const shown = new Set([leadRow?.id, ...latest.map((r) => r.id)]);
+    const bySection = SECTIONS.map((section) => ({
+      section,
+      stories: recent
+        .map(toArticle)
+        .filter((a) => !shown.has(a.id) && sectionOf(a.category as Category)?.id === section.id)
+        .slice(0, PER_SECTION),
+    })).filter((b) => b.stories.length > 0);
+    return { lead: leadRow ? toArticle(leadRow) : null, latest: latest.map(toArticle), bySection, ok: true };
   } catch (error) {
     console.error("Failed to load the front page:", error);
-    return { lead: null, latest: [], ok: false };
+    return { lead: null, latest: [], bySection: [], ok: false };
   }
 }
 
@@ -50,7 +68,7 @@ function today(): string {
 }
 
 export default async function FrontPage() {
-  const { lead, latest, ok } = await loadFrontPage();
+  const { lead, latest, bySection, ok } = await loadFrontPage();
   const youtube = getYouTubeConfig();
 
   return (
@@ -67,8 +85,9 @@ export default async function FrontPage() {
             <time dateTime={new Date().toISOString().slice(0, 10)}>{today()}</time>
           </p>
           <p className="mt-6 max-w-[44ch] text-lg text-muted-foreground">
-            Launches, papers, security incidents and new rules in AI. Each story is written from its source by an AI
-            reporter and checked against it before it runs.
+            The day&rsquo;s news from everywhere: world, politics, business, sports, science and more. AI reporters write
+            each story from the outlets that reported it, cite every one, and check the story against them before it
+            runs.
           </p>
         </div>
         <LivePlayer lineup={lineup} youtube={youtube} variant="compact" />
@@ -131,10 +150,30 @@ export default async function FrontPage() {
         </section>
       )}
 
+      {bySection.map(({ section, stories }) => (
+        <section key={section.id} aria-labelledby={`section-${section.id}`}>
+          <SectionHeading
+            id={`section-${section.id}`}
+            aside={
+              <Link href={`/categories/${section.id}`} className="label link tap text-muted-foreground">
+                All {section.label}
+              </Link>
+            }
+          >
+            {section.label}
+          </SectionHeading>
+          <ul>
+            {stories.map((article) => (
+              <StoryRow key={article.id} article={article} showSection={false} />
+            ))}
+          </ul>
+        </section>
+      ))}
+
       <section aria-labelledby="desk-title" className="grid gap-6 md:grid-cols-[192px_minmax(0,1fr)] md:gap-8">
         <h2 id="desk-title" className="label-caps text-muted-foreground">Who writes this</h2>
         <p className="max-w-[60ch] text-lg">
-          {lineup.reporters.length} AI reporters, one for each beat, and {lineup.anchors.length} anchors on the live desk.
+          {lineup.reporters.length} AI reporters, each with a beat, and {lineup.anchors.length} anchors on the live desk.
           None of them are people. Each one writes only from the source it cites.{" "}
           <Link href="/newsroom" className="link">
             Meet the newsroom

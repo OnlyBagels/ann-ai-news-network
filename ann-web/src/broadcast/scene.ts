@@ -8,6 +8,7 @@
 
 import type { Anchor, Lineup, ScriptLine, Segment, Show, StudioSet } from "./types";
 import { MOUTH_FPS } from "./types";
+import { easternHour, easternHourLabel } from "./time";
 import { type PixelCtx, drawText, drawTextScaled, measure, normalizeText, truncate, wrap } from "./font";
 import { breathOffset, drawEmote } from "./sprites";
 import { act, letterAt, type Acting } from "./face";
@@ -118,8 +119,12 @@ function findShow(lineup: Lineup, id: string | undefined): Show | undefined {
   return id ? lineup.shows.find((s) => s.id === id) : undefined;
 }
 
+/** An anchor, or a reporter at the desk as a guest or correspondent. */
 function findAnchor(lineup: Lineup, id: string): Anchor | undefined {
-  return lineup.anchors.find((a) => a.id === id);
+  const anchor = lineup.anchors.find((a) => a.id === id);
+  if (anchor) return anchor;
+  const r = lineup.reporters?.find((x) => x.id === id);
+  return r ? { id: r.id, name: r.name, role: r.title, voice: r.voice, look: r.look, persona: r.bio } : undefined;
 }
 
 /** Draw 1x pixel art (the emotes) at 2x around an origin. */
@@ -291,22 +296,17 @@ function drawBubble(ctx: PixelCtx, line: ScriptLine, c: Cast): void {
 
 const TICKER_SPEED = 40; // px per second
 
-function easternLabel(hourUtc: number, nowMs: number): string {
-  const d = new Date(nowMs);
-  d.setUTCHours(hourUtc, 0, 0, 0);
-  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric" }).format(d);
-}
 
 function tickerText(input: FrameInput): string {
   const titles = input.upcoming.map((s) => normalizeText(s.title).trim()).filter(Boolean);
   if (titles.length > 0) return `UP NEXT: ${titles.join("  /  ")}`;
-  const grid = [...input.lineup.grid].sort((a, b) => a.hourUtc - b.hourUtc);
-  const hour = new Date(input.nowMs).getUTCHours();
-  const next = grid.filter((g) => g.hourUtc > hour).concat(grid.filter((g) => g.hourUtc <= hour));
+  const grid = [...input.lineup.grid].sort((a, b) => a.hourEt - b.hourEt);
+  const hour = easternHour(input.nowMs);
+  const next = grid.filter((g) => g.hourEt > hour).concat(grid.filter((g) => g.hourEt <= hour));
   return next
     .map((g) => {
       const s = findShow(input.lineup, g.show);
-      return s ? `${easternLabel(g.hourUtc, input.nowMs)} ET ${s.name}` : "";
+      return s ? `${easternHourLabel(g.hourEt)} ET ${s.name}` : "";
     })
     .filter(Boolean)
     .join("  /  ");
@@ -349,10 +349,10 @@ function drawIdentCard(ctx: PixelCtx, show: Show | undefined, network: string): 
 
 /** The show on the grid right now. */
 function showOnGrid(lineup: Lineup, nowMs: number): Show | undefined {
-  const hour = new Date(nowMs).getUTCHours();
-  const grid = [...lineup.grid].sort((a, b) => a.hourUtc - b.hourUtc);
+  const hour = easternHour(nowMs);
+  const grid = [...lineup.grid].sort((a, b) => a.hourEt - b.hourEt);
   let slot = grid[0];
-  for (const g of grid) if (g.hourUtc <= hour) slot = g;
+  for (const g of grid) if (g.hourEt <= hour) slot = g;
   return slot ? findShow(lineup, slot.show) : undefined;
 }
 

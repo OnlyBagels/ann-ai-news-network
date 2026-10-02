@@ -35,6 +35,18 @@ SECTIONS = {
 }
 SECTION_QUESTION = "Which section of a news site does this story belong in?"
 
+# WaterSheep takes at most 10 options a question, so the section is picked in
+# two steps: a broad group, then the section inside it.
+GROUPS = {
+    "news, world affairs and politics": ["world news outside the United States", "United States national news", "politics and government"],
+    "business, money and crypto": ["business and the economy", "crypto, NFTs and collectibles"],
+    "technology and artificial intelligence": ["technology and gadgets", "artificial intelligence"],
+    "science, health and the environment": ["science and space", "climate and the environment", "health and medicine"],
+    "sports": ["sports"],
+    "entertainment, games and online culture": ["film, TV, music and celebrities", "video games", "internet culture and online trends"],
+}
+GROUP_QUESTION = "Which part of a news site does this story belong in?"
+
 AI_BEATS = {
     "AI models and APIs": "models",
     "open source AI": "open_source",
@@ -75,10 +87,17 @@ async def assign_beat(story: Story) -> Optional[str]:
     if ws is None:
         return hint
     text = f"{story.title}\n{source_text(source)[:1500] if source else ''}"
-    section = await asyncio.to_thread(ws.ask, text, SECTION_QUESTION, list(SECTIONS))
-    if section.confidence < MIN_CONFIDENCE and hint:
+    group = await asyncio.to_thread(ws.ask, text, GROUP_QUESTION, list(GROUPS))
+    if group.confidence < MIN_CONFIDENCE and hint:
         return hint
-    picked = SECTIONS[section.answer]
+    members = GROUPS[group.answer]
+    if len(members) == 1:
+        picked = SECTIONS[members[0]]
+    else:
+        section = await asyncio.to_thread(ws.ask, text, SECTION_QUESTION, members)
+        if section.confidence < MIN_CONFIDENCE and hint:
+            return hint
+        picked = SECTIONS[section.answer]
     if picked != "ai":
         return picked
     if hint in AI_CATEGORIES:

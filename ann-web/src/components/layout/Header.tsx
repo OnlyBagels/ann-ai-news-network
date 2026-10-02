@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import { Menu, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { CATEGORIES } from "@/types";
+import { SECTIONS } from "@/types";
 import { Mark } from "@/components/layout/Mark";
 
 const PAGES = [
   { href: "/feed", label: "Latest" },
   { href: "/live", label: "Live" },
+  { href: "/weather", label: "Weather" },
   { href: "/newsroom", label: "Newsroom" },
   { href: "/search", label: "Search" },
 ];
@@ -70,7 +71,7 @@ export function Header() {
 
         <nav aria-label="Sections" className="border-t border-border">
           <ul className="scrollbar-none -mx-4 flex gap-6 overflow-x-auto px-4 md:mx-0 md:px-0">
-            {CATEGORIES.map((c) => {
+            {SECTIONS.map((c) => {
               const href = `/categories/${c.id}`;
               const active = pathname === href;
               return (

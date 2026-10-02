@@ -20,6 +20,7 @@ from ann_agents.broadcast.store import BroadcastStore, make_engine
 from ann_agents.broadcast.tts import make_voice
 from ann_agents.broadcast.writer import ClaudeNewsroom, LocalNewsroom, SplitNewsroom
 from ann_agents.core.config import settings
+from ann_agents.datadesk.boards import DataDesk
 from ann_agents.llm.local import local_pool
 from ann_agents.llm.watersheep import watersheep
 
@@ -98,6 +99,7 @@ def build_director() -> Director:
         write_timeout_seconds=settings.broadcast_write_timeout_seconds,
         min_runway_seconds=settings.broadcast_min_runway_seconds,
         always_on=settings.broadcast_always_on,
+        data_desk=DataDesk() if settings.broadcast_data_desk else None,
         watersheep=_watersheep(),
         min_support=settings.watersheep_min_support,
     )

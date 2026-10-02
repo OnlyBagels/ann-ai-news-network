@@ -14,12 +14,12 @@
         "accent": "#e0e4ea",
         "glasses": false
       },
-      "persona": "Runs the desk. Dry, quick, allergic to hype. Asks the question the press release dodged. Has a running bet with Oscar about which lab ships next and keeps the tally to herself."
+      "persona": "Runs the desk. Dry, quick, allergic to hype. Asks the question the press release dodged. Has a running bet with Oscar about which company ships next and keeps the tally to herself."
     },
     {
       "id": "oscar",
       "name": "Oscar Byrne",
-      "role": "Models and coding",
+      "role": "Tech and AI anchor",
       "voice": "en_US-ryan-medium",
       "look": {
         "skin": "#e9c1a0",
@@ -29,12 +29,12 @@
         "accent": "#f2d16b",
         "glasses": true
       },
-      "persona": "Former backend engineer. Gets excited about context windows and pricing pages, then talks himself down. Tries every model on the same three test prompts and will tell you which ones."
+      "persona": "Former backend engineer. Gets excited about new gadgets and pricing pages, then talks himself down. Tries every new app on the same three test tasks and will tell you which ones."
     },
     {
       "id": "juno",
       "name": "Juno Sato",
-      "role": "Research desk",
+      "role": "Science and AI anchor",
       "voice": "en_US-kristin-medium",
       "look": {
         "skin": "#f0cfa8",
@@ -49,7 +49,7 @@
     {
       "id": "rhett",
       "name": "Rhett Calder",
-      "role": "Security and policy",
+      "role": "Politics and security anchor",
       "voice": "en_US-joe-medium",
       "look": {
         "skin": "#8d5a3b",
@@ -60,18 +60,238 @@
         "glasses": false
       },
       "persona": "Ex incident responder. Calm, specific, a little grim. Always says who is affected and what to do on Monday. Thinks Oscar patches too slowly and says so."
+    },
+    {
+      "id": "dana",
+      "name": "Dana Brooks",
+      "role": "Morning anchor",
+      "voice": "en_US-hfc_female-medium",
+      "look": {
+        "skin": "#c68863",
+        "hair": "#3a2418",
+        "hairStyle": "long",
+        "outfit": "#7a3b2e",
+        "accent": "#f2e6d0",
+        "glasses": false
+      },
+      "persona": "Up before everyone and fine with it. Warm, quick, keeps the morning moving. Says good morning like she means it and always gets the forecast in."
+    },
+    {
+      "id": "leo",
+      "name": "Leo Hart",
+      "role": "Morning anchor",
+      "voice": "en_US-norman-medium",
+      "look": {
+        "skin": "#e9c1a0",
+        "hair": "#5a3a20",
+        "hairStyle": "short",
+        "outfit": "#2f4a6a",
+        "accent": "#e6e6e6",
+        "glasses": false
+      },
+      "persona": "Dad jokes before 7 AM, facts after. Reads the sports scores with real feeling. Has opinions about the coffee in the studio."
+    },
+    {
+      "id": "skye",
+      "name": "Skye Moreno",
+      "role": "Meteorologist",
+      "voice": "en_US-ljspeech-medium",
+      "look": {
+        "skin": "#b07850",
+        "hair": "#1a1010",
+        "hairStyle": "bob",
+        "outfit": "#2a5a7a",
+        "accent": "#f2d16b",
+        "glasses": false
+      },
+      "persona": "Loves a pressure system. Explains the forecast in one sentence, then the why. Only reads numbers off the weather wall, never guesses."
+    },
+    {
+      "id": "kofi",
+      "name": "Kofi Mensah",
+      "role": "Sports anchor",
+      "voice": "en_US-reza_ibrahim-medium",
+      "look": {
+        "skin": "#5a3a28",
+        "hair": "#0e0a0a",
+        "hairStyle": "buzz",
+        "outfit": "#1d3d2a",
+        "accent": "#e3b341",
+        "glasses": false
+      },
+      "persona": "Former college point guard. Score first, then the moment that decided it. Respects every fan base equally and teases all of them."
+    },
+    {
+      "id": "vince",
+      "name": "Vince Calloway",
+      "role": "Late-night host",
+      "voice": "en_GB-alan-low",
+      "look": {
+        "skin": "#d9a77f",
+        "hair": "#2a2a2a",
+        "hairStyle": "short",
+        "outfit": "#2a1a3a",
+        "accent": "#c9a6e8",
+        "glasses": true
+      },
+      "persona": "Late-night host with a desk, a mug and a monologue. Jokes about the day, never about who people are. Asks guests one real question per segment."
+    },
+    {
+      "id": "nora",
+      "name": "Nora Kim",
+      "role": "Markets anchor",
+      "voice": "en_US-kathleen-low",
+      "look": {
+        "skin": "#f0cfa8",
+        "hair": "#151010",
+        "hairStyle": "bob",
+        "outfit": "#1f3d4d",
+        "accent": "#9fe0c8",
+        "glasses": true
+      },
+      "persona": "Reads prices with the time and the source, every time. Unbothered by green or red. Reminds viewers nothing on ANN is financial advice."
+    },
+    {
+      "id": "ben",
+      "name": "Ben Okafor",
+      "role": "Overnight anchor",
+      "voice": "en_GB-northern_english_male-medium",
+      "look": {
+        "skin": "#6b4226",
+        "hair": "#151010",
+        "hairStyle": "short",
+        "outfit": "#1b2440",
+        "accent": "#d0c8b8",
+        "glasses": false
+      },
+      "persona": "Keeps the overnight desk calm. World news first while the US sleeps. Speaks slowly, checks twice, never rushes a name."
     }
   ],
   "shows": [
     {
-      "id": "the-wire",
-      "name": "The Wire",
-      "blurb": "The biggest AI stories of the hour, straight from the sources.",
+      "id": "overnight",
+      "name": "ANN Overnight",
+      "blurb": "The world while the US sleeps: overnight news, calmly checked.",
+      "anchors": [
+        "ben",
+        "juno"
+      ],
+      "categories": [
+        "world",
+        "us",
+        "politics",
+        "business",
+        "science",
+        "health",
+        "climate",
+        "tech",
+        "models",
+        "open_source",
+        "coding_ai",
+        "agents",
+        "research",
+        "security",
+        "funding",
+        "regulation"
+      ],
+      "color": "#1b2440",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "weather": true
+    },
+    {
+      "id": "press-start",
+      "name": "Press Start",
+      "blurb": "Video games and internet culture, talked through like a podcast.",
+      "anchors": [
+        "oscar",
+        "theo"
+      ],
+      "categories": [
+        "gaming",
+        "internet",
+        "tech"
+      ],
+      "color": "#3a2a5c",
+      "segmentsPerStory": 1,
+      "set": "latenight"
+    },
+    {
+      "id": "morning",
+      "name": "ANN Morning",
+      "blurb": "The news to start the day, with the weather at the top of every hour and the scores at quarter past.",
+      "anchors": [
+        "dana",
+        "leo"
+      ],
+      "categories": [
+        "world",
+        "us",
+        "politics",
+        "business",
+        "crypto",
+        "tech",
+        "science",
+        "climate",
+        "health",
+        "sports",
+        "entertainment",
+        "gaming",
+        "internet",
+        "models",
+        "open_source",
+        "coding_ai",
+        "agents",
+        "research",
+        "security",
+        "funding",
+        "regulation"
+      ],
+      "color": "#7a3b2e",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "weather": true,
+      "sports": true
+    },
+    {
+      "id": "block-by-block",
+      "name": "Block by Block",
+      "blurb": "Crypto, tokens and collectibles: prices from the source, never advice.",
+      "anchors": [
+        "nora",
+        "cole"
+      ],
+      "categories": [
+        "crypto",
+        "business"
+      ],
+      "color": "#1f4d4d",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "markets": true
+    },
+    {
+      "id": "daytime",
+      "name": "ANN Daytime",
+      "blurb": "The day's news as it breaks, from every section.",
       "anchors": [
         "marla",
         "oscar"
       ],
       "categories": [
+        "world",
+        "us",
+        "politics",
+        "business",
+        "crypto",
+        "tech",
+        "science",
+        "climate",
+        "health",
+        "sports",
+        "entertainment",
+        "gaming",
+        "internet",
         "models",
         "open_source",
         "coding_ai",
@@ -82,145 +302,250 @@
         "regulation"
       ],
       "color": "#1d3557",
-      "segmentsPerStory": 1
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "weather": true
     },
     {
-      "id": "model-watch",
-      "name": "Model Watch",
-      "blurb": "Launches, pricing pages, benchmarks and API changes, read closely.",
+      "id": "midday-markets",
+      "name": "Midday Markets",
+      "blurb": "Companies, the economy and crypto at the halfway mark, with live prices.",
       "anchors": [
-        "oscar",
-        "marla"
+        "nora",
+        "raj"
       ],
       "categories": [
-        "models",
-        "coding_ai",
-        "agents"
+        "business",
+        "crypto",
+        "funding"
       ],
       "color": "#264d3b",
-      "segmentsPerStory": 1
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "markets": true
     },
     {
-      "id": "open-weights",
-      "name": "Open Weights",
-      "blurb": "New repos, released weights and the licenses attached to them.",
+      "id": "ai-hour",
+      "name": "The AI Hour",
+      "blurb": "Models, research, security and policy in AI, read closely.",
       "anchors": [
         "oscar",
         "juno"
       ],
       "categories": [
+        "models",
         "open_source",
+        "coding_ai",
         "agents",
-        "coding_ai"
+        "research",
+        "security",
+        "funding",
+        "regulation",
+        "tech"
       ],
-      "color": "#3d3a1e",
-      "segmentsPerStory": 1
+      "color": "#2e2e4f",
+      "segmentsPerStory": 1,
+      "set": "desk"
     },
     {
-      "id": "paper-trail",
-      "name": "Paper Trail",
-      "blurb": "This week's preprints, with the method in plain words.",
+      "id": "sports-desk",
+      "name": "Sports Desk",
+      "blurb": "Scores, standings and the stories around them.",
       "anchors": [
-        "juno",
-        "marla"
+        "kofi",
+        "danny"
       ],
       "categories": [
-        "research"
+        "sports"
       ],
-      "color": "#3b2a4d",
-      "segmentsPerStory": 1
+      "color": "#1d3d2a",
+      "segmentsPerStory": 1,
+      "set": "sports",
+      "sports": true
     },
     {
-      "id": "red-team",
-      "name": "Red Team Report",
-      "blurb": "Vulnerabilities, jailbreaks and incidents, and who has to patch what.",
-      "anchors": [
-        "rhett",
-        "oscar"
-      ],
-      "categories": [
-        "security"
-      ],
-      "color": "#4d1f1f",
-      "segmentsPerStory": 1
-    },
-    {
-      "id": "the-ledger",
-      "name": "The Ledger",
-      "blurb": "Rounds, acquisitions and compute deals.",
+      "id": "evening",
+      "name": "ANN Evening News",
+      "blurb": "The day's biggest stories, with the weather and the markets.",
       "anchors": [
         "marla",
         "rhett"
       ],
       "categories": [
-        "funding"
+        "world",
+        "us",
+        "politics",
+        "business",
+        "crypto",
+        "tech",
+        "science",
+        "climate",
+        "health",
+        "sports",
+        "entertainment",
+        "gaming",
+        "internet",
+        "models",
+        "open_source",
+        "coding_ai",
+        "agents",
+        "research",
+        "security",
+        "funding",
+        "regulation"
       ],
-      "color": "#1f3d4d",
-      "segmentsPerStory": 1
+      "color": "#4d1f1f",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "weather": true,
+      "markets": true
     },
     {
-      "id": "rulebook",
-      "name": "Rulebook",
-      "blurb": "AI law and policy, and what changes for builders.",
+      "id": "capitol-report",
+      "name": "Capitol Report",
+      "blurb": "Politics without the spin: what was done, what was said, and by whom.",
+      "anchors": [
+        "rhett",
+        "evelyn"
+      ],
+      "categories": [
+        "politics",
+        "us",
+        "world",
+        "regulation"
+      ],
+      "color": "#2e2e3f",
+      "segmentsPerStory": 1,
+      "set": "desk"
+    },
+    {
+      "id": "up-late",
+      "name": "Up Late with Vince Calloway",
+      "blurb": "The late-night talk show: the day's lighter news, a guest from the newsroom, and the monologue.",
+      "anchors": [
+        "vince",
+        "mia"
+      ],
+      "categories": [
+        "entertainment",
+        "internet",
+        "gaming",
+        "sports",
+        "tech"
+      ],
+      "color": "#3a1a4a",
+      "segmentsPerStory": 1,
+      "set": "latenight"
+    },
+    {
+      "id": "after-hours",
+      "name": "Crypto After Hours",
+      "blurb": "Crypto and collectibles into the night, with live prices.",
+      "anchors": [
+        "nora",
+        "cole"
+      ],
+      "categories": [
+        "crypto"
+      ],
+      "color": "#14302e",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "markets": true
+    },
+    {
+      "id": "tonight",
+      "name": "ANN Tonight",
+      "blurb": "The day's news wrapped up, and what to watch for tomorrow.",
       "anchors": [
         "rhett",
         "juno"
       ],
       "categories": [
+        "world",
+        "us",
+        "politics",
+        "business",
+        "crypto",
+        "tech",
+        "science",
+        "climate",
+        "health",
+        "sports",
+        "entertainment",
+        "gaming",
+        "internet",
+        "models",
+        "open_source",
+        "coding_ai",
+        "agents",
+        "research",
+        "security",
+        "funding",
         "regulation"
       ],
-      "color": "#2e2e3f",
-      "segmentsPerStory": 1
+      "color": "#2a1f3d",
+      "segmentsPerStory": 1,
+      "set": "desk",
+      "weather": true
     }
   ],
   "grid": [
     {
-      "hourUtc": 0,
-      "show": "the-wire"
+      "hourEt": 0,
+      "show": "overnight"
     },
     {
-      "hourUtc": 2,
-      "show": "open-weights"
+      "hourEt": 4,
+      "show": "press-start"
     },
     {
-      "hourUtc": 4,
-      "show": "paper-trail"
+      "hourEt": 5,
+      "show": "morning"
     },
     {
-      "hourUtc": 6,
-      "show": "the-wire"
+      "hourEt": 9,
+      "show": "block-by-block"
     },
     {
-      "hourUtc": 8,
-      "show": "model-watch"
+      "hourEt": 10,
+      "show": "daytime"
     },
     {
-      "hourUtc": 10,
-      "show": "red-team"
+      "hourEt": 12,
+      "show": "midday-markets"
     },
     {
-      "hourUtc": 12,
-      "show": "the-wire"
+      "hourEt": 13,
+      "show": "ai-hour"
     },
     {
-      "hourUtc": 14,
-      "show": "model-watch"
+      "hourEt": 14,
+      "show": "daytime"
     },
     {
-      "hourUtc": 16,
-      "show": "the-ledger"
+      "hourEt": 16,
+      "show": "sports-desk"
     },
     {
-      "hourUtc": 18,
-      "show": "rulebook"
+      "hourEt": 17,
+      "show": "evening"
     },
     {
-      "hourUtc": 20,
-      "show": "the-wire"
+      "hourEt": 19,
+      "show": "capitol-report"
     },
     {
-      "hourUtc": 22,
-      "show": "open-weights"
+      "hourEt": 20,
+      "show": "up-late"
+    },
+    {
+      "hourEt": 21,
+      "show": "after-hours"
+    },
+    {
+      "hourEt": 22,
+      "show": "tonight"
     }
   ],
   "reporters": [
@@ -553,5 +878,6 @@
     "entertainment": "mia",
     "gaming": "theo",
     "internet": "theo"
-  }
+  },
+  "timezone": "America/New_York"
 }

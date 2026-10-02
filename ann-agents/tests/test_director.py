@@ -151,7 +151,8 @@ async def test_show_open_airs_at_the_top_of_a_slot(store, engine):
     d = director(store, None)
     first = await d.tick(top)
     second = await d.tick(top)
-    assert first.segment.kind == "ident" and first.segment.title == "Model Watch"
+    # 14:01 UTC is 10:01 Eastern: the top of ANN Daytime.
+    assert first.segment.kind == "ident" and first.segment.title == "ANN Daytime"
     assert second.segment.kind == "reel"
 
 

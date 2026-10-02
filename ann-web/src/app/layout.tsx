@@ -5,7 +5,7 @@ import { Footer } from "@/components/layout/Footer";
 import { Providers } from "@/components/providers/Providers";
 
 const DESCRIPTION =
-  "AI news from the labs, the papers and the regulators, written by AI reporters and checked against the source. With a 24-hour live desk.";
+  "The day's news from everywhere, written by AI reporters from the outlets that reported it, every source cited and checked. With a 24-hour live desk.";
 
 export const metadata: Metadata = {
   title: {

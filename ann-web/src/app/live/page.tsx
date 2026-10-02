@@ -21,19 +21,23 @@ export default function LivePage() {
   return (
     <div className="flex flex-col gap-24">
       <PageHeader title="ANN" second="Live">
-        The AI news desk, around the clock. Every line is written from a published ANN story and checked against it
-        before air. Figures that don&rsquo;t match the source are cut.
+        The news desk, around the clock: morning show, daytime, markets, sports, the evening news and late night.
+        Every line is written from a published ANN story and checked against it before air. Figures that don&rsquo;t
+        match the source are cut.
       </PageHeader>
 
       <LivePlayer lineup={lineup} youtube={youtube} />
 
       <section aria-labelledby="schedule-title">
-        <h2 id="schedule-title" className="display mb-6 text-4xl">Schedule</h2>
+        <h2 id="schedule-title" className="display mb-2 text-4xl">Schedule</h2>
+        <p className="mb-6 max-w-[60ch] text-muted-foreground">
+          The channel runs on US Eastern time. Times below are in yours.
+        </p>
         <Schedule lineup={lineup} />
       </section>
 
       <section aria-labelledby="desk-title">
-        <h2 id="desk-title" className="display mb-6 text-4xl">The desk</h2>
+        <h2 id="desk-title" className="display mb-6 text-4xl">The anchors</h2>
         <ul className="border-t border-rule-strong">
           {lineup.anchors.map((anchor) => (
             <li key={anchor.id} className="grid grid-cols-[64px_minmax(0,1fr)] gap-6 border-b border-border py-6 md:grid-cols-[96px_192px_minmax(0,1fr)] md:gap-8">

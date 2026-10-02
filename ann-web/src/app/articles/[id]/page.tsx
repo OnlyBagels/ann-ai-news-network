@@ -6,8 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { PUBLIC_STATUSES, toArticle } from "@/lib/articles";
 import { getReporter } from "@/lib/newsroom";
 import { aiTitle, formatDate } from "@/lib/utils";
+import type { ArticleSource } from "@/types";
 import { Portrait } from "@/components/newsroom/Portrait";
-import { StoryRow, sectionLabel } from "@/components/story/StoryRow";
+import { StoryRow, sectionHref, sectionLabel } from "@/components/story/StoryRow";
 
 export const dynamic = "force-dynamic";
 
@@ -44,6 +45,11 @@ export default async function ArticlePage({ params }: Params) {
     .catch(() => []);
 
   const body = row.content && row.content.length > row.summary.length ? row.content : row.summary;
+  // Every outlet the story draws on; older stories only stored the one.
+  const sources: ArticleSource[] =
+    article.sources && article.sources.length > 0
+      ? article.sources
+      : [{ name: article.source, url: article.url, author: article.author, publishedAt: article.publishedAt }];
   const claims =
     row.verifiedClaims != null && row.unverifiedClaims != null
       ? `${row.verifiedClaims} of ${row.verifiedClaims + row.unverifiedClaims} claims matched the source`
@@ -53,7 +59,7 @@ export default async function ArticlePage({ params }: Params) {
     <article className="flex flex-col gap-16">
       <header className="grid gap-8 border-b border-rule-strong pb-12 md:grid-cols-[192px_minmax(0,1fr)]">
         <p className="label flex flex-wrap gap-x-3 text-muted-foreground md:flex-col md:gap-1">
-          <Link href={`/categories/${article.category}`} className="link tap text-foreground">
+          <Link href={sectionHref(article.category)} className="link tap text-foreground">
             {sectionLabel(article.category)}
           </Link>
           <span>{article.source}</span>
@@ -91,16 +97,40 @@ export default async function ArticlePage({ params }: Params) {
               <ExternalLink className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             </a>
           </p>
-          {article.author && <p className="label text-muted-foreground">Original reporting by {article.author}.</p>}
         </div>
       </div>
+
+      <section aria-labelledby="sources-title" className="grid gap-8 border-t border-rule-strong pt-8 md:grid-cols-[192px_minmax(0,1fr)]">
+        <h2 id="sources-title" className="label-caps text-muted-foreground">
+          {sources.length === 1 ? "Source" : `Sources (${sources.length})`}
+        </h2>
+        <ol className="max-w-[68ch]">
+          {sources.map((src, i) => (
+            <li key={src.url} className="grid gap-1 border-b border-border py-4 first:pt-0 sm:grid-cols-[32px_minmax(0,1fr)]">
+              <span className="label text-muted-foreground">{i + 1}.</span>
+              <div className="min-w-0">
+                <a href={src.url} target="_blank" rel="noopener noreferrer" className="link font-semibold">
+                  {src.name}
+                </a>
+                {src.title && <p className="mt-1 text-muted-foreground">{src.title}</p>}
+                <p className="label mt-1 flex flex-wrap gap-x-3 text-muted-foreground">
+                  {src.author && <span>By {src.author}</span>}
+                  {src.publishedAt && <time dateTime={src.publishedAt}>{formatDate(src.publishedAt)}</time>}
+                  {src.lean && <span>Ad Fontes rating: {src.lean}</span>}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </section>
 
       <section aria-labelledby="checked-title" className="grid gap-8 border-t border-rule-strong pt-8 md:grid-cols-[192px_minmax(0,1fr)]">
         <h2 id="checked-title" className="label-caps text-muted-foreground">How this was checked</h2>
         <dl className="grid max-w-[68ch] items-baseline gap-x-8 gap-y-4 sm:grid-cols-[160px_minmax(0,1fr)]">
           <dt className="label text-muted-foreground">Written by</dt>
           <dd>
-            {reporter ? `${reporter.name}, an AI reporter,` : "An AI reporter"} from the source text only.
+            {reporter ? `${reporter.name}, an AI reporter,` : "An AI reporter"} from the text of{" "}
+            {sources.length === 1 ? "the source below" : `the ${sources.length} sources below`}, and nothing else.
           </dd>
           <dt className="label text-muted-foreground">Fact-check</dt>
           <dd>

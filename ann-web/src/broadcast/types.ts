@@ -54,6 +54,9 @@ export type Board = WeatherBoard | SportsBoard | MarketsBoard;
 export interface Show {
   id: string;
   set?: StudioSet;
+  weather?: boolean;
+  sports?: boolean;
+  markets?: boolean;
   name: string;
   blurb: string;
   anchors: string[];
@@ -63,7 +66,7 @@ export interface Show {
 }
 
 export interface GridSlot {
-  hourUtc: number;
+  hourEt: number; // hour of the day, US Eastern
   show: string;
 }
 
@@ -86,6 +89,7 @@ export interface Lineup {
   grid: GridSlot[];
   reporters: Reporter[];
   beats: Record<string, string>; // category -> reporter id
+  timezone?: string;
 }
 
 export interface SegmentArticle {
@@ -124,7 +128,7 @@ export interface ScriptLine {
   factIds?: number[];
 }
 
-export type SegmentKind = "story" | "reel" | "ident";
+export type SegmentKind = "story" | "reel" | "ident" | "weather" | "sports" | "markets" | "bit";
 
 export interface Segment {
   id: string;

@@ -5,6 +5,7 @@ Usage:
     python -m ann_agents.main --ingest           # Ingest from all sources and process
     python -m ann_agents.main --pipeline         # Run pipeline on existing stories
     python -m ann_agents.main --newsroom         # Ingest, check and save on a loop (NEWSROOM_INTERVAL_MINUTES)
+    python -m ann_agents.main --newsroom --once  # One newsroom cycle, then exit
 """
 
 from __future__ import annotations
@@ -141,7 +142,10 @@ async def main() -> None:
 
         from ann_agents.bridge.scheduler import NewsroomScheduler
 
-        await NewsroomScheduler().run_forever(int(os.environ.get("NEWSROOM_INTERVAL_MINUTES", "15")))
+        if "--once" in args:
+            await NewsroomScheduler().run_once()
+        else:
+            await NewsroomScheduler().run_forever(int(os.environ.get("NEWSROOM_INTERVAL_MINUTES", "15")))
     elif "--ingest" in args:
         await run_ingest()
     elif "--pipeline" in args:

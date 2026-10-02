@@ -48,6 +48,8 @@ def writer_system_prompt(lineup: Lineup) -> str:
 The anchors:
 {cast}
 
+Reporters from the newsroom sometimes join the desk as a correspondent or guest; who they are is given with the story.
+
 How a segment works:
 - You get one story as a numbered fact sheet, the show it airs on, and who is at the desk.
 - Write 4 to 7 lines of spoken dialogue between the anchors at the desk. One anchor reads the story; the other reacts, asks the obvious follow-up, or says what it means for viewers. Keep their personalities, but the story leads.
@@ -74,13 +76,22 @@ def writer_user_prompt(
     previous_line: Optional[str],
     now: datetime,
 ) -> str:
-    names = {a.id: a.name for a in lineup.anchors}
-    at_desk = ", ".join(f"{anchor_id} ({names[anchor_id]})" for anchor_id in desk)
+    from zoneinfo import ZoneInfo
+
+    from ann_agents.broadcast.lineup import anchor
+
+    people = [anchor(lineup, anchor_id) for anchor_id in desk]
+    at_desk = ", ".join(f"{p.id} ({p.name})" for p in people)
+    anchor_ids = {a.id for a in lineup.anchors}
+    guests = [p for p in people if p.id not in anchor_ids]
+    local = now.astimezone(ZoneInfo(lineup.timezone))
     parts = [
         f"Show: {show.name}. {show.blurb}",
         f"At the desk, left to right: {at_desk}. Use these ids as speaker.",
-        f"Time on air: {now:%H:%M} UTC.",
+        f"Time on air: {local:%-I:%M %p} Eastern.",
     ]
+    for g in guests:
+        parts.append(f"{g.name} ({g.id}) is ANN's AI {g.role.lower()}, joining from the newsroom: {g.persona}")
     if previous_line:
         parts.append(f"The last thing said on air, for continuity only: {previous_line}")
     parts.append(f"Category: {story.category}")
