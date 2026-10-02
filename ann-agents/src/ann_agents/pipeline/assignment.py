@@ -53,7 +53,7 @@ async def screen(items: Sequence[SourceItem], off_topic: Set[str]) -> List[Sourc
         return list(items)
     trusted = ai_sources()
     todo = [i for i in items[: settings.newsroom_screen_max] if i.url not in off_topic]
-    asked = [i for i in todo if i.source_name not in trusted]
+    asked = [i for i in todo if not (i.metadata.get("ai_only") or i.source_name in trusted)]
     answers = await asyncio.to_thread(ws.ask_many, [Ask(_preview(i), RELEVANCE_QUESTION) for i in asked]) if asked else []
     verdict = {id(i): a for i, a in zip(asked, answers)}
     kept = []

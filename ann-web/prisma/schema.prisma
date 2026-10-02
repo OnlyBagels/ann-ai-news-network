@@ -118,9 +118,15 @@ model Source {
   id          String   @id @default(cuid())
   name        String   @unique
   url         String?
-  type        String   // rss, api, scraper
+  type        String   // rss | hackernews | arxiv | github_trending | huggingface
+  category    String?  // the beat its items usually belong to
+  aiOnly      Boolean  @default(false) // every item is AI news: skip relevance screening
   isActive    Boolean  @default(true)
-  lastFetched DateTime?
+  lastFetched DateTime? // last attempt
+  lastSuccessAt DateTime?
+  lastError   String?
+  lastItemCount Int?
+  failures    Int      @default(0) // failed fetches in a row
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

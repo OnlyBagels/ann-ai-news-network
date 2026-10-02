@@ -13,30 +13,49 @@ from ann_agents.core.types import SourceItem
 class SourceIngester:
     """Ingests raw data from various sources and normalizes into SourceItems."""
 
-    async def ingest_rss(self, feed_url: str, source_name: Optional[str] = None) -> List[SourceItem]:
-        """Ingest articles from an RSS/Atom feed."""
+    async def fetch_feed(self, feed_url: str, source_name: Optional[str] = None, limit: int = 30) -> List[SourceItem]:
+        """Fetch an RSS/Atom feed's newest `limit` entries. Raises when the feed can't be read.
+
+        Some feeds serve their whole history (OpenAI's has over a thousand
+        posts); only the newest entries matter to a news cycle.
+        """
         import feedparser
+        import httpx
+
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            response = await client.get(feed_url, headers={"User-Agent": "ANN-Newsroom/1.0 (+feed reader)"})
+            response.raise_for_status()
+        feed = feedparser.parse(response.content)
+        if feed.bozo and not feed.entries:
+            raise ValueError(f"not a readable feed: {feed.bozo_exception}")
 
         items: List[SourceItem] = []
+        for entry in feed.entries:
+            if not entry.get("link"):
+                continue
+            items.append(SourceItem(
+                title=entry.get("title", "Untitled"),
+                url=entry.get("link", ""),
+                source_name=source_name or feed.feed.get("title", feed_url),
+                source_type="rss",
+                author=entry.get("author"),
+                published_at=self._parse_date(entry.get("published_parsed") or entry.get("updated_parsed")),
+                summary=entry.get("summary", ""),
+                content=(entry.get("content") or [{}])[0].get("value") or None,
+                tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
+            ))
+        items.sort(key=lambda i: i.published_at, reverse=True)
+        return items[:limit]
+
+    async def ingest_rss(self, feed_url: str, source_name: Optional[str] = None) -> List[SourceItem]:
+        """Like fetch_feed, but logs and returns nothing on failure."""
         try:
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries:
-                item = SourceItem(
-                    title=entry.get("title", "Untitled"),
-                    url=entry.get("link", ""),
-                    source_name=source_name or feed.feed.get("title", feed_url),
-                    source_type="rss",
-                    author=entry.get("author"),
-                    published_at=self._parse_date(entry.get("published_parsed") or entry.get("updated_parsed")),
-                    summary=entry.get("summary", ""),
-                    tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
-                )
-                items.append(item)
+            items = await self.fetch_feed(feed_url, source_name)
             logger.info(f"Ingested {len(items)} items from RSS: {feed_url}")
+            return items
         except Exception as e:
             logger.error(f"Failed to ingest RSS {feed_url}: {e}")
-
-        return items
+            return []
 
     async def ingest_hn(self, story_id: Optional[int] = None, top_n: int = 30) -> List[SourceItem]:
         """Ingest from Hacker News API."""

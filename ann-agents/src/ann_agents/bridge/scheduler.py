@@ -10,8 +10,8 @@ Runs on a configurable interval to:
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
-from typing import List, Optional
+
+from typing import List
 
 from loguru import logger
 
@@ -21,6 +21,7 @@ from ann_agents.core.config import settings
 from ann_agents.core.types import SourceItem, Story
 from ann_agents.ingestion.article_text import fetch_article_text
 from ann_agents.ingestion.source_ingester import SourceIngester
+from ann_agents.ingestion.source_registry import SourceRegistry
 from ann_agents.pipeline.assignment import assign
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
@@ -51,6 +52,8 @@ class NewsroomScheduler:
         self.db = DatabaseBridge()
         self.search = MeilisearchSync()
         self._running = False
+        self.sources = SourceRegistry(self.db.engine, self.ingester)
+        self._seeded = False
         # URLs WaterSheep screened out, so later cycles don't ask again.
         self._off_topic: set = set()
 
@@ -131,41 +134,8 @@ class NewsroomScheduler:
         logger.info("Scheduler stopped")
 
     async def _ingest_all(self) -> List[SourceItem]:
-        """Ingest from all configured sources."""
-        all_items: List[SourceItem] = []
-
-        # RSS Feeds (AI news sources)
-        # Named here because some feeds title themselves vaguely (Google's
-        # AI blog calls itself "AI"), and the name is read out on air.
-        rss_feeds = {
-            "https://openai.com/blog/rss.xml": "OpenAI News",
-            "https://www.anthropic.com/feed.xml": "Anthropic News",
-            "https://blog.google/technology/ai/rss/": "Google AI Blog",
-            "https://ai.meta.com/blog/rss/": "Meta AI Blog",
-            "https://deepmind.google/blog/rss.xml": "Google DeepMind",
-            "https://mistral.ai/news/rss/": "Mistral AI",
-            "https://huggingface.co/blog/feed.xml": "Hugging Face Blog",
-            "https://news.ycombinator.com/rss": "Hacker News",
-        }
-
-        for feed_url, source_name in rss_feeds.items():
-            items = await self.ingester.ingest_rss(feed_url, source_name=source_name)
-            all_items.extend(items)
-
-        # Hacker News
-        hn_items = await self.ingester.ingest_hn(top_n=30)
-        all_items.extend(hn_items)
-
-        # arXiv
-        arxiv_items = await self.ingester.ingest_arxiv(max_results=20)
-        all_items.extend(arxiv_items)
-
-        # GitHub Trending
-        github_items = await self.ingester.ingest_github_trending()
-        all_items.extend(github_items)
-
-        # HuggingFace
-        hf_items = await self.ingester.ingest_huggingface(limit=20)
-        all_items.extend(hf_items)
-
-        return all_items
+        """Fetch every active source in the Source table (seeded with the defaults once)."""
+        if not self._seeded:
+            self.sources.seed()
+            self._seeded = True
+        return await self.sources.fetch_all()

@@ -41,7 +41,7 @@ class WaterSheepJudge(BaseAgent):
 
         # Relevance is only asked of general feeds; AI-only feeds are AI news.
         questions = {"clickbait": Ask(headline, CLICKBAIT)}
-        if not (source and source.source_name in ai_sources()):
+        if not (source and (source.metadata.get("ai_only") or source.source_name in ai_sources())):
             questions["relevance"] = Ask(f"{story.title}\n{_plain(story.summary or source_text, 600)}", RELEVANCE)
         if story.summary:
             questions["support"] = Ask(
