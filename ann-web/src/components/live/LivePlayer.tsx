@@ -184,40 +184,47 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
   const transcript = segment ? segment.lines.slice(0, spokenCount) : [];
 
   const picture = youtube ? (
-    <div className="relative w-full aspect-video border border-foreground bg-foreground">
+    <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-rule-strong bg-ink">
       <iframe
         src={youtube.embedUrl}
         title="ANN Live on YouTube"
-        className="absolute inset-0 w-full h-full"
+        className="absolute inset-0 h-full w-full"
         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
       />
     </div>
   ) : (
-    <div className="border border-foreground bg-foreground">
+    <div className="overflow-hidden rounded-sm border border-rule-strong bg-ink">
       <canvas
         ref={canvasRef}
         width={WIDTH}
         height={HEIGHT}
-        className="block w-full h-auto [image-rendering:pixelated]"
+        className="block h-auto w-full [image-rendering:pixelated]"
         role="img"
         aria-label={segment ? `On air: ${segment.title}` : "ANN station card"}
       />
     </div>
   );
 
+  const onAirLabel = (
+    <p className="label flex items-center gap-2">
+      {segment ? <span className="live-dot" aria-hidden="true" /> : null}
+      <span className={segment ? "text-brand" : "text-muted-foreground"}>{segment ? "On air" : "Off air"}</span>
+    </p>
+  );
+
   if (variant === "compact") {
     return (
       <div className="min-w-0">
         {picture}
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 mt-2 text-sm">
-          <span className="font-mono text-[11px] font-semibold uppercase tracking-widest">On air</span>
-          <span className="min-w-0 text-foreground/80">
-            {show && segment ? `${show.name}: ${segment.title}` : "Station break"}
-          </span>
-          <Link href="/live" className="ml-auto text-xs font-mono underline underline-offset-4 hover:text-muted-foreground">
-            Transcript and schedule
+        <div className="mt-4 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+            {onAirLabel}
+            <span className="min-w-0">{show && segment ? `${show.name}: ${segment.title}` : "Station break"}</span>
+          </div>
+          <Link href="/live" className="label link tap text-muted-foreground">
+            Schedule and transcript
           </Link>
         </div>
       </div>
@@ -225,60 +232,51 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px]">
+    <div className="grid gap-12 lg:grid-cols-[minmax(0,1fr)_320px]">
       <div className="min-w-0">
         {picture}
-        <div className="flex flex-wrap items-center gap-2 mt-2">
+        <div className="mt-4 flex flex-wrap items-center gap-2">
           {youtube ? (
-            <a
-              href={youtube.watchUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
-            >
-              Watch on YouTube <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+            <a href={youtube.watchUrl} target="_blank" rel="noopener noreferrer" className="button-quiet">
+              Watch on YouTube <ExternalLink className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
             </a>
           ) : (
-            <button
-              type="button"
-              onClick={toggleCaptions}
-              aria-pressed={captions}
-              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
-            >
-              {captions ? <Captions className="w-4 h-4" /> : <CaptionsOff className="w-4 h-4" />}
+            <button type="button" onClick={toggleCaptions} aria-pressed={captions} className="button-quiet">
+              {captions ? (
+                <Captions className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <CaptionsOff className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              )}
               Captions {captions ? "on" : "off"}
             </button>
           )}
           {!youtube && hasAudio && (
-            <button
-              type="button"
-              onClick={toggleSound}
-              aria-pressed={sound}
-              className="inline-flex items-center gap-1.5 h-9 px-3 text-xs font-mono border border-border rounded-sm hover:border-foreground transition-colors"
-            >
-              {sound ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            <button type="button" onClick={toggleSound} aria-pressed={sound} className="button-quiet">
+              {sound ? (
+                <Volume2 className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              ) : (
+                <VolumeX className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+              )}
               Sound {sound ? "on" : "off"}
             </button>
           )}
-          {offline && (
-            <span className="text-xs font-mono text-muted-foreground">
-              Can&rsquo;t reach the broadcast right now. Retrying.
-            </span>
-          )}
+          {offline && <span className="label text-warn">Can&rsquo;t reach the broadcast right now. Retrying.</span>}
         </div>
 
-        <section aria-labelledby="transcript-title" className="mt-6">
-          <h2 id="transcript-title" className="text-sm font-semibold mb-2">Transcript</h2>
+        <section aria-labelledby="transcript-title" className="mt-12">
+          <h2 id="transcript-title" className="label-caps border-b border-rule-strong pb-2 text-muted-foreground">
+            Transcript
+          </h2>
           {transcript.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="mt-4 text-muted-foreground">
               {segment ? "The segment is starting." : "Nothing is on the desk right now. The next segment starts as soon as it is written."}
             </p>
           ) : (
-            <ol className="space-y-1.5 text-sm" aria-live="off">
+            <ol className="mt-2" aria-live="off">
               {transcript.map((line, i) => (
-                <li key={i} className="leading-relaxed">
-                  <span className="font-mono text-xs text-muted-foreground mr-2">{names[line.speaker] ?? line.speaker}</span>
-                  {line.text}
+                <li key={i} className="grid gap-1 border-b border-border py-3 md:grid-cols-[128px_minmax(0,1fr)] md:gap-6">
+                  <span className="label text-muted-foreground">{names[line.speaker] ?? line.speaker}</span>
+                  <span>{line.text}</span>
                 </li>
               ))}
             </ol>
@@ -286,27 +284,23 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
         </section>
       </div>
 
-      <aside className="space-y-6 min-w-0">
+      <aside className="flex min-w-0 flex-col gap-12">
         <section aria-labelledby="onair-title">
-          <h2 id="onair-title" className="text-sm font-semibold mb-1">
+          {onAirLabel}
+          <h2 id="onair-title" className="display mt-2 text-2xl">
             {show ? show.name : "Station break"}
           </h2>
-          {show && <p className="text-sm text-muted-foreground leading-relaxed">{show.blurb}</p>}
+          {show && <p className="mt-2 text-muted-foreground">{show.blurb}</p>}
           {segment?.articles.map((article) => (
-            <div key={article.id} className="mt-3 border-t border-border pt-3">
-              <p className="text-sm font-medium leading-snug">{article.title}</p>
-              <p className="text-xs font-mono text-muted-foreground mt-1">{article.source}</p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-xs font-mono">
-                <Link href={`/articles/${article.id}`} className="underline underline-offset-4 hover:text-muted-foreground">
-                  Read the ANN brief
+            <div key={article.id} className="mt-4 border-t border-border pt-4">
+              <p className="font-semibold leading-snug">{article.title}</p>
+              <p className="label mt-1 text-muted-foreground">{article.source}</p>
+              <div className="label mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                <Link href={`/articles/${article.id}`} className="link">
+                  Read the story
                 </Link>
-                <a
-                  href={article.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 underline underline-offset-4 hover:text-muted-foreground"
-                >
-                  Original source <ExternalLink className="w-3 h-3" aria-hidden="true" />
+                <a href={article.url} target="_blank" rel="noopener noreferrer" className="link inline-flex items-center gap-1">
+                  Original source <ExternalLink className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
                 </a>
               </div>
             </div>
@@ -314,16 +308,16 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
         </section>
 
         <section aria-labelledby="next-title">
-          <h2 id="next-title" className="text-sm font-semibold mb-1">Coming up</h2>
+          <h2 id="next-title" className="label-caps border-b border-rule-strong pb-2 text-muted-foreground">
+            Coming up
+          </h2>
           {upcoming.length === 0 ? (
-            <p className="text-sm text-muted-foreground">The desk writes a few minutes ahead while people are watching.</p>
+            <p className="mt-4 text-muted-foreground">The desk writes a few minutes ahead while people are watching.</p>
           ) : (
-            <ol className="text-sm divide-y divide-border">
+            <ol>
               {upcoming.slice(0, 5).map((s) => (
-                <li key={s.id} className="py-2 leading-snug">
-                  <span className="block font-mono text-[11px] text-muted-foreground">
-                    {clock(Date.parse(s.startsAt) + delayMs)}
-                  </span>
+                <li key={s.id} className="border-b border-border py-3 leading-snug">
+                  <span className="label block text-muted-foreground">{clock(Date.parse(s.startsAt) + delayMs)}</span>
                   {s.title}
                 </li>
               ))}

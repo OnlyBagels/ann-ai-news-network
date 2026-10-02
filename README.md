@@ -75,6 +75,12 @@ Ingestion: feedparser · BeautifulSoup · lxml · arxiv · PRAW · huggingface-h
 
 ---
 
+## Design
+
+The site follows the look of Something Something Studios: an ink background, warm white text and one pink accent, with Anybody for display type, Instrument Sans for reading and Sometype Mono for labels (all SIL Open Font License, self-hosted in `ann-web/public/fonts`). Stories sit in ruled lists rather than cards. The mark in the header and the favicon (`ann-web/src/app/icon.svg`) are a pixel-art anchor drawn on the same grid as the live channel's sprites, and reporters and anchors get pixel portraits from that sprite code.
+
+The direction and every design token are at the top of `ann-web/src/app/globals.css`. The Tailwind theme is reset to those tokens, so a stock color, font size or radius class has no effect. Use the tokens.
+
 ## ANN Live
 
 A 24-hour channel streamed to YouTube and embedded on the site: on the front page and, with the transcript, schedule and links to each story on air, at `/live`. Pixel-art anchors read the AI news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.

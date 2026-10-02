@@ -46,14 +46,14 @@ export function Schedule({ lineup }: { lineup: Lineup }) {
   const names = Object.fromEntries(lineup.anchors.map((a) => [a.id, a.name]));
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm border-collapse">
+    <div className="relative overflow-x-auto">
+      <table className="w-full border-collapse">
         <caption className="sr-only">The next 24 hours of ANN, in your time zone</caption>
         <thead>
-          <tr className="border-b border-foreground text-left">
-            <th scope="col" className="py-2 pr-4 font-mono text-xs font-medium whitespace-nowrap">Time</th>
-            <th scope="col" className="py-2 pr-4 font-mono text-xs font-medium">Show</th>
-            <th scope="col" className="py-2 font-mono text-xs font-medium hidden md:table-cell">At the desk</th>
+          <tr className="border-b border-rule-strong text-left">
+            <th scope="col" className="label-caps whitespace-nowrap py-2 pr-6 font-normal text-muted-foreground">Time</th>
+            <th scope="col" className="label-caps py-2 pr-6 font-normal text-muted-foreground">Show</th>
+            <th scope="col" className="label-caps hidden py-2 font-normal text-muted-foreground md:table-cell">At the desk</th>
           </tr>
         </thead>
         <tbody>
@@ -61,15 +61,15 @@ export function Schedule({ lineup }: { lineup: Lineup }) {
             const show = lineup.shows.find((s) => s.id === slot.showId)!;
             return (
               <tr key={slot.start} className="border-b border-border align-top">
-                <td className="py-2 pr-4 font-mono text-xs whitespace-nowrap">
+                <td className="label whitespace-nowrap py-4 pr-6">
                   {time(slot.start)}&ndash;{time(slot.end)}
-                  {i === 0 && <span className="block text-[11px] text-muted-foreground">On now</span>}
+                  {i === 0 && <span className="mt-1 block text-brand">On now</span>}
                 </td>
-                <td className="py-2 pr-4">
-                  <span className="font-medium">{show.name}</span>
-                  <span className="block text-muted-foreground leading-snug">{show.blurb}</span>
+                <td className="py-4 pr-6">
+                  <span className="font-semibold">{show.name}</span>
+                  <span className="mt-1 block leading-snug text-muted-foreground">{show.blurb}</span>
                 </td>
-                <td className="py-2 text-muted-foreground hidden md:table-cell whitespace-nowrap">
+                <td className="hidden whitespace-nowrap py-4 text-muted-foreground md:table-cell">
                   {show.anchors.map((a) => names[a]).join(", ")}
                 </td>
               </tr>

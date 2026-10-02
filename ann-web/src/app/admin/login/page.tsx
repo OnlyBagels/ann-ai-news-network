@@ -20,19 +20,21 @@ export default async function AdminLogin({
   const message = !configured ? MESSAGES.unset : error ? MESSAGES[error] : null;
 
   return (
-    <div className="max-w-sm mx-auto py-12">
-      <h1 className="text-xl font-bold tracking-tight">Admin sign in</h1>
-      <p className="text-sm text-muted-foreground mt-1">
-        The review queue, agent logs and sources are for ANN editors.
-      </p>
+    <div className="flex max-w-[480px] flex-col gap-8">
+      <header className="border-b border-rule-strong pb-8">
+        <h1 className="display text-5xl">Sign in</h1>
+        <p className="mt-4 text-lg text-muted-foreground">
+          The review queue, agent logs and sources are for ANN editors.
+        </p>
+      </header>
       {message && (
-        <p role="alert" className="text-sm text-accent-red mt-4">
+        <p role="alert" className="text-warn">
           {message}
         </p>
       )}
-      <form action={signIn} className="mt-6 space-y-3">
+      <form action={signIn} className="flex flex-col gap-4">
         <input type="hidden" name="next" value={safeNext(next)} />
-        <label htmlFor="token" className="block text-xs font-mono text-muted-foreground">
+        <label htmlFor="token" className="label text-muted-foreground">
           Admin token
         </label>
         <input
@@ -42,13 +44,9 @@ export default async function AdminLogin({
           autoComplete="current-password"
           required
           disabled={!configured}
-          className="terminal-input w-full"
+          className="field"
         />
-        <button
-          type="submit"
-          disabled={!configured}
-          className="w-full h-10 text-sm font-mono border border-foreground rounded-sm hover:bg-terminal-hover transition-colors disabled:opacity-50"
-        >
+        <button type="submit" disabled={!configured} className="button">
           Sign in
         </button>
       </form>

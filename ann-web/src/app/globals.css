@@ -1,279 +1,333 @@
 @import "tailwindcss";
-/* ---break---
- */
+
+/*
+  Direction
+  ANN is a news desk for people who build with AI: engineers, researchers
+  and founders who want the day's launches, papers, incidents and rules
+  without the hype, each story linked to its source. They come to read the
+  latest, open a story, check where it came from, and watch the live desk.
+
+  The look comes from Something Something Studios: a dark stage, warm text,
+  one pink accent, loud condensed display type. ANN's character is its
+  pixel-art cast (the anchors and reporters), drawn with the same sprite
+  code as the live channel.
+
+  Mood: nocturnal, exact, wry.
+  Layout: a dark broadsheet. A masthead, then the lead story large beside
+  the live desk, then ruled lists of headlines. Rules and whitespace hold
+  the structure; boxes only for things that are separate objects (the
+  live picture, a person's portrait, a form).
+
+  Color: ink background, one panel surface, one raised surface for hover,
+  warm white text, muted text, two rule weights, one accent (pink) for
+  links on hover, live state, the current item and focus. Gold has one job:
+  warnings in the admin queue. No gradients.
+  Type: Anybody for display, uppercase and heavy, with its width axis;
+  Instrument Sans for reading; Sometype Mono for labels, times and sources.
+  Scale: 13 16 20 28 44 80. Space: 4 8 12 16 24 32 48 64 96.
+  Radius: 4px everywhere, fully round only for the live dot.
+  Motion: color and underline changes on hover, 180ms on named properties.
+  The live picture animates because it is a broadcast. Nothing else moves,
+  and reduced motion is honored.
+*/
+
+@font-face {
+  font-family: "Anybody";
+  src: url("/fonts/Anybody.woff2") format("woff2");
+  font-weight: 100 900;
+  font-stretch: 50% 150%;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Instrument Sans";
+  src: url("/fonts/InstrumentSans.woff2") format("woff2");
+  font-weight: 400 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Sometype Mono";
+  src: url("/fonts/SometypeMono.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
-/* ─── ANN Clean Theme ───
- * White background, black accents, clean and minimal
- */
 @theme {
-  --color-background: #ffffff;
-  --color-foreground: #0a0a0a;
-  --color-muted: #6b7280;
-  --color-muted-light: #9ca3af;
-  --color-border: #e5e7eb;
-  --color-border-light: #f3f4f6;
+  /* Only these colors exist. */
+  --color-*: initial;
+  --color-ink: #0c0a10;
+  --color-panel: #16121c;
+  --color-raised: #1f1927;
+  --color-paper: #f5f0ea;
+  --color-dim: #a69fb2;
+  --color-rule: #2a2433;
+  --color-rule-strong: #3d3548;
+  --color-brand: #ff5c86;
+  --color-warn: #ffc96b;
+  --color-transparent: transparent;
+  --color-current: currentColor;
 
-  --color-accent-cyan: #000000;
-  --color-accent-green: #16a34a;
-  --color-accent-red: #dc2626;
-  --color-accent-yellow: #b45309;
-  --color-accent-violet: #7c3aed;
-  --color-accent-pink: #db2777;
-  --color-accent-orange: #ea580c;
-  --color-accent-blue: #2563eb;
+  /* The names shadcn components and older pages use, pointed at the tokens. */
+  --color-background: var(--color-ink);
+  --color-foreground: var(--color-paper);
+  --color-card: var(--color-panel);
+  --color-card-foreground: var(--color-paper);
+  --color-popover: var(--color-panel);
+  --color-popover-foreground: var(--color-paper);
+  --color-primary: var(--color-brand);
+  --color-primary-foreground: var(--color-ink);
+  --color-secondary: var(--color-panel);
+  --color-secondary-foreground: var(--color-paper);
+  --color-muted: var(--color-panel);
+  --color-muted-foreground: var(--color-dim);
+  --color-accent: var(--color-raised);
+  --color-accent-foreground: var(--color-paper);
+  --color-destructive: var(--color-brand);
+  --color-destructive-foreground: var(--color-ink);
+  --color-border: var(--color-rule);
+  --color-border-strong: var(--color-rule-strong);
+  --color-input: var(--color-rule-strong);
+  --color-ring: var(--color-brand);
+  --color-sidebar: var(--color-panel);
+  --color-sidebar-foreground: var(--color-paper);
+  --color-sidebar-primary: var(--color-brand);
+  --color-sidebar-primary-foreground: var(--color-ink);
+  --color-sidebar-accent: var(--color-raised);
+  --color-sidebar-accent-foreground: var(--color-paper);
+  --color-sidebar-border: var(--color-rule);
+  --color-sidebar-ring: var(--color-brand);
+  --color-chart-1: var(--color-brand);
+  --color-chart-2: var(--color-paper);
+  --color-chart-3: var(--color-dim);
+  --color-chart-4: var(--color-warn);
+  --color-chart-5: var(--color-rule-strong);
 
-  --color-terminal-bg: #fafafa;
-  --color-terminal-header: #f9fafb;
-  --color-terminal-card: #ffffff;
-  --color-terminal-hover: #f3f4f6;
-  --color-terminal-active: #e5e7eb;
+  --font-display: "Anybody", "Arial Black", "Helvetica Neue", Arial, sans-serif;
+  --font-sans: "Instrument Sans", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Sometype Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
 
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", "Fira Code", monospace;
+  /* Type scale: 13 16 20 28 44 80. Every size name lands on a step. */
+  --text-*: initial;
+  --text-xs: 13px;
+  --text-xs--line-height: 1.45;
+  --text-sm: 16px;
+  --text-sm--line-height: 1.55;
+  --text-base: 16px;
+  --text-base--line-height: 1.6;
+  --text-lg: 20px;
+  --text-lg--line-height: 1.45;
+  --text-xl: 20px;
+  --text-xl--line-height: 1.45;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 1.2;
+  --text-3xl: 28px;
+  --text-3xl--line-height: 1.2;
+  --text-4xl: 44px;
+  --text-4xl--line-height: 1;
+  --text-5xl: 44px;
+  --text-5xl--line-height: 1;
+  --text-6xl: 80px;
+  --text-6xl--line-height: 0.9;
+
+  /* One radius. */
+  --radius-xs: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 4px;
+  --radius-2xl: 4px;
+  --radius-3xl: 4px;
+
+  --shadow-*: initial;
+  --shadow-sm: 0 16px 40px rgb(0 0 0 / 0.45);
+  --shadow-md: 0 16px 40px rgb(0 0 0 / 0.45);
+  --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.45);
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
-/* ─── Shadcn CSS Variables ─── */
-@layer base {
-  :root {
-    --background: #ffffff;
-    --foreground: #0a0a0a;
-    --card: #ffffff;
-    --card-foreground: #0a0a0a;
-    --popover: #ffffff;
-    --popover-foreground: #0a0a0a;
-    --primary: #000000;
-    --primary-foreground: #ffffff;
-    --secondary: #f3f4f6;
-    --secondary-foreground: #0a0a0a;
-    --muted: #f3f4f6;
-    --muted-foreground: #6b7280;
-    --accent: #f3f4f6;
-    --accent-foreground: #000000;
-    --destructive: #dc2626;
-    --destructive-foreground: #ffffff;
-    --border: #e5e7eb;
-    --input: #e5e7eb;
-    --ring: #000000;
-    --radius: 0.375rem;
-  }
+/* shadcn reads these as plain custom properties. */
+:root {
+  color-scheme: dark;
+  --radius: 4px;
+  --background: #0c0a10;
+  --foreground: #f5f0ea;
 }
 
-/* ─── Base Styles ─── */
+html {
+  background: var(--color-ink);
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
+  background: var(--color-ink);
+  color: var(--color-paper);
   font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
-/* ─── Scrollbar ─── */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 2px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-/* ─── Selection ─── */
 ::selection {
-  background: rgba(0, 0, 0, 0.1);
-  color: #000000;
+  background: var(--color-brand);
+  color: var(--color-ink);
 }
 
-/* ─── Terminal Ticker Animation ─── */
-@keyframes ticker-scroll {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
+:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
 }
 
-.ticker-animate {
-  animation: ticker-scroll 40s linear infinite;
+/* Display type: Anybody, uppercase. The light cut is the masthead's second line. */
+.display {
+  font-family: var(--font-display);
+  font-weight: 850;
+  font-stretch: 80%;
+  text-transform: uppercase;
+  letter-spacing: -0.01em;
+  line-height: 0.92;
+}
+.display-light {
+  font-family: var(--font-display);
+  font-weight: 200;
+  font-stretch: 100%;
+  text-transform: uppercase;
+  letter-spacing: -0.02em;
+  line-height: 0.92;
 }
 
-.ticker-animate:hover {
-  animation-play-state: paused;
+/* Mono labels: sources, times, sections. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+.label-caps {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
-/* ─── Pulse Glow ─── */
-@keyframes pulse-glow {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+/* Links that read as text until hovered. */
+.link {
+  text-decoration: underline;
+  text-decoration-color: var(--color-rule-strong);
+  text-underline-offset: 4px;
+  transition: color 180ms var(--ease-standard), text-decoration-color 180ms var(--ease-standard);
+}
+.link:hover {
+  color: var(--color-brand);
+  text-decoration-color: var(--color-brand);
 }
 
-.pulse-glow {
-  animation: pulse-glow 2s ease-in-out infinite;
+/* A whole headline row is the link; the headline changes color on hover. */
+.story-link .headline {
+  transition: color 180ms var(--ease-standard);
+}
+.story-link:hover .headline {
+  color: var(--color-brand);
 }
 
-/* ─── Scanline Effect ─── */
-.scanlines::after {
-  content: "";
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.02) 2px,
-    rgba(0, 0, 0, 0.02) 4px
-  );
-  pointer-events: none;
-  z-index: 9999;
+/* The live dot is round and still. It shows only while the stream is on. */
+.live-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--color-brand);
 }
 
-/* ─── Skeleton Loading ─── */
-@keyframes skeleton-pulse {
-  0% { opacity: 0.3; }
-  50% { opacity: 0.6; }
-  100% { opacity: 0.3; }
-}
-
+/* Loading placeholder: a flat block, no shimmer. */
 .skeleton {
-  background: linear-gradient(
-    90deg,
-    #f3f4f6 25%,
-    #e5e7eb 50%,
-    #f3f4f6 75%
-  );
-  background-size: 200% 100%;
-  animation: skeleton-pulse 1.5s ease-in-out infinite;
+  background: var(--color-panel);
   border-radius: 4px;
 }
 
-/* ─── Status Dot ─── */
-.status-dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
+.field {
+  background: var(--color-ink);
+  border: 1px solid var(--color-rule-strong);
+  color: var(--color-paper);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  min-height: 48px;
+  transition: border-color 180ms var(--ease-standard);
 }
-
-.status-dot.live {
-  background: var(--color-accent-green);
-  box-shadow: 0 0 8px var(--color-accent-green);
-}
-
-.status-dot.offline {
-  background: var(--color-accent-red);
-}
-
-/* ─── Category Badge ─── */
-.category-badge {
-  display: inline-flex;
-  align-items: center;
-  padding: 2px 10px;
-  border-radius: 9999px;
-  font-size: 0.65rem;
-  font-weight: 500;
-  font-family: var(--font-mono);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  border: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.02);
-  transition: all 0.15s ease;
-}
-
-.category-badge:hover {
-  border-color: var(--color-muted);
-}
-
-/* ─── Score Badge ─── */
-.score-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 1px 7px;
-  border-radius: 3px;
-  font-size: 0.6rem;
-  font-family: var(--font-mono);
-  font-weight: 600;
-  border: 1px solid;
-}
-
-/* ─── Terminal Input ─── */
-.terminal-input {
-  background: var(--color-terminal-card);
-  border: 1px solid var(--color-border);
-  color: var(--color-foreground);
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
-  padding: 8px 12px;
-  border-radius: 6px;
+.field:focus {
+  border-color: var(--color-brand);
   outline: none;
-  transition: border-color 0.15s ease;
+}
+.field::placeholder {
+  color: var(--color-dim);
 }
 
-.terminal-input:focus {
-  border-color: #000000;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08);
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 24px;
+  border-radius: 4px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-weight: 600;
+  font-size: 16px;
+  transition: background-color 180ms var(--ease-standard);
+}
+.button:hover {
+  background: var(--color-brand);
+}
+.button:disabled {
+  opacity: 0.6;
 }
 
-.terminal-input::placeholder {
-  color: var(--color-muted);
+.button-quiet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid var(--color-rule-strong);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  transition: border-color 180ms var(--ease-standard), color 180ms var(--ease-standard);
+}
+.button-quiet:hover,
+.button-quiet[aria-pressed="true"] {
+  border-color: var(--color-brand);
 }
 
-/* ─── Link Styles ─── */
-a {
-  transition: color 0.15s ease;
+.scrollbar-none {
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }
 
-/* ─── Focus Ring ─── */
-*:focus-visible {
-  outline: 1px solid #000000;
-  outline-offset: 2px;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
-/* ---break---
- */
-:root {
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #000000;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f4f6;
-  --sidebar-accent-foreground: #0a0a0a;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #000000;
-}
-/* ---break---
- */
-.dark {
-  --sidebar: #ffffff;
-  --sidebar-foreground: #0a0a0a;
-  --sidebar-primary: #000000;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f4f6;
-  --sidebar-accent-foreground: #0a0a0a;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #000000;
-}
-/* ---break---
- */
-@theme inline {
-  --color-sidebar: var(--sidebar);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-ring: var(--sidebar-ring);
+
+/* Standalone small links get a full-height tap area. */
+.tap {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
 }

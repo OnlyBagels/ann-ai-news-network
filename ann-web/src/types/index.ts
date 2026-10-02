@@ -49,57 +49,48 @@ export interface CategoryInfo {
   id: Category;
   label: string;
   description: string;
-  color: string;
 }
 
 export const CATEGORIES: CategoryInfo[] = [
   {
     id: "models",
     label: "Models",
-    description: "New model releases, updates, and benchmarks",
-    color: "text-cyan-400",
+    description: "Model launches, API and pricing changes, and benchmark results from the labs",
   },
   {
     id: "open-source",
-    label: "Open Source",
-    description: "Open-source AI projects, releases, and community",
-    color: "text-emerald-400",
+    label: "Open source",
+    description: "Released weights, repos and the licenses that come with them",
   },
   {
     id: "coding-ai",
     label: "Coding AI",
-    description: "AI coding tools, IDEs, and developer workflows",
-    color: "text-blue-400",
+    description: "Coding assistants, IDE tools and what changes for developers",
   },
   {
     id: "agents",
     label: "Agents",
-    description: "AI agent frameworks, deployments, and research",
-    color: "text-violet-400",
+    description: "Agent frameworks, protocols like MCP, and agents running in production",
   },
   {
     id: "research",
     label: "Research",
-    description: "Academic papers, breakthroughs, and preprints",
-    color: "text-pink-400",
+    description: "Papers and preprints, with the method separated from the headline number",
   },
   {
     id: "security",
     label: "Security",
-    description: "AI security, jailbreaks, prompt injection, and risks",
-    color: "text-red-400",
+    description: "Vulnerabilities, jailbreaks, prompt injection and incidents in AI systems",
   },
   {
     id: "funding",
     label: "Funding",
-    description: "AI startup funding, acquisitions, and market moves",
-    color: "text-yellow-400",
+    description: "Rounds, acquisitions and compute deals",
   },
   {
     id: "regulation",
     label: "Regulation",
-    description: "AI policy, regulation, and governance",
-    color: "text-orange-400",
+    description: "AI law and policy: what is proposed, what is binding, and when",
   },
 ];
 

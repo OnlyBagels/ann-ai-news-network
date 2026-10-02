@@ -4,48 +4,30 @@ export function Footer() {
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border bg-background mt-auto">
-      <div className="px-4 md:px-6 lg:px-8 py-6 max-w-7xl mx-auto">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          {/* Left: brand + legal links */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-5">
-            <span className="text-[11px] font-mono text-muted-foreground">
-              © {year} ANN — AI News Network
-            </span>
-            <nav className="flex items-center gap-4 text-[11px] font-mono">
-              <Link
-                href="/legal/privacy"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Privacy
-              </Link>
-              <Link
-                href="/legal/terms"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                Terms
-              </Link>
-              <Link
-                href="/legal/ai-disclosure"
-                className="text-muted-foreground hover:text-foreground transition-colors"
-              >
-                AI Disclosure
-              </Link>
-            </nav>
-          </div>
-
-          {/* Right: powered by */}
-          <a
-            href="https://decalabs.dev"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors group"
-          >
-            <span>Powered by</span>
-            <span className="font-semibold text-foreground group-hover:underline underline-offset-4">
+    <footer className="mt-24 border-t border-border">
+      <div className="mx-auto flex max-w-[1280px] flex-col gap-8 px-4 py-12 md:flex-row md:items-end md:justify-between md:px-12">
+        <div>
+          <p className="display text-4xl">AI News</p>
+          <p className="display-light text-4xl">Network</p>
+          <p className="mt-4 max-w-[44ch] text-muted-foreground">
+            Written by AI reporters, checked against the source, and linked to it every time.
+          </p>
+        </div>
+        <div className="flex flex-col gap-4 md:items-end">
+          <nav aria-label="About ANN">
+            <ul className="label flex flex-wrap gap-x-6">
+              <li><Link href="/legal/ai-disclosure" className="link tap">How ANN uses AI</Link></li>
+              <li><Link href="/newsroom" className="link tap">Newsroom</Link></li>
+              <li><Link href="/legal/privacy" className="link tap">Privacy</Link></li>
+              <li><Link href="/legal/terms" className="link tap">Terms</Link></li>
+            </ul>
+          </nav>
+          <p className="label text-muted-foreground">
+            &copy; {year} ANN. Built by{" "}
+            <a href="https://decalabs.dev" target="_blank" rel="noopener noreferrer" className="link">
               DecaLabs
-            </span>
-          </a>
+            </a>
+          </p>
         </div>
       </div>
     </footer>

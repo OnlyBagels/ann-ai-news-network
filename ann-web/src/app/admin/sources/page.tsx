@@ -28,10 +28,10 @@ async function fetchSources(): Promise<{ sources: Source[] }> {
 }
 
 function status(s: Source): { label: string; tone: string } {
-  if (!s.isActive) return { label: "Paused", tone: "text-muted" };
-  if (!s.lastFetched) return { label: "Waiting for first fetch", tone: "text-muted" };
-  if (s.failures > 0) return { label: `Failing (${s.failures} in a row)`, tone: "text-accent-red" };
-  return { label: "Healthy", tone: "text-accent-green" };
+  if (!s.isActive) return { label: "Paused", tone: "text-muted-foreground" };
+  if (!s.lastFetched) return { label: "Waiting for first fetch", tone: "text-muted-foreground" };
+  if (s.failures > 0) return { label: `Failing (${s.failures} in a row)`, tone: "text-brand" };
+  return { label: "Healthy", tone: "text-foreground" };
 }
 
 export default function SourcesPage() {
@@ -70,8 +70,8 @@ export default function SourcesPage() {
     onError: (e: Error) => setFormError(e.message),
   });
 
-  if (isLoading) return <p className="text-xs font-mono text-muted">Loading sources…</p>;
-  if (isError || !data) return <p className="text-sm font-mono text-accent-red">Couldn&rsquo;t load the sources. Try again in a minute.</p>;
+  if (isLoading) return <p className="text-xs font-mono text-muted-foreground">Loading sources…</p>;
+  if (isError || !data) return <p className="text-sm font-mono text-brand">Couldn&rsquo;t load the sources. Try again in a minute.</p>;
 
   const sources = data.sources;
   const failing = sources.filter((s) => s.isActive && s.failures > 0).length;
@@ -80,16 +80,16 @@ export default function SourcesPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-lg font-mono font-bold text-foreground mb-1">Sources</h1>
-        <p className="text-xs font-mono text-muted">
+        <p className="text-xs font-mono text-muted-foreground">
           {sources.filter((s) => s.isActive).length} active of {sources.length}
-          {failing > 0 && <span className="text-accent-red"> · {failing} failing</span>} · fetched every newsroom cycle
+          {failing > 0 && <span className="text-brand"> · {failing} failing</span>} · fetched every newsroom cycle
         </p>
       </div>
 
-      <div className="overflow-x-auto border border-border rounded-sm">
+      <div className="relative overflow-x-auto border border-border rounded-sm">
         <table className="w-full text-xs font-mono">
           <thead>
-            <tr className="border-b border-border text-left text-muted">
+            <tr className="border-b border-border text-left text-muted-foreground">
               <th scope="col" className="p-2 font-medium">Source</th>
               <th scope="col" className="p-2 font-medium">Beat</th>
               <th scope="col" className="p-2 font-medium">Status</th>
@@ -105,13 +105,13 @@ export default function SourcesPage() {
                 <tr key={s.id} className="border-b border-border align-top">
                   <td className="p-2 min-w-[14rem]">
                     <span className="text-foreground">{s.name}</span>
-                    {s.aiOnly && <span className="ml-2 text-[10px] text-muted">AI-only</span>}
-                    <span className="block text-muted/70 break-all">{s.url ?? s.type}</span>
-                    {s.lastError && s.failures > 0 && <span className="block text-accent-red mt-1 break-all">{s.lastError}</span>}
+                    {s.aiOnly && <span className="ml-2 text-xs text-muted-foreground">AI-only</span>}
+                    <span className="block text-muted-foreground/70 break-all">{s.url ?? s.type}</span>
+                    {s.lastError && s.failures > 0 && <span className="block text-brand mt-1 break-all">{s.lastError}</span>}
                   </td>
-                  <td className="p-2 text-muted whitespace-nowrap">{s.category?.replace("_", " ") ?? "mixed"}</td>
+                  <td className="p-2 text-muted-foreground whitespace-nowrap">{s.category?.replace("_", " ") ?? "mixed"}</td>
                   <td className={`p-2 whitespace-nowrap ${st.tone}`}>{st.label}</td>
-                  <td className="p-2 text-muted whitespace-nowrap">{s.lastSuccessAt ? formatDate(s.lastSuccessAt) : "never"}</td>
+                  <td className="p-2 text-muted-foreground whitespace-nowrap">{s.lastSuccessAt ? formatDate(s.lastSuccessAt) : "never"}</td>
                   <td className="p-2 text-right tabular-nums">{s.lastItemCount ?? "–"}</td>
                   <td className="p-2 text-right">
                     <button
@@ -139,17 +139,17 @@ export default function SourcesPage() {
       >
         <h2 className="text-sm font-mono font-semibold">Add a feed</h2>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-mono text-muted space-y-1">
+          <label className="text-xs font-mono text-muted-foreground space-y-1">
             <span>Name, as read on air</span>
             <input id="source-name" required maxLength={80} value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })} className="terminal-input w-full" />
           </label>
-          <label className="text-xs font-mono text-muted space-y-1">
+          <label className="text-xs font-mono text-muted-foreground space-y-1">
             <span>RSS or Atom address</span>
             <input id="source-url" required type="url" value={form.url}
               onChange={(e) => setForm({ ...form, url: e.target.value })} className="terminal-input w-full" />
           </label>
-          <label className="text-xs font-mono text-muted space-y-1">
+          <label className="text-xs font-mono text-muted-foreground space-y-1">
             <span>Usual beat</span>
             <select id="source-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })}
               className="terminal-input w-full">
@@ -157,14 +157,14 @@ export default function SourcesPage() {
               {CATEGORIES.map((c) => <option key={c} value={c}>{c.replace("_", " ")}</option>)}
             </select>
           </label>
-          <label className="text-xs font-mono text-muted flex items-center gap-2 sm:pt-6">
+          <label className="text-xs font-mono text-muted-foreground flex items-center gap-2 sm:pt-6">
             <input id="source-ai-only" type="checkbox" checked={form.aiOnly} onChange={(e) => setForm({ ...form, aiOnly: e.target.checked })} />
             <span>Every item is AI news (skip WaterSheep&rsquo;s screen)</span>
           </label>
         </div>
-        {formError && <p role="alert" className="text-xs font-mono text-accent-red">{formError}</p>}
+        {formError && <p role="alert" className="text-xs font-mono text-brand">{formError}</p>}
         <button type="submit" disabled={add.isPending}
-          className="h-9 px-4 text-xs font-mono border border-foreground rounded-sm hover:bg-terminal-hover transition-colors">
+          className="h-9 px-4 text-xs font-mono border border-foreground rounded-sm hover:bg-raised transition-colors">
           {add.isPending ? "Adding…" : "Add feed"}
         </button>
       </form>

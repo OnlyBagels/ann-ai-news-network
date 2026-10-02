@@ -1,25 +1,27 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Prose } from "@/components/layout/Prose";
 
 export const metadata: Metadata = {
-  title: "AI Usage Disclosure",
+  title: "How ANN uses AI",
   description: "How ANN's AI newsroom writes, checks and publishes stories, and where people come in.",
 };
 
 export default function AIDisclosurePage() {
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-xl font-mono font-bold text-foreground mb-6">
-        AI Usage Disclosure
-      </h1>
-      <div className="prose prose-invert prose-sm max-w-none space-y-4 text-muted font-mono">
+    <div className="flex flex-col gap-12">
+      <PageHeader title="How ANN" second="uses AI">
+        ANN is written by AI. Here is what the AI does, what checks a story passes, and where people come in.
+      </PageHeader>
+      <Prose>
         <p>
-          ANN is written by AI. The reporters, editors and anchors are AI characters, not people. This page explains
-          what they do and what checks a story passes before you see it.
+          The reporters, editors and anchors are AI characters, not people. Every story links the source it was written
+          from.
         </p>
 
-        <h2 className="text-foreground font-semibold text-sm">How a story is made</h2>
-        <ol className="list-decimal pl-5 space-y-1">
+        <h2>How a story is made</h2>
+        <ol>
           <li>We read public feeds from AI labs, research archives, news sites and regulators.</li>
           <li>
             A small classifier (WaterSheep) drops items that aren&rsquo;t about AI, and a language model picks the
@@ -28,7 +30,7 @@ export default function AIDisclosurePage() {
           <li>We fetch the full source article. If there is too little text to check against, the story waits for a person.</li>
           <li>
             The classifier assigns a beat, and that beat&rsquo;s{" "}
-            <Link href="/newsroom" className="underline underline-offset-4">
+            <Link href="/newsroom">
               reporter
             </Link>{" "}
             writes the summary from the source text only.
@@ -40,26 +42,26 @@ export default function AIDisclosurePage() {
           <li>Editors write the headline and TL;DR, and a risk check looks for legal and safety problems.</li>
         </ol>
 
-        <h2 className="text-foreground font-semibold text-sm">Where people come in</h2>
+        <h2>Where people come in</h2>
         <p>
           Stories that pass every check are published without a person reading them first. A story goes to a human
           editor instead when the fact-check confidence is low, the risk check flags it, the classifier scores
           disagree with the model, or the source is too thin to check.
         </p>
 
-        <h2 className="text-foreground font-semibold text-sm">Models</h2>
+        <h2>Models</h2>
         <p>
           The newsroom runs on Gemma 4, an open-weights model, on our own servers, with WaterSheep for
           classification. Every story links the source it was written from.
         </p>
 
-        <h2 className="text-foreground font-semibold text-sm">Bylines</h2>
+        <h2>Bylines</h2>
         <p>
           Each reporter has a beat and a writing style. The style changes how a story reads, never what it says:
           every fact has to come from the source.
         </p>
 
-        <h2 className="text-foreground font-semibold text-sm">ANN Live</h2>
+        <h2>ANN Live</h2>
         <p>
           The anchors on ANN Live are AI characters, and a language model writes what they say. Each segment is
           written from one approved ANN story. Before it airs, code checks every figure against the story it cites
@@ -68,16 +70,16 @@ export default function AIDisclosurePage() {
           ANN&rsquo;s reporting.
         </p>
 
-        <h2 className="text-foreground font-semibold text-sm">Mistakes</h2>
+        <h2>Mistakes</h2>
         <p>
           AI makes mistakes, and these checks reduce them without ruling them out. Always follow the source link
           before relying on a detail.
         </p>
 
-        <p className="text-xs text-muted/60 pt-4">
+        <p className="label pt-4">
           Last updated: October 2026
         </p>
-      </div>
+      </Prose>
     </div>
   );
 }

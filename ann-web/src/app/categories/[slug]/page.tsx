@@ -1,48 +1,41 @@
-"use client";
-
-import { useParams } from "next/navigation";
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 import { FeedList } from "@/components/feed/FeedList";
-import { FeedFilter } from "@/components/feed/FeedFilter";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { lineup } from "@/lib/live";
 import { CATEGORIES, type Category } from "@/types";
 
-export default function CategoryPage() {
-  const params = useParams();
-  const slug = params.slug as string;
+type Params = { params: Promise<{ slug: string }> };
 
-  // Validate the category slug
-  const category = CATEGORIES.find((c) => c.id === slug) ?? null;
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const slug = (await params).slug;
+  const category = CATEGORIES.find((c) => c.id === slug);
+  return category ? { title: category.label, description: `${category.description}.` } : {};
+}
 
-  if (!category) {
-    return (
-      <div className="max-w-3xl mx-auto">
-        <div className="border border-accent-red/30 rounded-lg bg-accent-red/5 p-8 text-center">
-          <p className="text-sm font-mono text-accent-red mb-2">
-            Category not found
-          </p>
-          <p className="text-xs text-muted">
-            "{slug}" is not a valid category.
-          </p>
-        </div>
-      </div>
-    );
-  }
+export default async function CategoryPage({ params }: Params) {
+  const slug = (await params).slug;
+  const category = CATEGORIES.find((c) => c.id === slug);
+  if (!category) notFound();
+  const reporterId = lineup.beats[category.id.replace(/-/g, "_")];
+  const reporter = lineup.reporters.find((r) => r.id === reporterId);
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Page Header */}
-      <div className="mb-6">
-        <h1 className="text-lg font-mono font-bold text-foreground mb-1">
-          {category.label}
-        </h1>
-        <p className="text-xs font-mono text-muted">
-          {category.description}
-        </p>
-      </div>
-
-      {/* Filters */}
-      <FeedFilter activeCategory={category.id} />
-
-      {/* Feed */}
+    <div className="flex flex-col gap-12">
+      <PageHeader title={category.label}>
+        {category.description}.
+        {reporter && (
+          <>
+            {" "}
+            Written by{" "}
+            <Link href={`/newsroom/${reporter.id}`} className="link text-foreground">
+              {reporter.name}
+            </Link>
+            .
+          </>
+        )}
+      </PageHeader>
       <FeedList category={category.id as Category} />
     </div>
   );

@@ -12,7 +12,7 @@ export function Portrait({ look, name, size = 96 }: { look: AnchorLook; name: st
   useEffect(() => {
     const ctx = ref.current?.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = "#1a1d24";
+    ctx.fillStyle = "#16121c"; // --color-panel
     ctx.fillRect(0, 0, SPRITE_W, SPRITE_DESK_ROW);
     drawAnchor(ctx, look, { mouth: 0, blink: false, turn: 0 }, 0, 0, SPRITE_DESK_ROW);
   }, [look]);

@@ -4,35 +4,19 @@ import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { FeedList } from "@/components/feed/FeedList";
 import { SearchBar } from "@/components/shared/SearchBar";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 function SearchPageContent() {
-  const searchParams = useSearchParams();
-  const query = searchParams.get("q") || "";
+  const query = useSearchParams().get("q") || "";
 
   return (
-    <div className="max-w-3xl mx-auto">
-      <div className="mb-6">
-        <h1 className="text-lg font-mono font-bold text-foreground mb-4">
-          Search
-        </h1>
-        <SearchBar />
-      </div>
-
-      {query ? (
-        <>
-          <div className="mb-4">
-            <p className="text-xs font-mono text-muted">
-              Results for: <span className="text-foreground">"{query}"</span>
-            </p>
-          </div>
+    <div className="flex flex-col gap-12">
+      <PageHeader title="Search">Search every published story by company, model, paper or topic.</PageHeader>
+      <SearchBar key={query} initial={query} />
+      {query && (
+        <section aria-label={`Stories matching ${query}`}>
           <FeedList search={query} />
-        </>
-      ) : (
-        <div className="border border-border rounded-lg bg-terminal-card p-12 text-center">
-          <p className="text-sm font-mono text-muted">
-            Enter a search term to find articles, models, and more.
-          </p>
-        </div>
+        </section>
       )}
     </div>
   );
@@ -40,7 +24,7 @@ function SearchPageContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div className="max-w-3xl mx-auto"><p className="text-xs font-mono text-muted">Loading search...</p></div>}>
+    <Suspense fallback={null}>
       <SearchPageContent />
     </Suspense>
   );

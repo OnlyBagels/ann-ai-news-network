@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 import { Portrait } from "@/components/newsroom/Portrait";
+import { StoryRow } from "@/components/story/StoryRow";
 import { prisma } from "@/lib/prisma";
-import { PUBLIC_STATUSES } from "@/lib/articles";
+import { PUBLIC_STATUSES, toArticle } from "@/lib/articles";
 import { beatsOf, getReporter } from "@/lib/newsroom";
-import { formatDate } from "@/lib/utils";
+import { aiTitle } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 
@@ -17,18 +17,19 @@ type Params = { params: Promise<{ id: string }> };
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const reporter = getReporter((await params).id);
   return reporter
-    ? { title: reporter.name, description: `${reporter.name}, ANN's AI ${reporter.title.toLowerCase()}. ${reporter.bio}` }
+    ? { title: reporter.name, description: `${reporter.name}, ANN's ${aiTitle(reporter.title)}. ${reporter.bio}` }
     : {};
 }
 
 async function storiesBy(id: string) {
   try {
-    return await prisma.article.findMany({
+    const rows = await prisma.article.findMany({
       where: { byline: id, storyStatus: { in: PUBLIC_STATUSES } },
       orderBy: { publishedAt: "desc" },
       take: STORY_COUNT,
-      select: { id: true, title: true, source: true, publishedAt: true },
+      include: { scores: true },
     });
+    return rows.map(toArticle);
   } catch (error) {
     console.error("Failed to load a reporter's stories:", error);
     return null;
@@ -40,29 +41,25 @@ export default async function ReporterPage({ params }: Params) {
   if (!reporter) notFound();
   const stories = await storiesBy(reporter.id);
   const beats = beatsOf(reporter);
+  const first = reporter.name.split(" ")[0];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
-      <Link
-        href="/newsroom"
-        className="inline-flex items-center gap-1.5 text-sm font-mono text-muted hover:text-accent-cyan transition-colors"
-      >
-        <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-        Newsroom
-      </Link>
-
-      <header className="flex flex-col sm:flex-row gap-5 border-b border-border pb-6">
-        <Portrait look={reporter.look} name={reporter.name} size={120} />
+    <div className="flex flex-col gap-16">
+      <header className="grid gap-8 border-b border-rule-strong pb-12 md:grid-cols-[192px_minmax(0,1fr)]">
+        <Portrait look={reporter.look} name={reporter.name} size={160} />
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold tracking-tight">{reporter.name}</h1>
-          <p className="font-mono text-xs text-muted-foreground mt-1">AI {reporter.title.toLowerCase()}</p>
-          <p className="text-sm text-muted-foreground leading-relaxed mt-3">{reporter.bio}</p>
-          <p className="text-sm text-muted-foreground leading-relaxed mt-2">
-            <span className="text-foreground">How {reporter.name.split(" ")[0]} writes:</span> {reporter.style}
+          <h1>
+            <span className="display block text-5xl">{first}</span>
+            <span className="display-light block text-5xl">{reporter.name.slice(first.length + 1)}</span>
+          </h1>
+          <p className="label mt-4 text-muted-foreground">{aiTitle(reporter.title)}</p>
+          <p className="mt-6 max-w-[60ch] text-lg">{reporter.bio}</p>
+          <p className="mt-4 max-w-[60ch] text-muted-foreground">
+            <span className="text-foreground">How {first} writes:</span> {reporter.style}
           </p>
-          <p className="font-mono text-xs mt-3 flex flex-wrap gap-x-3 gap-y-1">
+          <p className="label mt-4 flex flex-wrap gap-x-6">
             {beats.map((c) => (
-              <Link key={c.id} href={`/categories/${c.id}`} className={`underline underline-offset-4 ${c.color}`}>
+              <Link key={c.id} href={`/categories/${c.id}`} className="link tap">
                 {c.label}
               </Link>
             ))}
@@ -71,30 +68,25 @@ export default async function ReporterPage({ params }: Params) {
       </header>
 
       <section aria-labelledby="stories-title">
-        <h2 id="stories-title" className="text-base font-semibold mb-3">Latest stories</h2>
+        <h2 id="stories-title" className="display border-b border-rule-strong pb-4 text-4xl">
+          Latest from {first}
+        </h2>
         {stories === null ? (
-          <p className="text-sm text-muted-foreground">Stories can&rsquo;t be loaded right now.</p>
+          <p className="py-8 text-muted-foreground">The stories can&rsquo;t be loaded right now.</p>
         ) : stories.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No published stories yet.</p>
+          <p className="py-8 text-muted-foreground">Nothing published yet.</p>
         ) : (
-          <ul className="divide-y divide-border border-y border-border">
+          <ul>
             {stories.map((story) => (
-              <li key={story.id}>
-                <Link href={`/articles/${story.id}`} className="block py-3 hover:bg-terminal-hover transition-colors">
-                  <p className="text-sm font-medium">{story.title}</p>
-                  <p className="font-mono text-xs text-muted-foreground mt-0.5">
-                    {story.source} · {formatDate(story.publishedAt)}
-                  </p>
-                </Link>
-              </li>
+              <StoryRow key={story.id} article={story} showSection={beats.length > 1} />
             ))}
           </ul>
         )}
       </section>
 
-      <p className="text-xs text-muted-foreground leading-relaxed">
-        {reporter.name} is an AI character, not a person. The writing style is theirs; every fact comes from the
-        linked source, and each story is fact-checked before it is published.
+      <p className="max-w-[60ch] text-muted-foreground">
+        {reporter.name} is an AI character, not a person. The writing style is {first}&rsquo;s; every fact comes from
+        the linked source, and each story is fact-checked before it is published.
       </p>
     </div>
   );
