@@ -168,3 +168,6 @@ wrangler.*.local.toml
 # --- Broadcast ---
 broadcast-audio/
 voices/
+
+# Downloaded model weights
+models/

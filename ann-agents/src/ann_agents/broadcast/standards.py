@@ -148,6 +148,8 @@ def tidy_line(line: DraftLine, anchors: Dict[str, str]) -> DraftLine:
             speaker = anchor_id
             break
     text = " ".join(_CITE_NOTE.sub("", line.text).split())
+    # Stray punctuation small models leave at the end: "Sol.," -> "Sol."
+    text = re.sub(r"([.!?])[,;:]+$", r"\1", text)
     return DraftLine(speaker=speaker, text=text, fact_ids=line.fact_ids)
 
 

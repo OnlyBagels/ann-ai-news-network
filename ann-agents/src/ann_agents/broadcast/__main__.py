@@ -21,6 +21,7 @@ from ann_agents.broadcast.tts import make_voice
 from ann_agents.broadcast.writer import ClaudeNewsroom, LocalNewsroom, SplitNewsroom
 from ann_agents.core.config import settings
 from ann_agents.llm.local import local_pool
+from ann_agents.llm.watersheep import watersheep
 
 TICK_SECONDS = 5
 PRUNE_AFTER = timedelta(days=7)
@@ -67,6 +68,15 @@ def build_newsroom():
     return SplitNewsroom(writer, desk)
 
 
+def _watersheep():
+    ws = watersheep()
+    if ws is None:
+        logger.info("[broadcast] WaterSheep not found in WATERSHEEP_DIR; lines get the rules and the desk only")
+    else:
+        logger.info(f"[broadcast] WaterSheep ({ws.name}) checks every line that states a fact")
+    return ws
+
+
 def build_director() -> Director:
     newsroom = build_newsroom()
 
@@ -87,6 +97,8 @@ def build_director() -> Director:
         desk_review=settings.broadcast_llm_standards,
         write_timeout_seconds=settings.broadcast_write_timeout_seconds,
         min_runway_seconds=settings.broadcast_min_runway_seconds,
+        watersheep=_watersheep(),
+        min_support=settings.watersheep_min_support,
     )
 
 

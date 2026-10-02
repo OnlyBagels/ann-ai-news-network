@@ -35,6 +35,7 @@ class AgentRole(str, Enum):
     RISK_AGENT = "risk_agent"
     LEGAL_AGENT = "legal_agent"
     BIAS_AGENT = "bias_agent"
+    WATERSHEEP_JUDGE = "watersheep_judge"
     EDITOR_IN_CHIEF = "editor_in_chief"
 
 
@@ -174,6 +175,9 @@ class Story(BaseModel):
     confidence: Optional[ConfidenceScore] = None
     scores: Optional[SignalScores] = None
     risk: Optional[RiskAssessment] = None
+    # WaterSheep's probabilities: relevance (AI news), support (the summary
+    # follows from the source), clickbait (the headline).
+    judge: Optional[Dict[str, float]] = None
 
     # Editorial
     headline: Optional[str] = None

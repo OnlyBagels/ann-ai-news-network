@@ -19,7 +19,9 @@ from ann_agents.bridge.db_bridge import DatabaseBridge
 from ann_agents.bridge.meilisearch_sync import MeilisearchSync
 from ann_agents.core.config import settings
 from ann_agents.core.types import SourceItem, Story
+from ann_agents.ingestion.article_text import fetch_article_text
 from ann_agents.ingestion.source_ingester import SourceIngester
+from ann_agents.pipeline.assignment import assign
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
@@ -49,6 +51,8 @@ class NewsroomScheduler:
         self.db = DatabaseBridge()
         self.search = MeilisearchSync()
         self._running = False
+        # URLs WaterSheep screened out, so later cycles don't ask again.
+        self._off_topic: set = set()
 
     async def run_once(self) -> int:
         """Run a single ingestion + pipeline cycle.
@@ -76,9 +80,14 @@ class NewsroomScheduler:
         unique_items = interleave_sources([item for item in unique_items if item.url not in known])
         logger.info(f"{len(unique_items)} new items, {len(known)} already in the newsroom")
 
-        # Step 3: Run pipeline on each item
+        # Step 3: WaterSheep screens the feed, the language model picks the stories
+        assigned = await assign(unique_items, settings.max_concurrent_stories, self._off_topic)
+
+        # Step 4: Run pipeline on each item
         processed = 0
-        for item in unique_items[:settings.max_concurrent_stories]:
+        for item in assigned:
+            # Write from the article, not the feed's teaser.
+            item = await fetch_article_text(item, settings.newsroom_min_source_chars)
             story = Story(
                 title=item.title,
                 source_items=[item],

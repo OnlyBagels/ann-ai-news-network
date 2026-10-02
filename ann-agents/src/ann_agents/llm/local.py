@@ -30,7 +30,14 @@ def parse_urls(value: Optional[str]) -> List[str]:
 
 
 class LocalModelPool:
-    def __init__(self, base_urls: List[str], api_key: Optional[str] = None, timeout: float = 300.0, client_factory=None):
+    def __init__(
+        self,
+        base_urls: List[str],
+        api_key: Optional[str] = None,
+        timeout: float = 300.0,
+        client_factory=None,
+        reasoning_effort: Optional[str] = None,
+    ):
         if not base_urls:
             raise ValueError("LocalModelPool needs at least one base URL")
         if client_factory is None:
@@ -41,6 +48,9 @@ class LocalModelPool:
                 return AsyncOpenAI(base_url=url, api_key=api_key or "local", timeout=timeout, max_retries=0)
 
         self.urls = base_urls
+        # "none" turns off a thinking model's reasoning (Gemma 4 on Ollama):
+        # on CPU that is the difference between seconds and minutes.
+        self.reasoning_effort = reasoning_effort
         self.clients = [client_factory(url) for url in base_urls]
         self._order = itertools.cycle(range(len(base_urls)))
 
@@ -66,6 +76,8 @@ class LocalModelPool:
             }
             if response_format:
                 kwargs["response_format"] = response_format
+            if self.reasoning_effort:
+                kwargs["reasoning_effort"] = self.reasoning_effort
             try:
                 response = await self.clients[i].chat.completions.create(**kwargs)
             except Exception as e:  # connection refused, timeout, 5xx: try the next box
@@ -97,5 +109,10 @@ def local_pool() -> Optional[LocalModelPool]:
     if not urls:
         return None
     if _pool is None or _pool.urls != urls:
-        _pool = LocalModelPool(urls, settings.local_llm_api_key, settings.local_llm_timeout_seconds)
+        _pool = LocalModelPool(
+            urls,
+            settings.local_llm_api_key,
+            settings.local_llm_timeout_seconds,
+            reasoning_effort=settings.local_llm_reasoning_effort,
+        )
     return _pool

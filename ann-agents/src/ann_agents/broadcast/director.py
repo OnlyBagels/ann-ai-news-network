@@ -14,13 +14,14 @@ import asyncio
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import List, Optional, Set, Union
+from typing import Any, List, Optional, Set, Union
 
 from loguru import logger
 
 from ann_agents.broadcast import lineup as grid
 from ann_agents.broadcast.budget import Spend, can_spend
-from ann_agents.broadcast.facts import build_fact_sheet
+from ann_agents.broadcast.facts import build_fact_sheet, render_fact_sheet
+from ann_agents.llm.watersheep import Ask
 from ann_agents.broadcast.models import (
     DraftLine,
     DroppedLine,
@@ -41,7 +42,8 @@ from ann_agents.broadcast.writer import ClaudeNewsroom, DeskResult, LocalNewsroo
 LEAD = timedelta(seconds=2)  # never book a segment to start in the past
 IDENT_WINDOW = timedelta(minutes=10)  # a show open only airs near the top of its slot
 FEATURE_SCORE = 80  # stories at or above this score get the bigger writer model
-INFLIGHT_ESTIMATE = timedelta(seconds=30)  # airtime a script being written will likely fill
+INFLIGHT_ESTIMATE = timedelta(seconds=30)
+LINE_QUESTION = "Is the statement supported by the facts?"  # airtime a script being written will likely fill
 
 
 @dataclass
@@ -78,6 +80,8 @@ class Director:
         desk_review: bool = True,
         write_timeout_seconds: float = 180.0,
         min_runway_seconds: int = 0,
+        watersheep: Any = None,
+        min_support: float = 0.5,
     ):
         self.store = store
         self.lineup = lineup
@@ -89,6 +93,10 @@ class Director:
         self.cooldown = timedelta(hours=cooldown_hours)
         self.desk_review = desk_review
         self.write_timeout = write_timeout_seconds
+        # WaterSheep votes on every line that states a fact, after the rules
+        # and before the language model's desk review.
+        self.watersheep = watersheep
+        self.min_support = min_support
         self.min_runway = timedelta(seconds=min_runway_seconds)
         # Several ticks can run at once (one per model server). These keep
         # them from writing the same story, opening a show twice, or booking
@@ -209,6 +217,13 @@ class Director:
                 dropped.extend(rules.dropped)
                 kept = rules.kept
 
+                if self.watersheep is not None and kept:
+                    doubted = await self._watersheep_doubts(facts, kept)
+                    for i, reason in doubted.items():
+                        line = kept[i]
+                        dropped.append(DroppedLine(speaker=line.speaker, text=line.text, reason=reason, stage="watersheep"))
+                    kept = [line for i, line in enumerate(kept) if i not in doubted]
+
                 if self.desk_review and kept:
                     try:
                         review = await asyncio.wait_for(self.newsroom.review(facts, kept), self.write_timeout)
@@ -259,6 +274,24 @@ class Director:
             spend=spend,
             dropped=dropped,
         )
+
+    async def _watersheep_doubts(self, facts, lines: List[DraftLine]) -> dict:
+        """Lines that state a fact and that WaterSheep doesn't find in the fact sheet."""
+        sheet = render_fact_sheet(facts)
+        claims = [i for i, line in enumerate(lines) if line.fact_ids]
+        if not claims:
+            return {}
+        asks = [Ask(f"Facts:\n{sheet}\n\nStatement: {lines[i].text}", LINE_QUESTION) for i in claims]
+        try:
+            answers = await asyncio.to_thread(self.watersheep.ask_many, asks)
+        except Exception as e:
+            logger.error(f"[broadcast] WaterSheep check failed: {e}")
+            return {i: "WaterSheep could not check this line" for i in claims}
+        return {
+            i: f"WaterSheep gives {a.p_yes:.2f} that the facts support it"
+            for i, a in zip(claims, answers)
+            if a.p_yes < self.min_support
+        }
 
     async def _book(self, draft: Draft, show: Show, now: datetime, clock=None) -> Segment:
         """Voice the lines, then append the segment to the end of the timeline."""

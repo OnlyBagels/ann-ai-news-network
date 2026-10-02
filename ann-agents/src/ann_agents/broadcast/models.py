@@ -99,7 +99,7 @@ class DroppedLine(BaseModel):
     speaker: str
     text: str
     reason: str
-    stage: Literal["rules", "desk"]
+    stage: Literal["rules", "watersheep", "desk"]
 
 
 class Segment(_Camel):

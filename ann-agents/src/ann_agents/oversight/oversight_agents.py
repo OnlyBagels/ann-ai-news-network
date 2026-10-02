@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import (
     AgentRole,
@@ -11,6 +13,8 @@ from ann_agents.core.types import (
     Story,
     StoryStatus,
 )
+from ann_agents.core.config import settings
+from ann_agents.ingestion.article_text import source_text
 from ann_agents.llm.router import LLMTier, llm_router
 
 
@@ -139,6 +143,22 @@ class EditorInChief(BaseAgent):
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
         elif risk and risk.risk_level == RiskLevel.HIGH:
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
+        elif len(source_text(story.primary_source)) < settings.newsroom_min_source_chars:
+            # Nothing to check the summary against: a person decides.
+            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
+            if story.risk is None:
+                story.risk = RiskAssessment()
+            chars = len(source_text(story.primary_source))
+            story.risk.risk_factors = list(story.risk.risk_factors) + [
+                f"source text too thin to check ({chars} characters, needs {settings.newsroom_min_source_chars})"
+            ]
+        elif problem := self._watersheep_problem(story):
+            # WaterSheep disagrees: off-topic stories are dropped, anything
+            # else it doubts goes to a person.
+            story.status = StoryStatus.REJECTED if problem.startswith("off-topic") else StoryStatus.NEEDS_HUMAN_REVIEW
+            if story.risk is None:
+                story.risk = RiskAssessment()
+            story.risk.risk_factors = list(story.risk.risk_factors) + [f"WaterSheep: {problem}"]
         elif confidence is None:
             # The fact-check never produced a score (no model configured,
             # request failed, unparseable reply). Unchecked stories don't
@@ -157,6 +177,18 @@ class EditorInChief(BaseAgent):
         story.scores = self._calculate_scores(story)
 
         return story
+
+    def _watersheep_problem(self, story: Story) -> Optional[str]:
+        judge = story.judge
+        if not judge:
+            return None
+        if judge.get("relevance", 1.0) < settings.watersheep_min_relevance:
+            return f"off-topic, {judge['relevance']:.2f} that this is AI news"
+        if "support" in judge and judge["support"] < settings.watersheep_min_support:
+            return f"summary support {judge['support']:.2f}, below {settings.watersheep_min_support}"
+        if judge.get("clickbait", 0.0) > settings.watersheep_max_clickbait:
+            return f"headline reads as clickbait ({judge['clickbait']:.2f})"
+        return None
 
     def _calculate_scores(self, story: Story) -> SignalScores:
         """Calculate ANN's proprietary signal scores."""

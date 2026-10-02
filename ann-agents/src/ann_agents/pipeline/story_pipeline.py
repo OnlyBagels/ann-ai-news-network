@@ -24,6 +24,7 @@ from ann_agents.editorial.editorial_agents import (
     StyleEditor,
     SummaryEditor,
 )
+from ann_agents.oversight.watersheep_judge import WaterSheepJudge
 from ann_agents.oversight.oversight_agents import (
     RiskAgent,
     LegalAgent,
@@ -78,6 +79,7 @@ class StoryPipeline:
             AgentRole.LEGAL_AGENT: LegalAgent(),
             AgentRole.BIAS_AGENT: BiasAgent(),
             AgentRole.EDITOR_IN_CHIEF: EditorInChief(),
+            AgentRole.WATERSHEEP_JUDGE: WaterSheepJudge(),
         }
 
         if self.lean:
@@ -216,6 +218,8 @@ class StoryPipeline:
             original.scores = updated.scores
         if updated.risk and not original.risk:
             original.risk = updated.risk
+        if updated.judge and not original.judge:
+            original.judge = updated.judge
 
         # Merge metadata
         if updated.suggested_headlines:

@@ -57,7 +57,7 @@ def make_story():
         source_name="Example Lab Blog",
         source_type="rss",
         published_at=datetime(2026, 10, 1, 15, 0),
-        content="The model reads 1M tokens.",
+        content="The model reads 1M tokens. " * 20,
     )
     return Story(title=item.title, source_items=[item], primary_source=item, category=Category.MODELS)
 

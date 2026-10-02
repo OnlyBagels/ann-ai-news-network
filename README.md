@@ -199,6 +199,33 @@ What that means in practice:
 
 Pick the model by testing it on your own hardware: run the director with `--once` and check the `writer` and `script.dropped` columns of `BroadcastSegment` for how many lines survive the standards check. A model that loses most lines airs mostly headline reads.
 
+### Gemma 4 and WaterSheep
+
+The default local setup is two models with separate jobs:
+
+- **Gemma 4** ([`gemma4:e4b`](https://ollama.com/library/gemma4) on Ollama) picks the stories, writes them, fact-checks them and writes the anchors' lines. Set `LOCAL_LLM_REASONING_EFFORT=none`: with Gemma's thinking on, a short answer took 87 s on 4 vCPU, and with it off, 9 s.
+- **[WaterSheep](https://huggingface.co/samratduttaofficial/WaterSheep)** is a ModernBERT-base classifier (Apache-2.0) that answers yes/no questions about a text with a calibrated probability. ANN runs its quantized ONNX build with onnxruntime, without PyTorch. It answers in under a second on CPU. Download it with `python -m ann_agents.llm.watersheep --download`.
+
+How they split the work:
+
+| Step | Gemma 4 | WaterSheep |
+|---|---|---|
+| Find | Picks the stories from a shortlist, like an assignment editor (`pipeline/assignment.py`) | Screens the general feeds (Hacker News, GitHub Trending) with "is this about AI?". Items from AI-only feeds (`NEWSROOM_AI_SOURCES`) pass without the question. |
+| Write | Writes the summary and headline from the article's text, which is fetched when the feed only gives a teaser | |
+| Decide | Fact-checks against the source text | Scores whether the summary is supported by the source, and whether the headline is clickbait (`oversight/watersheep_judge.py`) |
+| Air | Writes the dialogue and reviews it at the standards desk | Checks every line that states a fact against the fact sheet |
+
+A story publishes only when both pass it: Gemma's fact-check, and WaterSheep's support (`WATERSHEEP_MIN_SUPPORT`) and clickbait (`WATERSHEEP_MAX_CLICKBAIT`) thresholds. Off-topic items are rejected, and anything else in doubt goes to the review queue with the reason attached. A story whose source text is under `NEWSROOM_MIN_SOURCE_CHARS` never publishes on its own: in testing, Gemma wrote confident and invented summaries from headline-only feed items, and both checks passed them until the article text was fetched.
+
+Measured on 4 vCPU, with the article text fetched:
+
+- About 2 min 40 s per story through the lean newsroom. Picking from 40 candidates took 25 s.
+- About 2 min per anchor segment.
+- Both test stories' figures matched their sources.
+- One embellishment got through: "without an extra fee", where the source says costs fall by up to 66%. It came from the newsroom summary, which then became part of the fact sheet the anchors wrote from.
+
+WaterSheep's model card reports 61% accuracy on datasets it wasn't trained on. Treat it as a second vote, not a judge on its own.
+
 ### More CPU servers
 
 Run a model server on each extra machine:

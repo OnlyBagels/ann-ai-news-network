@@ -28,6 +28,9 @@ dependencies = [
     "meilisearch>=0.31.0",
     "uvicorn>=0.27.0",
     "fastapi>=0.110.0",
+    "onnxruntime>=1.17",
+    "tokenizers>=0.15",
+    "numpy>=1.26",
 ]
 
 [build-system]

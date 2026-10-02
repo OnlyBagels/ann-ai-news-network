@@ -23,6 +23,8 @@ class BaseAgent(ABC):
     def __init__(self, role: AgentRole):
         self.role = role
         self.name = self.role.value
+        # An agent may set this in process(); it is saved with its action.
+        self.last_output: Optional[Dict[str, Any]] = None
 
     @abstractmethod
     async def process(self, story: Story) -> Story:
@@ -38,6 +40,7 @@ class BaseAgent(ABC):
         )
 
         start_time = time.time()
+        self.last_output = None
         try:
             logger.info(f"[{self.name}] Processing story: {story.title[:60]}...")
             story = await self.process(story)
@@ -57,6 +60,7 @@ class BaseAgent(ABC):
             logger.error(f"[{self.name}] Failed after {elapsed_ms}ms: {e}")
 
         # Record the action
+        action.output = self.last_output
         story.agent_actions.append(action)
         if action.state == AgentState.COMPLETED:
             if self.role not in story.agents_involved:

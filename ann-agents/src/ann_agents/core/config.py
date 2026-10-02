@@ -62,6 +62,39 @@ class Settings(BaseSettings):
     local_llm_premium_model: Optional[str] = Field(default=None, alias="LOCAL_LLM_PREMIUM_MODEL")
     local_llm_tiers: str = Field(default="cheap,long_context,social,premium", alias="LOCAL_LLM_TIERS")
     local_llm_timeout_seconds: float = Field(default=300.0, alias="LOCAL_LLM_TIMEOUT_SECONDS")
+    # Sent as reasoning_effort. "none" switches off thinking models' reasoning
+    # (Gemma 4 on Ollama); leave empty for servers that reject the field.
+    local_llm_reasoning_effort: Optional[str] = Field(default=None, alias="LOCAL_LLM_REASONING_EFFORT")
+
+    # WaterSheep (samratduttaofficial/WaterSheep): a small CPU classifier that
+    # votes with the language model on what gets published and what airs.
+    # Download it with: python -m ann_agents.llm.watersheep --download
+    watersheep_dir: str = Field(default="./models/watersheep", alias="WATERSHEEP_DIR")
+    watersheep_threads: int = Field(default=0, alias="WATERSHEEP_THREADS")  # 0 = onnxruntime decides
+    # Below this probability an item isn't AI news: not assigned, and rejected
+    # if it reaches the editor-in-chief anyway.
+    watersheep_min_relevance: float = Field(default=0.5, alias="WATERSHEEP_MIN_RELEVANCE")
+    # A summary or an anchor's line needs at least this probability that the
+    # source supports it.
+    watersheep_min_support: float = Field(default=0.5, alias="WATERSHEEP_MIN_SUPPORT")
+    # Headlines above this probability of clickbait go to a human.
+    watersheep_max_clickbait: float = Field(default=0.5, alias="WATERSHEEP_MAX_CLICKBAIT")
+
+    # Assignment: how many new items WaterSheep screens per cycle, how many
+    # the language model sees to pick from, and whether it picks at all.
+    # Feeds that only publish AI news. WaterSheep doesn't screen their items
+    # or judge them off-topic: it doesn't know that "Mistral" or "Gemma" is AI.
+    newsroom_ai_sources: str = Field(
+        default="OpenAI News,Anthropic News,Google AI Blog,Meta AI Blog,Google DeepMind,Mistral AI,"
+        "Hugging Face Blog,arXiv,HuggingFace",
+        alias="NEWSROOM_AI_SOURCES",
+    )
+    # Stories need at least this much source text (feed or fetched article)
+    # to be written and approved without a person: a headline alone isn't a source.
+    newsroom_min_source_chars: int = Field(default=400, alias="NEWSROOM_MIN_SOURCE_CHARS")
+    newsroom_screen_max: int = Field(default=300, alias="NEWSROOM_SCREEN_MAX")
+    newsroom_shortlist: int = Field(default=40, alias="NEWSROOM_SHORTLIST")
+    newsroom_editor_pick: bool = Field(default=True, alias="NEWSROOM_EDITOR_PICK")
 
     # Fewer agent calls per story (about 5 instead of 14), for CPU models.
     newsroom_lean: bool = Field(default=False, alias="NEWSROOM_LEAN")
