@@ -23,6 +23,7 @@ from ann_agents.ingestion.article_text import fetch_article_text
 from ann_agents.ingestion.source_ingester import SourceIngester
 from ann_agents.ingestion.source_registry import SourceRegistry
 from ann_agents.pipeline.assignment import assign
+from ann_agents.pipeline.corroborate import related
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
@@ -44,7 +45,7 @@ def interleave_sources(items: List[SourceItem]) -> List[SourceItem]:
 
 
 class NewsroomScheduler:
-    """Orchestrates periodic ingestion and processing of AI news."""
+    """Orchestrates periodic ingestion and processing of the news."""
 
     def __init__(self):
         self.ingester = SourceIngester()
@@ -89,11 +90,17 @@ class NewsroomScheduler:
         # Step 4: Run pipeline on each item
         processed = 0
         for item in assigned:
-            # Write from the article, not the feed's teaser.
-            item = await fetch_article_text(item, settings.newsroom_min_source_chars)
+            # Other outlets' reports of the same event, so the story can cite
+            # more than one and the fact-check can compare them.
+            others = await related(item, all_items)
+            # Write from the articles, not the feeds' teasers.
+            fetched = await asyncio.gather(
+                *(fetch_article_text(i, settings.newsroom_min_source_chars) for i in [item, *others])
+            )
+            item = fetched[0]
             story = Story(
                 title=item.title,
-                source_items=[item],
+                source_items=list(fetched),
                 primary_source=item,
                 tags=item.tags,
             )

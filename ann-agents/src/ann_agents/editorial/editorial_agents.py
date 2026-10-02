@@ -19,8 +19,9 @@ class HeadlineEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt="You are a headline editor for a technical AI news outlet. "
-                          "Generate 3 concise, accurate, non-clickbait headline options. "
+            system_prompt="You are a headline editor for ANN, a general news outlet read across the political spectrum. "
+                          "Generate 3 concise, accurate, neutral headline options: no clickbait, no questions, no loaded words, "
+                          "and nothing the summary does not say. "
                           "Output a JSON object with: headlines[]",
             user_prompt=f"Generate headlines for this story:\n\n{source_text}",
             response_format={"type": "json_object"},
@@ -51,7 +52,7 @@ class TechnicalEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt="You are a technical editor for an AI news outlet. "
+            system_prompt="You are a copy editor for a general news outlet. "
                           "Review the story for technical accuracy, clarity, and completeness. "
                           "Output a JSON object with: technical_issues[], clarity_score (0-10), "
                           "suggested_improvements[], is_technically_sound (bool)",
@@ -83,9 +84,9 @@ class StyleEditor(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt="You are a style editor for ANN (AI News Network). "
-                          "ANN's style: technical, confident, concise, high-signal. "
-                          "No hype, no clickbait, no influencer tone. "
+            system_prompt="You are a style editor for ANN, a general news outlet. "
+                          "ANN's style: plain, neutral, concise, every claim attributed. "
+                          "No hype, no clickbait, no loaded or partisan language. "
                           "Output a JSON object with: style_issues[], tone_assessment, "
                           "readability_score (0-10), suggested_refinements[]",
             user_prompt=f"Review this story for ANN style compliance:\n\n{source_text}",

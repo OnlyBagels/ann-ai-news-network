@@ -79,6 +79,8 @@ class Settings(BaseSettings):
     watersheep_min_support: float = Field(default=0.5, alias="WATERSHEEP_MIN_SUPPORT")
     # Headlines above this probability of clickbait go to a human.
     watersheep_max_clickbait: float = Field(default=0.5, alias="WATERSHEEP_MAX_CLICKBAIT")
+    # Articles WaterSheep thinks use loaded or one-sided language go to a person.
+    watersheep_max_loaded: float = Field(default=0.5, alias="WATERSHEEP_MAX_LOADED")
 
     # Assignment: how many new items WaterSheep screens per cycle, how many
     # the language model sees to pick from, and whether it picks at all.

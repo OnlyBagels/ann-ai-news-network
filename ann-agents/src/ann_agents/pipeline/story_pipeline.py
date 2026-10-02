@@ -17,6 +17,7 @@ from ann_agents.reporters.research_reporter import ResearchReporter
 from ann_agents.reporters.security_reporter import SecurityReporter
 from ann_agents.reporters.regulation_reporter import RegulationReporter
 from ann_agents.reporters.business_reporter import BusinessReporter
+from ann_agents.reporters.beat_reporter import BeatReporter
 from ann_agents.research.research_agent import ResearchAgent
 from ann_agents.factcheck.fact_check_agent import FactCheckAgent
 from ann_agents.editorial.editorial_agents import (
@@ -58,6 +59,7 @@ class StoryPipeline:
             AgentRole.SECURITY_REPORTER: SecurityReporter(),
             AgentRole.REGULATION_REPORTER: RegulationReporter(),
             AgentRole.BUSINESS_REPORTER: BusinessReporter(),
+            AgentRole.BEAT_REPORTER: BeatReporter(),
         }
 
         # Research Agent
@@ -136,10 +138,13 @@ class StoryPipeline:
         return story
 
     def _reporter_roles(self, beat: Optional[str]) -> List[AgentRole]:
-        """Every reporter, or in lean mode just the beat's (models by default)."""
+        """The beat's reporter. With no beat yet, the AI desk in full mode, the
+        general beat reporter in lean mode."""
+        if beat:
+            return [REPORTER_ROLE.get(beat, AgentRole.BEAT_REPORTER)]
         if not self.lean:
-            return list(self.reporters)
-        return [REPORTER_ROLE.get(beat or "", AgentRole.MODEL_REPORTER)]
+            return [r for r in self.reporters if r != AgentRole.BEAT_REPORTER]
+        return [AgentRole.MODEL_REPORTER]
 
     def _byline(self, category: Optional[Category]) -> Optional[str]:
         """The beat reporter's id from the lineup, if the lineup is available."""
@@ -158,6 +163,8 @@ class StoryPipeline:
         tasks = []
         for role in self._reporter_roles(beat):
             copy = story.model_copy(deep=True)
+            if beat:
+                copy.category = Category(beat)
             copy.byline = self._byline(Category(beat)) if beat else None
             tasks.append(self.reporters[role].run(copy))
 

@@ -43,14 +43,14 @@ def _request_options(model: str, effort: str) -> dict:
 
 def writer_system_prompt(lineup: Lineup) -> str:
     cast = "\n".join(f"- {a.id}: {a.name}, {a.role}. {a.persona}" for a in lineup.anchors)
-    return f"""You write on-air dialogue for {lineup.network}, the AI News Network, a 24-hour pixel-art cable news channel about artificial intelligence. Viewers are builders, researchers and founders who want to know what happened and why it matters to their work.
+    return f"""You write on-air dialogue for {lineup.network}, a 24-hour pixel-art cable news channel run by AI. It covers all the news: world, US, politics, business, crypto, tech, AI, science, health, sports, entertainment, games and the internet. Viewers come from across the political spectrum and want to know what happened and why it matters. The channel takes no side: report what each side said in its own words, and keep jokes about the situation, never about a group of people.
 
 The anchors:
 {cast}
 
 How a segment works:
 - You get one story as a numbered fact sheet, the show it airs on, and who is at the desk.
-- Write 4 to 7 lines of spoken dialogue between the anchors at the desk. One anchor reads the story; the other reacts, asks the obvious follow-up, or says what it means for people building with AI. Keep their personalities, but the story leads.
+- Write 4 to 7 lines of spoken dialogue between the anchors at the desk. One anchor reads the story; the other reacts, asks the obvious follow-up, or says what it means for viewers. Keep their personalities, but the story leads.
 - Name the source out loud once, by the name on the fact sheet.
 - Each line is one or two spoken sentences, under 240 characters. Plain words a person would say on air. No stage directions, no emoji, no markdown, no URLs.
 - Give every line a mood, the way the anchor would deliver it: neutral, happy, excited, amused, concerned, empathetic, sad, angry, serious, surprised, skeptical or confused. Match the story: serious or empathetic for deaths, disasters and people being hurt, never happy or amused; excited for a big launch; skeptical about a claim the facts don't back; angry only at a situation (a breach that exposed people's data), never at a person or group. Mix moods across the lines so the desk feels alive.
@@ -88,7 +88,7 @@ def writer_user_prompt(
     return "\n\n".join(parts)
 
 
-DESK_SYSTEM = """You are the standards editor for a television news channel about AI. You check a script against the fact sheet it was written from, before air.
+DESK_SYSTEM = """You are the standards editor for a 24-hour television news channel. You check a script against the fact sheet it was written from, before air.
 
 For each numbered line decide supported true or false.
 - false if the line states as fact anything the fact sheet does not say, including names, numbers, dates, comparisons, causes, reactions, or claims about what something will do.

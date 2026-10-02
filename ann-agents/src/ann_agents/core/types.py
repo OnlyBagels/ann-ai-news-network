@@ -36,6 +36,7 @@ class AgentRole(str, Enum):
     LEGAL_AGENT = "legal_agent"
     BIAS_AGENT = "bias_agent"
     WATERSHEEP_JUDGE = "watersheep_judge"
+    BEAT_REPORTER = "beat_reporter"
     EDITOR_IN_CHIEF = "editor_in_chief"
 
 
@@ -84,6 +85,23 @@ class Category(str, Enum):
     SECURITY = "security"
     FUNDING = "funding"
     REGULATION = "regulation"
+    # General news sections
+    WORLD = "world"
+    US = "us"
+    POLITICS = "politics"
+    BUSINESS = "business"
+    CRYPTO = "crypto"
+    TECH = "tech"
+    SCIENCE = "science"
+    CLIMATE = "climate"
+    HEALTH = "health"
+    SPORTS = "sports"
+    ENTERTAINMENT = "entertainment"
+    GAMING = "gaming"
+    INTERNET = "internet"
+
+
+AI_CATEGORIES = {"models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation"}
 
 
 class SourceItem(BaseModel):
@@ -175,8 +193,9 @@ class Story(BaseModel):
     confidence: Optional[ConfidenceScore] = None
     scores: Optional[SignalScores] = None
     risk: Optional[RiskAssessment] = None
-    # WaterSheep's probabilities: relevance (AI news), support (the summary
-    # follows from the source), clickbait (the headline).
+    # WaterSheep's probabilities: relevance (a news report), support (the
+    # summary follows from the sources), clickbait (the headline), loaded
+    # (one-sided or loaded language).
     judge: Optional[Dict[str, float]] = None
 
     # Editorial

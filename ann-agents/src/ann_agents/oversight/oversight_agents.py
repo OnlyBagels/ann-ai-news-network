@@ -30,9 +30,10 @@ class RiskAgent(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt="You are a risk assessment agent for an AI news outlet. "
+            system_prompt="You are a risk assessment agent for a general news outlet. "
                           "Flag potential risks: defamation, lawsuits, unverified leaks, "
-                          "dangerous misinformation, security vulnerabilities that shouldn't be detailed. "
+                          "dangerous misinformation, security vulnerabilities that shouldn't be detailed, "
+                          "naming private individuals or minors, unattributed accusations, one-sided coverage of a contested issue. "
                           "Output a JSON object with: risk_level (low/medium/high), "
                           "risk_factors[], requires_human_review (bool), safety_flags[]",
             user_prompt=f"Assess risk for this story:\n\n{source_text}",
@@ -67,7 +68,7 @@ class LegalAgent(BaseAgent):
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt="You are a legal review agent for an AI news outlet. "
+            system_prompt="You are a legal review agent for a general news outlet. "
                           "Review for: copyright concerns, citation usage, legal exposure, "
                           "high-risk wording, fair use compliance. "
                           "Output a JSON object with: legal_concerns[], citation_quality (good/fair/poor), "
@@ -155,7 +156,7 @@ class EditorInChief(BaseAgent):
         elif problem := self._watersheep_problem(story):
             # WaterSheep disagrees: off-topic stories are dropped, anything
             # else it doubts goes to a person.
-            story.status = StoryStatus.REJECTED if problem.startswith("off-topic") else StoryStatus.NEEDS_HUMAN_REVIEW
+            story.status = StoryStatus.REJECTED if problem.startswith("not news") else StoryStatus.NEEDS_HUMAN_REVIEW
             if story.risk is None:
                 story.risk = RiskAssessment()
             story.risk.risk_factors = list(story.risk.risk_factors) + [f"WaterSheep: {problem}"]
@@ -183,11 +184,13 @@ class EditorInChief(BaseAgent):
         if not judge:
             return None
         if judge.get("relevance", 1.0) < settings.watersheep_min_relevance:
-            return f"off-topic, {judge['relevance']:.2f} that this is AI news"
+            return f"not news, {judge['relevance']:.2f} that this is a news report"
         if "support" in judge and judge["support"] < settings.watersheep_min_support:
             return f"summary support {judge['support']:.2f}, below {settings.watersheep_min_support}"
         if judge.get("clickbait", 0.0) > settings.watersheep_max_clickbait:
             return f"headline reads as clickbait ({judge['clickbait']:.2f})"
+        if judge.get("loaded", 0.0) > settings.watersheep_max_loaded:
+            return f"language reads as loaded or one-sided ({judge['loaded']:.2f})"
         return None
 
     def _calculate_scores(self, story: Story) -> SignalScores:

@@ -7,7 +7,7 @@ from ann_agents.core.types import AgentRole, Story
 from ann_agents.llm.router import LLMTier, llm_router
 
 
-SYSTEM_PROMPT = """You are a Research Agent for ANN (AI News Network).
+SYSTEM_PROMPT = """You are a Research Agent for ANN, a general news network written by AI.
 Your job: enrich stories by gathering supporting context.
 
 For each story, you should:

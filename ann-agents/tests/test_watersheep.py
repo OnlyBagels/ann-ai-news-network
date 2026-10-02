@@ -100,23 +100,29 @@ async def run_with_judge(monkeypatch, rule):
 
 
 async def test_story_publishes_only_when_watersheep_and_the_model_agree(monkeypatch):
-    story = await run_with_judge(monkeypatch, lambda ask: 0.05 if "clickbait" in ask.question else 0.9)
+    story = await run_with_judge(monkeypatch, lambda ask: 0.05 if ("clickbait" in ask.question or "loaded" in ask.question) else 0.9)
     assert story.status == StoryStatus.APPROVED
-    assert story.judge == {"relevance": 0.9, "clickbait": 0.05, "support": 0.9}
+    assert story.judge == {"relevance": 0.9, "clickbait": 0.05, "support": 0.9, "loaded": 0.05}
     judge_action = next(a for a in story.agent_actions if a.agent_role == "watersheep_judge")
     assert judge_action.output["model"] == "fake-watersheep"
 
 
 async def test_weak_support_sends_the_story_to_a_person(monkeypatch):
     story = await run_with_judge(
-        monkeypatch, lambda ask: 0.2 if "supported" in ask.question else 0.05 if "clickbait" in ask.question else 0.9
+        monkeypatch, lambda ask: 0.2 if "supported" in ask.question else 0.05 if ("clickbait" in ask.question or "loaded" in ask.question) else 0.9
     )
     assert story.status == StoryStatus.NEEDS_HUMAN_REVIEW
     assert any("summary support 0.20" in f for f in story.risk.risk_factors)
 
 
+async def test_loaded_language_sends_the_story_to_a_person(monkeypatch):
+    story = await run_with_judge(monkeypatch, lambda ask: 0.8 if "loaded" in ask.question else 0.05 if "clickbait" in ask.question else 0.9)
+    assert story.status == StoryStatus.NEEDS_HUMAN_REVIEW
+    assert any("loaded or one-sided" in f for f in story.risk.risk_factors)
+
+
 async def test_off_topic_story_is_rejected(monkeypatch):
-    story = await run_with_judge(monkeypatch, lambda ask: 0.1 if "artificial" in ask.question else 0.05)
+    story = await run_with_judge(monkeypatch, lambda ask: 0.1 if "news report" in ask.question else 0.05)
     assert story.status == StoryStatus.REJECTED
 
 

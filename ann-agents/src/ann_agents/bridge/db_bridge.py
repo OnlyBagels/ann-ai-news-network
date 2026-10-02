@@ -95,7 +95,7 @@ class DatabaseBridge:
                     "hallucination_risk",
                     "risk_level", "risk_factors", "requires_human_review",
                     "legal_concerns", "bias_concerns", "safety_flags",
-                    byline, judge,
+                    byline, judge, sources,
                     "createdAt", "updatedAt"
                 ) VALUES (
                     gen_random_uuid()::text, :title, :slug, :url, :source, :source_url, :author,
@@ -107,7 +107,7 @@ class DatabaseBridge:
                     :hallucination_risk,
                     :risk_level, :risk_factors, :requires_human_review,
                     :legal_concerns, :bias_concerns, :safety_flags,
-                    :byline, CAST(:judge AS jsonb),
+                    :byline, CAST(:judge AS jsonb), CAST(:sources AS jsonb),
                     NOW(), NOW()
                 ) RETURNING id
             """),
@@ -143,9 +143,26 @@ class DatabaseBridge:
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
                 "byline": story.byline,
                 "judge": json.dumps(story.judge) if story.judge else None,
+                "sources": json.dumps(self._sources(story)),
             },
         )
         return result.fetchone()[0]
+
+    @staticmethod
+    def _sources(story: Story) -> List[Dict[str, Any]]:
+        """Every outlet the story draws on, in the order the reporter saw them."""
+        items = story.source_items or ([story.primary_source] if story.primary_source else [])
+        return [
+            {
+                "name": i.source_name,
+                "url": i.url,
+                "title": i.title,
+                "author": i.author,
+                "publishedAt": i.published_at.isoformat() if i.published_at else None,
+                "lean": i.metadata.get("lean"),
+            }
+            for i in items
+        ]
 
     def _update_article(self, session: Session, article_id: str, story: Story, slug: str):
         """Update an existing article record."""
@@ -177,6 +194,7 @@ class DatabaseBridge:
                     "safety_flags" = :safety_flags,
                     byline = :byline,
                     judge = CAST(:judge AS jsonb),
+                    sources = CAST(:sources AS jsonb),
                     "updatedAt" = NOW()
                 WHERE id = :id
             """),
@@ -207,6 +225,7 @@ class DatabaseBridge:
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
                 "byline": story.byline,
                 "judge": json.dumps(story.judge) if story.judge else None,
+                "sources": json.dumps(self._sources(story)),
             },
         )
 

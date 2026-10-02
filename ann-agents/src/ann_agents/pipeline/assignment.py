@@ -3,7 +3,8 @@
 Two passes over each cycle's new items:
 
 1. WaterSheep screens every item (title and opening text) with one question,
-   "is this about AI?", and drops the ones below WATERSHEEP_MIN_RELEVANCE.
+   "is this a news report?", and drops ads, promotions, job posts and opinion
+   columns below WATERSHEEP_MIN_RELEVANCE.
    It runs on CPU in a fraction of a second per item, so it can read the
    whole feed.
 2. The language model (Gemma, or whatever the CHEAP tier resolves to) reads
@@ -28,13 +29,15 @@ from ann_agents.core.types import SourceItem
 from ann_agents.ingestion.sources import ai_sources
 from ann_agents.llm.router import LLMTier, llm_router
 from ann_agents.llm.watersheep import Ask, watersheep
+from ann_agents.pipeline.corroborate import coverage
 
-RELEVANCE_QUESTION = "Is this about artificial intelligence or machine learning?"
+RELEVANCE_QUESTION = "Is this a news report about real events, rather than an advertisement, a promotion, a job listing or an opinion column?"
 _TAGS = re.compile(r"<[^>]+>")
 
-EDITOR_SYSTEM = """You are the assignment editor at ANN, a newsroom covering artificial intelligence for builders, researchers and founders.
-From the numbered list of incoming items, pick the ones most worth reporting today: launches, releases, research results, security issues, funding, policy.
-Skip duplicates of the same news (keep the most direct source), adverts, job posts, and items with nothing new.
+EDITOR_SYSTEM = """You are the assignment editor at ANN, a general news network read across the political spectrum.
+From the numbered list of incoming items, pick the ones most worth reporting now: events that affect many people, new information, and stories several outlets are covering. Each item shows its section, its outlet and how many other outlets are running the same story.
+Keep a mix of sections: world, US, politics, business, crypto, tech, AI, science, climate, health, sports, entertainment, games and the internet. Don't pick by which side a story might help.
+Skip duplicates of the same news (keep the most direct source), opinion columns, adverts, deals and shopping posts, horoscopes, quizzes, and items with nothing new.
 Reply with JSON only: {"picks": [numbers]}, best first."""
 
 
@@ -75,8 +78,18 @@ async def editor_pick(items: Sequence[SourceItem], limit: int) -> List[SourceIte
     """Ask the language model to choose up to `limit` stories from the shortlist."""
     if len(items) <= limit or not settings.newsroom_editor_pick:
         return list(items[:limit])
-    shortlist = list(items[: settings.newsroom_shortlist])
-    listing = "\n".join(f"{n}. [{i.source_name}] {i.title}" for n, i in enumerate(shortlist, 1))
+    # Bigger stories first: the ones the most outlets are running.
+    covered = coverage(items)
+    ranked = sorted(items, key=lambda i: -covered.get(i.url, 0))
+    shortlist = list(ranked[: settings.newsroom_shortlist])
+
+    def line(n: int, i: SourceItem) -> str:
+        section = i.metadata.get("category_hint") or "general"
+        others = covered.get(i.url, 0)
+        also = f" (also covered by {others} other outlets)" if others else ""
+        return f"{n}. [{section}] [{i.source_name}] {i.title}{also}"
+
+    listing = "\n".join(line(n, i) for n, i in enumerate(shortlist, 1))
     reply = await llm_router.complete(
         tier=LLMTier.CHEAP,
         system_prompt=EDITOR_SYSTEM,
@@ -89,9 +102,26 @@ async def editor_pick(items: Sequence[SourceItem], limit: int) -> List[SourceIte
     if not picks:
         logger.warning("[assignment] the editor's pick was unusable; taking the newest items")
         return shortlist[:limit]
-    chosen = [shortlist[n - 1] for n in picks[:limit]]
+    chosen = with_section_mix([shortlist[n - 1] for n in picks], limit)
     logger.info(f"[assignment] editor picked {len(chosen)} of {len(shortlist)}")
     return chosen
+
+
+def with_section_mix(picks: Sequence[SourceItem], limit: int) -> List[SourceItem]:
+    """Keep the editor's order, but no section takes more than a third of the slots."""
+    cap = max(1, -(-limit // 3))
+    per: dict = {}
+    kept: List[SourceItem] = []
+    for item in picks:
+        section = item.metadata.get("category_hint")
+        if section and per.get(section, 0) >= cap:
+            continue
+        if section:
+            per[section] = per.get(section, 0) + 1
+        kept.append(item)
+        if len(kept) >= limit:
+            break
+    return kept
 
 
 def _parse_picks(reply: Optional[str], size: int) -> List[int]:

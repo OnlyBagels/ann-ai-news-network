@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// The AI beats (models .. regulation) form the AI section; the rest are
+// the general news sections.
 enum Category {
   models
   open_source
@@ -16,6 +18,19 @@ enum Category {
   security
   funding
   regulation
+  world
+  us
+  politics
+  business
+  crypto
+  tech
+  science
+  climate
+  health
+  sports
+  entertainment
+  gaming
+  internet
 }
 
 enum StoryStatus {
@@ -49,6 +64,7 @@ model Article {
   imageUrl        String?
   relatedArticles String[]
   byline          String?    // reporter id from src/broadcast/lineup.json
+  sources         Json?      // every outlet the story draws on: [{name, url, author, publishedAt, lean}]
   judge           Json?      // WaterSheep scores: relevance, support, clickbait
 
   // Agent pipeline tracking
@@ -123,6 +139,8 @@ model Source {
   type        String   // rss | hackernews | arxiv | github_trending | huggingface
   category    String?  // the beat its items usually belong to
   aiOnly      Boolean  @default(false) // every item is AI news: skip relevance screening
+  lean        String?  // political lean from Ad Fontes Media: left .. right
+  paywalled   Boolean  @default(false)
   isActive    Boolean  @default(true)
   lastFetched DateTime? // last attempt
   lastSuccessAt DateTime?

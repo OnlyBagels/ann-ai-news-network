@@ -6,6 +6,7 @@ from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, Category, Story
 from ann_agents.llm.router import LLMTier, llm_router
 from ann_agents.reporters.persona import persona_note
+from ann_agents.reporters.rules import ARTICLE_RULES, sources_block
 
 
 SYSTEM_PROMPT = """You are the Regulation Reporter for ANN (AI News Network).
@@ -32,11 +33,11 @@ class RegulationReporter(BaseAgent):
 
     async def process(self, story: Story) -> Story:
         """Analyze a story from the regulation perspective."""
-        source_text = self._build_source_text(story)
+        source_text = sources_block(story)
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,  # Legal/regulatory needs high accuracy
-            system_prompt=SYSTEM_PROMPT,
+            system_prompt=SYSTEM_PROMPT + ARTICLE_RULES,
             user_prompt=f"Analyze this AI regulation story:\n\n{source_text}{persona_note(story)}",
             response_format={"type": "json_object"},
         )
@@ -46,6 +47,7 @@ class RegulationReporter(BaseAgent):
             try:
                 data = json.loads(result)
                 story.summary = data.get("summary", story.summary)
+                story.content = data.get("body") or story.content
                 story.tags = list(set(story.tags + data.get("tags", [])))
                 if data.get("category"):
                     story.category = Category(data["category"])
