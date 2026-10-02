@@ -41,10 +41,10 @@ export function Sidebar() {
       </nav>
       <div className="px-3 py-2.5 border-t border-border">
         <div className="text-[11px] font-mono text-muted space-y-1">
-          <div className="flex items-center gap-1.5">
-            <span className="status-dot live" />
-            <span>System Online</span>
-          </div>
+          <Link href="/live" className="flex items-center gap-1.5 hover:text-foreground transition-colors">
+            <span className="status-dot live" aria-hidden="true" />
+            <span>ANN Live</span>
+          </Link>
           <div className="text-[9px] text-muted/50">
             v0.1.0 · MVP Build
           </div>

@@ -42,6 +42,15 @@ export default function AIDisclosurePage() {
           <li>Claude / GPT: Premium editorial content</li>
         </ul>
 
+        <h2 className="text-foreground font-semibold text-sm">ANN Live</h2>
+        <p>
+          The anchors on ANN Live are AI characters, and Claude writes what they say. Each segment is written
+          from one approved ANN story. Before it airs, code checks every figure against the story it cites and
+          cuts lines that don&rsquo;t match, and a second model reviews the rest. A segment that fails airs as a
+          plain reading of the story instead. The anchors&rsquo; opinions are written for the show and are not
+          ANN&rsquo;s reporting.
+        </p>
+
         <h2 className="text-foreground font-semibold text-sm">Attribution</h2>
         <p>
           We clearly mark AI-generated summaries and analysis. Source articles

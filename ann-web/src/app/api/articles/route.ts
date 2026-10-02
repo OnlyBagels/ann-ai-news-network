@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis, getCacheKey, CACHE_TTL } from "@/lib/redis";
+import { PUBLIC_STATUSES, toArticle, toDbCategory } from "@/lib/articles";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -22,9 +24,13 @@ export async function GET(request: NextRequest) {
 
   try {
     // Build query filters
-    const where: Record<string, unknown> = {};
+    const where: Prisma.ArticleWhereInput = { storyStatus: { in: PUBLIC_STATUSES } };
     if (category) {
-      where.category = category;
+      const dbCategory = toDbCategory(category);
+      if (!dbCategory) {
+        return NextResponse.json({ error: "Unknown category" }, { status: 400 });
+      }
+      where.category = dbCategory;
     }
     if (search) {
       where.OR = [
@@ -35,17 +41,18 @@ export async function GET(request: NextRequest) {
     }
 
     // Build orderBy
-    let orderBy: Record<string, "asc" | "desc"> = {};
+    // Scores live on a related row, so rank through the relation.
+    let orderBy: Prisma.ArticleOrderByWithRelationInput[];
     switch (sort) {
       case "newest":
-        orderBy = { publishedAt: "desc" };
+        orderBy = [{ publishedAt: "desc" }];
         break;
       case "trending":
-        orderBy = { signalScore: "desc" };
+        orderBy = [{ scores: { signalScore: "desc" } }, { publishedAt: "desc" }];
         break;
       case "signal":
       default:
-        orderBy = { overallScore: "desc" };
+        orderBy = [{ scores: { overallScore: "desc" } }, { publishedAt: "desc" }];
         break;
     }
 
@@ -63,22 +70,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     const response = {
-      articles: articles.map((article) => ({
-        id: article.id,
-        title: article.title,
-        slug: article.slug,
-        url: article.url,
-        source: article.source,
-        sourceUrl: article.sourceUrl,
-        author: article.author,
-        publishedAt: article.publishedAt.toISOString(),
-        summary: article.summary,
-        tlDr: article.tlDr,
-        tags: article.tags,
-        category: article.category,
-        scores: article.scores,
-        imageUrl: article.imageUrl,
-      })),
+      // The feed leaves out full article bodies.
+      articles: articles.map((article) => ({ ...toArticle(article), content: undefined })),
       total,
       page,
       totalPages: Math.ceil(total / limit),

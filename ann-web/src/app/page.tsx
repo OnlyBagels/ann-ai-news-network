@@ -8,127 +8,92 @@ import { NewsletterSignup } from "@/components/shared/NewsletterSignup";
 import { CATEGORIES } from "@/types";
 import type { Article, Category } from "@/types";
 import { formatDate } from "@/lib/utils";
+import { prisma } from "@/lib/prisma";
+import { PUBLIC_STATUSES, toArticle } from "@/lib/articles";
+import { getLiveNow, lineup } from "@/lib/live";
 
-const FEATURED: Article[] = [
-  {
-    id: "f-1",
-    title: "Anthropic releases Claude 4.7 — sets new SOTA on SWE-bench Verified at 82.3%",
-    slug: "claude-4-7-swebench",
-    url: "#",
-    source: "Anthropic Blog",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 12).toISOString(),
-    summary: "Claude 4.7 jumps 8 points on SWE-bench Verified while reducing inference cost by 31%. Extended thinking mode is now default.",
-    tlDr: "Claude 4.7 is +8pts on SWE-bench Verified (82.3%), -31% cost. Extended thinking on by default. Available in API today.",
-    tags: ["claude", "anthropic", "swe-bench", "coding-ai"],
-    category: "models",
-    scores: { signalScore: 96, hypeScore: 71, builderScore: 94, securityScore: 82, openSourceScore: 25, enterpriseScore: 91, overallScore: 93 },
-  },
-  {
-    id: "f-2",
-    title: "Meta open-sources Llama 4 405B under permissive license — full weights, no restrictions",
-    slug: "llama-4-mit",
-    url: "#",
-    source: "Meta AI",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 47).toISOString(),
-    summary: "Meta drops Llama 4 with weights, training code, and dataset details. Permissive license, commercial use allowed.",
-    tlDr: "Llama 4 405B is fully open. Weights + training code. Permissive license, commercial OK. Available on HuggingFace.",
-    tags: ["llama", "meta", "open-source", "weights"],
-    category: "open-source",
-    scores: { signalScore: 94, hypeScore: 88, builderScore: 90, securityScore: 60, openSourceScore: 98, enterpriseScore: 75, overallScore: 92 },
-  },
-  {
-    id: "f-3",
-    title: "Critical RCE in PyTorch JIT compiler — CVE-2026-3124, CVSS 9.8",
-    slug: "pytorch-jit-cve",
-    url: "#",
-    source: "NVD",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 95).toISOString(),
-    summary: "Remote code execution via crafted TorchScript. Affects PyTorch 2.0–2.6. Patch in 2.6.1, upgrade immediately.",
-    tlDr: "CVE-2026-3124. RCE via malicious TorchScript. CVSS 9.8. PyTorch 2.0–2.6 affected. Patch 2.6.1 out.",
-    tags: ["pytorch", "security", "cve", "rce"],
-    category: "security",
-    scores: { signalScore: 98, hypeScore: 35, builderScore: 80, securityScore: 99, openSourceScore: 70, enterpriseScore: 92, overallScore: 95 },
-  },
-  {
-    id: "f-4",
-    title: "OpenAI acquires Windsurf for $3.2B — enters AI-IDE market",
-    slug: "openai-windsurf",
-    url: "#",
-    source: "TechCrunch",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 180).toISOString(),
-    summary: "OpenAI's largest acquisition yet. Windsurf's 2M+ developers get native GPT-5 integration. Direct Cursor competitor.",
-    tlDr: "OpenAI buys Windsurf for $3.2B. 2M+ devs get GPT-5. Cursor's first real competitor with platform leverage.",
-    tags: ["openai", "windsurf", "acquisition", "ide"],
-    category: "funding",
-    scores: { signalScore: 89, hypeScore: 93, builderScore: 82, securityScore: 50, openSourceScore: 18, enterpriseScore: 86, overallScore: 86 },
-  },
-  {
-    id: "f-5",
-    title: "DeepMind AlphaFold 3 expands to protein-protein interactions — 87% accuracy on benchmark",
-    slug: "alphafold3-ppi",
-    url: "#",
-    source: "Nature",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 240).toISOString(),
-    summary: "AlphaFold 3 now predicts full protein complexes. Major implications for drug discovery and synthetic biology.",
-    tlDr: "AF3 predicts full protein complexes at 87% accuracy. Drug discovery + synthetic bio applications open up fast.",
-    tags: ["deepmind", "alphafold", "biology", "research"],
-    category: "research",
-    scores: { signalScore: 91, hypeScore: 78, builderScore: 55, securityScore: 35, openSourceScore: 72, enterpriseScore: 80, overallScore: 88 },
-  },
-  {
-    id: "f-6",
-    title: "EU AI Act enforcement begins — first fines expected within 90 days",
-    slug: "eu-ai-act-enforcement",
-    url: "#",
-    source: "European Commission",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 360).toISOString(),
-    summary: "EU AI Act enforcement phase active. Fines up to 7% of global revenue. High-risk AI systems must comply immediately.",
-    tlDr: "EU AI Act enforcement live. Penalties up to 7% of global revenue. 90-day window before first fines hit.",
-    tags: ["eu", "regulation", "compliance"],
-    category: "regulation",
-    scores: { signalScore: 90, hypeScore: 60, builderScore: 65, securityScore: 78, openSourceScore: 50, enterpriseScore: 94, overallScore: 87 },
-  },
-  {
-    id: "f-7",
-    title: "GitHub Copilot Workspace GA — 40% of AI-generated PRs merge without edits",
-    slug: "copilot-workspace-ga",
-    url: "#",
-    source: "GitHub Blog",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 480).toISOString(),
-    summary: "Copilot Workspace moves to general availability. Issue-to-PR pipeline now production-ready.",
-    tlDr: "Copilot Workspace GA. Issue → PR pipeline live. 40% merge rate with no human edits. Available for all paid plans.",
-    tags: ["github", "copilot", "coding-ai"],
-    category: "coding-ai",
-    scores: { signalScore: 87, hypeScore: 80, builderScore: 92, securityScore: 55, openSourceScore: 60, enterpriseScore: 88, overallScore: 85 },
-  },
-  {
-    id: "f-8",
-    title: "AutoGPT v5 ships with multi-model routing and sandboxed execution",
-    slug: "autogpt-v5",
-    url: "#",
-    source: "AutoGPT",
-    publishedAt: new Date(Date.now() - 1000 * 60 * 600).toISOString(),
-    summary: "Major rewrite of AutoGPT. Native multi-model routing (Claude/GPT/Gemini), sandboxed execution, new A2A protocol.",
-    tlDr: "AutoGPT v5: dynamic model routing, sandboxed exec, agent-to-agent protocol. Production-ready for the first time.",
-    tags: ["autogpt", "agents", "frameworks"],
-    category: "agents",
-    scores: { signalScore: 84, hypeScore: 75, builderScore: 88, securityScore: 70, openSourceScore: 92, enterpriseScore: 62, overallScore: 82 },
-  },
-];
+export const dynamic = "force-dynamic";
 
-const hero = FEATURED[0];
-const top3 = FEATURED.slice(1, 4);
-const rest = FEATURED.slice(4);
+const FEATURED_COUNT = 12;
+const DAY_MS = 86_400_000;
+
+async function loadHome() {
+  const now = Date.now();
+  try {
+    const query = (since?: Date) =>
+      prisma.article.findMany({
+        where: { storyStatus: { in: PUBLIC_STATUSES }, ...(since ? { publishedAt: { gte: since } } : {}) },
+        orderBy: [{ scores: { overallScore: "desc" } }, { publishedAt: "desc" }],
+        take: FEATURED_COUNT,
+        include: { scores: true },
+      });
+    let rows = await query(new Date(now - 2 * DAY_MS));
+    if (rows.length < 4) rows = await query();
+    const [lastDay, live] = await Promise.all([
+      prisma.article.count({
+        where: { storyStatus: { in: PUBLIC_STATUSES }, publishedAt: { gte: new Date(now - DAY_MS) } },
+      }),
+      getLiveNow(new Date(now)).catch(() => null),
+    ]);
+    const onAir =
+      live?.segments.find((s) => {
+        const start = Date.parse(s.startsAt);
+        return start <= now && now < start + s.durationMs;
+      }) ?? null;
+    return { articles: rows.map(toArticle), lastDay, onAir, ok: true };
+  } catch (error) {
+    console.error("Failed to load the front page:", error);
+    return { articles: [] as Article[], lastDay: 0, onAir: null, ok: false };
+  }
+}
 
 function categoryMeta(c: Category) {
   return CATEGORIES.find((x) => x.id === c);
 }
 
-export default function HomePage() {
-  const todayCount = FEATURED.length;
+export default async function HomePage() {
+  const { articles: FEATURED, lastDay, onAir, ok } = await loadHome();
+  const show = onAir ? lineup.shows.find((s) => s.id === onAir.showId) : null;
+  const liveBlock = (
+    <Link
+      href="/live"
+      className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border border-foreground rounded-sm px-4 py-3 hover:bg-terminal-hover transition-colors"
+    >
+      <span className="text-[11px] font-mono font-semibold uppercase tracking-widest">ANN Live</span>
+      <span className="text-sm text-foreground/80 min-w-0">
+        {onAir && show ? `${show.name}: ${onAir.title}` : "The 24-hour AI news desk"}
+      </span>
+      <span className="ml-auto inline-flex items-center gap-1 text-xs font-mono">
+        Watch <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+      </span>
+    </Link>
+  );
+
+  if (FEATURED.length === 0) {
+    return (
+      <div className="space-y-6">
+        <header className="border-b border-border pb-5">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">Signal of the day</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            {ok
+              ? "No stories have cleared the newsroom yet. Approved stories show up here as soon as they publish."
+              : "The newsroom database is unreachable right now. Try again in a minute."}
+          </p>
+        </header>
+        {liveBlock}
+        <NewsletterSignup />
+      </div>
+    );
+  }
+
+  const hero = FEATURED[0];
+  const top3 = FEATURED.slice(1, 4);
+  const rest = FEATURED.slice(4);
   const avgSignal = Math.round(FEATURED.reduce((s, a) => s + a.scores.signalScore, 0) / FEATURED.length);
-  const topCategory = "models";
   const topScore = Math.max(...FEATURED.map((a) => a.scores.signalScore));
+  const counts = new Map<Category, number>();
+  FEATURED.forEach((a) => counts.set(a.category, (counts.get(a.category) ?? 0) + 1));
+  const topCategory = [...counts.entries()].sort((x, y) => y[1] - x[1])[0][0];
 
   return (
     <div className="space-y-10">
@@ -142,9 +107,11 @@ export default function HomePage() {
         <p className="text-sm text-muted-foreground mt-1">The highest-signal AI stories curated and ranked by relevance.</p>
       </header>
 
+      {liveBlock}
+
       {/* Stats row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard label="Signals today" value={todayCount} icon={<Activity className="w-3.5 h-3.5" />} />
+        <StatCard label="Stories, last 24h" value={lastDay} icon={<Activity className="w-3.5 h-3.5" />} />
         <StatCard label="Top signal score" value={topScore} icon={<Zap className="w-3.5 h-3.5" />} />
         <StatCard label="Avg signal" value={avgSignal} icon={<TrendingUp className="w-3.5 h-3.5" />} />
         <StatCard label="Top category" value={categoryMeta(topCategory)?.label ?? topCategory} icon={<Flame className="w-3.5 h-3.5" />} />

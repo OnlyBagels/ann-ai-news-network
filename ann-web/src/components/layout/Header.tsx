@@ -35,6 +35,7 @@ export function Header() {
         {/* Center: Desktop Nav */}
         <nav className="hidden md:flex items-center gap-1">
           <NavLink href="/" label="Feed" />
+          <NavLink href="/live" label="Live" />
           <NavLink href="/categories/models" label="Models" />
           <NavLink href="/categories/research" label="Research" />
           <NavLink href="/categories/security" label="Security" />
@@ -50,10 +51,13 @@ export function Header() {
           >
             <Search className="w-4 h-4 text-muted hover:text-foreground transition-colors" />
           </button>
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-muted border border-border rounded px-2 py-1">
-            <span className="status-dot live" />
-            <span>LIVE</span>
-          </div>
+          <Link
+            href="/live"
+            className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-foreground border border-border rounded px-2 py-1 hover:border-foreground transition-colors"
+          >
+            <span className="status-dot live" aria-hidden="true" />
+            <span>Watch live</span>
+          </Link>
         </div>
       </div>
 
@@ -62,6 +66,7 @@ export function Header() {
         <div className="md:hidden border-t border-border bg-terminal-bg p-4">
           <nav className="flex flex-col gap-2">
             <MobileNavLink href="/" label="Feed" />
+            <MobileNavLink href="/live" label="Live" />
             <MobileNavLink href="/categories/models" label="Models" />
             <MobileNavLink href="/categories/research" label="Research" />
             <MobileNavLink href="/categories/security" label="Security" />
