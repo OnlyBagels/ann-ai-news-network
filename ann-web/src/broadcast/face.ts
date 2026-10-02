@@ -64,7 +64,7 @@ function reaction(speaker: Mood, anchorId: string, lineIndex: number): Mood {
 const FRAME_MS = 1000 / 15;
 
 /** The letter being said at this moment (the text is spread over the line's duration). */
-function letterAt(line: ScriptLine, elapsedMs: number): { ch: string; word: number } {
+export function letterAt(line: ScriptLine, elapsedMs: number): { ch: string; word: number } {
   const text = line.text.toLowerCase();
   if (!text || line.durationMs <= 0) return { ch: " ", word: 0 };
   const t = (Math.floor(elapsedMs / FRAME_MS) + 0.5) * FRAME_MS;
@@ -94,6 +94,8 @@ export interface Acting {
   hands: [number, number];
   /** A pixel mark that spells out the mood, and how long it has been up. */
   emote: { kind: Emote; ms: number } | null;
+  /** The mood this anchor is showing (their own, or their reaction). */
+  mood: Mood;
 }
 
 // Marks that stay up while the mood lasts, and ones that pop up briefly.
@@ -202,6 +204,7 @@ export function act(input: ActInput): Acting {
       head: { dx, dy },
       hands,
       emote: emoteFor(lineMood, lineElapsedMs),
+      mood: lineMood,
     };
   }
 
@@ -253,11 +256,13 @@ export function act(input: ActInput): Acting {
       head: { dx, dy },
       hands: [0, 0],
       emote,
+      mood,
     };
   }
 
   // Between lines and before the first one: settle, look around, blink.
-  const face = FACES[line ? reaction(lineMood, anchorId, lineIndex) : "neutral"];
+  const idleMood: Mood = line ? reaction(lineMood, anchorId, lineIndex) : "neutral";
+  const face = FACES[idleMood];
   const eyes = saccade(nowMs, anchorId);
   return {
     pose: {
@@ -272,6 +277,7 @@ export function act(input: ActInput): Acting {
     head: { dx: face.tilt, dy: 0 },
     hands: [0, 0],
     emote: null,
+    mood: idleMood,
   };
 }
 

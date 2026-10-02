@@ -21,8 +21,39 @@ export interface Anchor {
   persona: string;
 }
 
+// The studio areas. Each show has a home set; a segment can move to another
+// (the weather hit on the morning show goes to the weather wall).
+export type StudioSet = "desk" | "weather" | "sports" | "markets" | "latenight";
+
+// Data shown on a set's wall. Always real data from the named source;
+// a set with no data shows its frame and says so, never invented numbers.
+export interface WeatherBoard {
+  kind: "weather";
+  source: string; // e.g. "Open-Meteo"
+  asOf: string; // ISO time the data was fetched
+  places: { name: string; lat: number; lon: number; tempF: number; icon: WeatherIcon; hiF?: number; loF?: number }[];
+}
+export type WeatherIcon = "sun" | "partly" | "cloud" | "rain" | "storm" | "snow" | "fog" | "night";
+
+export interface SportsBoard {
+  kind: "sports";
+  source: string;
+  asOf: string;
+  games: { league: string; away: string; home: string; awayScore: number | null; homeScore: number | null; status: string }[];
+}
+
+export interface MarketsBoard {
+  kind: "markets";
+  source: string;
+  asOf: string;
+  quotes: { symbol: string; name: string; price: number; changePct: number; spark: number[] }[];
+}
+
+export type Board = WeatherBoard | SportsBoard | MarketsBoard;
+
 export interface Show {
   id: string;
+  set?: StudioSet;
   name: string;
   blurb: string;
   anchors: string[];
@@ -105,6 +136,8 @@ export interface Segment {
   anchors: string[]; // who sits at the desk, left to right
   articles: SegmentArticle[];
   lines: ScriptLine[];
+  set?: StudioSet;
+  board?: Board | null;
 }
 
 export interface LiveNow {

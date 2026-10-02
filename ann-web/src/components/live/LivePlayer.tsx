@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Captions, CaptionsOff, ExternalLink, Volume2, VolumeX } from "lucide-react";
-import { drawFrame, currentLine, WIDTH, HEIGHT } from "@/broadcast/scene";
+import { drawFrame, currentLine, easternClock, WIDTH, HEIGHT } from "@/broadcast/scene";
 import type { LiveNow, Lineup, Segment } from "@/broadcast/types";
 import type { YouTubeConfig } from "@/lib/youtube";
 
@@ -128,7 +128,7 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
           segment: seg,
           segmentElapsedMs: elapsed,
           upcoming: next,
-          clockLabel: clock(nowMs),
+          clockLabel: easternClock(nowMs),
           captions: captionsRef.current,
         });
       }

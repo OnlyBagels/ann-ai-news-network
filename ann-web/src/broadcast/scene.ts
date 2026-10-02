@@ -1,38 +1,40 @@
-// One frame of the ANN broadcast at 320x180, drawn with fillStyle + fillRect
+// One frame of the ANN broadcast at 640x360, drawn with fillStyle + fillRect
 // only. The web player and the Node streamer both call drawFrame, so the
 // output is identical in both.
+//
+// The set comes from the segment (or its show): see studio.ts. The cast are
+// the 2x characters from character.ts; face.ts decides their faces and
+// gesture.ts their hands and props.
 
-import type { Anchor, Lineup, ScriptLine, Segment, Show } from "./types";
+import type { Anchor, Lineup, ScriptLine, Segment, Show, StudioSet } from "./types";
 import { MOUTH_FPS } from "./types";
+import { type PixelCtx, drawText, drawTextScaled, measure, normalizeText, truncate, wrap } from "./font";
+import { breathOffset, drawEmote } from "./sprites";
+import { act, letterAt, type Acting } from "./face";
+import { gesture, type Hands } from "./gesture";
 import {
-  ADVANCE,
-  LINE_HEIGHT,
-  type PixelCtx,
-  drawText,
-  drawTextScaled,
-  measure,
-  normalizeText,
-  truncate,
-  wrap,
-} from "./font";
-import { act, type Acting } from "./face";
-import {
-  HAND_H,
-  SPRITE_DESK_ROW,
-  SPRITE_W,
-  breathOffset,
-  drawAnchor,
-  drawEmote,
-  drawHand,
-  lightOf,
-  mix,
-  shadeOf,
-} from "./sprites";
+  CHAR_DESK_ROW,
+  CHAR_H,
+  CHAR_W,
+  drawArm,
+  drawBust,
+  drawDeskMic,
+  drawHeldSheet,
+  drawLegs,
+  drawMug,
+  drawNotes,
+} from "./character";
+import { H, TICKER_Y, W, drawBackdrop, drawDeskFronts, drawDeskTops, layoutFor, type Layout, type Seat } from "./studio";
 
 export type { PixelCtx } from "./font";
 
-export const WIDTH = 320;
-export const HEIGHT = 180;
+export const WIDTH = W;
+export const HEIGHT = H;
+
+/** The on-air clock: the channel runs on US Eastern time. */
+export function easternClock(ms: number): string {
+  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric", minute: "2-digit" }).format(new Date(ms)) + " ET";
+}
 
 export interface FrameInput {
   lineup: Lineup;
@@ -40,25 +42,16 @@ export interface FrameInput {
   segment: Segment | null; // segment on air, or null = standby
   segmentElapsedMs: number; // ms since segment.startsAt
   upcoming: Segment[]; // queued segments, for the ticker
-  clockLabel: string; // e.g. "14:05 UTC"; the caller formats it
-  captions: boolean; // draw caption box
+  clockLabel: string; // e.g. "2:41 PM ET"; the caller formats it
+  captions: boolean; // draw the speech bubble
 }
 
-// ---------------------------------------------------------------------------
-// Palette: show colour for the set, near-black / off-white UI, one accent.
-
-const INK = "#0d0f13"; // near-black UI
-const PAPER = "#f2efe8"; // off-white UI
-const MUTED = "#a3a8b1"; // secondary text on INK
-const ACCENT = "#d7263d"; // LIVE box + lower-third tag only
-const NEUTRAL_SHOW = "#2a2d36";
-
-const DESK_TOP = 106;
-const TICKER_Y = 169;
-const TICKER_H = HEIGHT - TICKER_Y;
-const LT_BOTTOM = 166; // lower third ends here (exclusive)
-const LT_X = 8;
-const LT_W = WIDTH - 16;
+const INK = "#0d0f13";
+const PAPER = "#f2efe8";
+const MUTED = "#a3a8b1";
+const RED = "#d7263d";
+const GOLD = "#e3b341";
+const NAVY = "#12244a";
 
 // ---------------------------------------------------------------------------
 // Script timing
@@ -113,16 +106,12 @@ export function mouthOpenness(line: ScriptLine, lineElapsedMs: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Small drawing helpers
+// Helpers
 
 function rect(ctx: PixelCtx, x: number, y: number, w: number, h: number, color: string): void {
   if (w <= 0 || h <= 0) return;
   ctx.fillStyle = color;
-  ctx.fillRect(x, y, w, h);
-}
-
-function textWidth(text: string, scale = 1): number {
-  return measure(text) * scale;
+  ctx.fillRect(Math.round(x), Math.round(y), Math.round(w), Math.round(h));
 }
 
 function findShow(lineup: Lineup, id: string | undefined): Show | undefined {
@@ -133,305 +122,45 @@ function findAnchor(lineup: Lineup, id: string): Anchor | undefined {
   return lineup.anchors.find((a) => a.id === id);
 }
 
-interface SetColors {
-  wall: string;
-  wallPanel: string;
-  seam: string;
-  seamLight: string;
-  wainscot: string;
-  rig: string;
-  floor: string;
-  screen: string;
-  screenInk: string;
-  motif: string;
-  stripe: string;
-}
-
-const setCache = new Map<string, SetColors>();
-
-function setColors(showColor: string): SetColors {
-  let c = setCache.get(showColor);
-  if (!c) {
-    c = {
-      wall: lightOf(showColor, 0.16),
-      wallPanel: lightOf(showColor, 0.24),
-      seam: shadeOf(showColor, 0.2),
-      seamLight: lightOf(showColor, 0.34),
-      wainscot: shadeOf(showColor, 0.12),
-      rig: mix(showColor, "#000000", 0.55),
-      floor: mix(showColor, "#000000", 0.62),
-      screen: mix(showColor, "#05060a", 0.6),
-      screenInk: mix(showColor, "#ffffff", 0.88),
-      motif: mix(showColor, "#ffffff", 0.42),
-      stripe: lightOf(showColor, 0.45),
-    };
-    setCache.set(showColor, c);
-  }
-  return c;
+/** Draw 1x pixel art (the emotes) at 2x around an origin. */
+function doubled(ctx: PixelCtx, ox: number, oy: number): PixelCtx {
+  return {
+    set fillStyle(v: unknown) {
+      ctx.fillStyle = v;
+    },
+    get fillStyle() {
+      return ctx.fillStyle;
+    },
+    fillRect(x: number, y: number, w: number, h: number) {
+      ctx.fillRect(ox + x * 2, oy + y * 2, w * 2, h * 2);
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
-// Category motifs for the rear screen (13x13, "#" = ink)
+// Cast
 
-const MOTIFS: Record<string, string[]> = {
-  signal: [
-    ".............",
-    "..#.......#..",
-    ".#..#...#..#.",
-    "#..#.....#..#",
-    "#.#..###..#.#",
-    "#.#..###..#.#",
-    "#..#..#..#..#",
-    ".#..#.#.#..#.",
-    "..#...#...#..",
-    "......#......",
-    ".....###.....",
-    "....#####....",
-    ".............",
-  ],
-  chip: [
-    "..#.#.#.#.#..",
-    "..#.#.#.#.#..",
-    "#############",
-    ".#.........#.",
-    "##.#######.##",
-    ".#.#.....#.#.",
-    "##.#.###.#.##",
-    ".#.#.....#.#.",
-    "##.#######.##",
-    ".#.........#.",
-    "#############",
-    "..#.#.#.#.#..",
-    "..#.#.#.#.#..",
-  ],
-  branch: [
-    "..###....###.",
-    "..#.#....#.#.",
-    "..###....###.",
-    "...#......#..",
-    "...#......#..",
-    "...#.....#...",
-    "...#....#....",
-    "...#..##.....",
-    "...###.......",
-    "...#.........",
-    "..###........",
-    "..#.#........",
-    "..###........",
-  ],
-  paper: [
-    ".#########...",
-    ".#.......##..",
-    ".#.###...#.#.",
-    ".#.......####",
-    ".#.#######..#",
-    ".#..........#",
-    ".#.#######..#",
-    ".#..........#",
-    ".#.######...#",
-    ".#..........#",
-    ".#.#######..#",
-    ".#..........#",
-    ".############",
-  ],
-  shield: [
-    "......#......",
-    "....##.##....",
-    "..##.....##..",
-    ".#.........#.",
-    ".#...###...#.",
-    ".#..#...#..#.",
-    ".#..#...#..#.",
-    ".#.#######.#.",
-    "..#.##.##.#..",
-    "..#.#####.#..",
-    "...#.....#...",
-    "....##.##....",
-    "......#......",
-  ],
-  bars: [
-    "...........##",
-    "...........##",
-    "........##.##",
-    "........##.##",
-    "........##.##",
-    ".....##.##.##",
-    ".....##.##.##",
-    ".....##.##.##",
-    "..##.##.##.##",
-    "..##.##.##.##",
-    "..##.##.##.##",
-    "..##.##.##.##",
-    "#############",
-  ],
-  pillars: [
-    "......#......",
-    "....##.##....",
-    "..##.....##..",
-    "#############",
-    ".............",
-    ".##..##..##..",
-    ".##..##..##..",
-    ".##..##..##..",
-    ".##..##..##..",
-    ".##..##..##..",
-    ".............",
-    "#############",
-    "#############",
-  ],
-};
-
-const motifRects = new Map<string, number[]>();
-function motifRuns(name: string): number[] {
-  let r = motifRects.get(name);
-  if (!r) {
-    r = [];
-    const rows = MOTIFS[name] ?? MOTIFS.signal;
-    rows.forEach((row, y) => {
-      let x = 0;
-      while (x < row.length) {
-        if (row[x] !== "#") {
-          x++;
-          continue;
-        }
-        const x0 = x;
-        while (x < row.length && row[x] === "#") x++;
-        r!.push(x0, y, x - x0);
-      }
-    });
-    motifRects.set(name, r);
-  }
-  return r;
-}
-
-function motifFor(show: Show | undefined): string {
-  if (!show) return "signal";
-  if (show.categories.length > 3) return "signal";
-  switch (show.categories[0]) {
-    case "models":
-      return "chip";
-    case "open_source":
-    case "coding_ai":
-    case "agents":
-      return "branch";
-    case "research":
-      return "paper";
-    case "security":
-      return "shield";
-    case "funding":
-      return "bars";
-    case "regulation":
-      return "pillars";
-    default:
-      return "signal";
-  }
-}
-
-function drawMotif(ctx: PixelCtx, name: string, x: number, y: number, color: string): void {
-  ctx.fillStyle = color;
-  const r = motifRuns(name);
-  for (let i = 0; i < r.length; i += 3) ctx.fillRect(x + r[i], y + r[i + 1], r[i + 2], 1);
-}
-
-// ---------------------------------------------------------------------------
-// Studio
-
-function drawStudio(ctx: PixelCtx, show: Show | undefined): void {
-  const c = setColors(show?.color ?? NEUTRAL_SHOW);
-  // Back wall with tall panels
-  rect(ctx, 0, 0, WIDTH, DESK_TOP, c.wall);
-  for (let x = 0; x < WIDTH; x += 40) {
-    rect(ctx, x + 3, 6, 34, 76, c.wallPanel);
-    rect(ctx, x, 0, 1, DESK_TOP, c.seam);
-    rect(ctx, x + 1, 0, 1, DESK_TOP, c.seamLight);
-  }
-  // Lighting rig across the top
-  rect(ctx, 0, 0, WIDTH, 3, c.rig);
-  for (let x = 14; x < WIDTH; x += 40) rect(ctx, x, 3, 12, 1, c.rig);
-  // Lower wall band behind the desk
-  rect(ctx, 0, 84, WIDTH, DESK_TOP - 84, c.wainscot);
-  rect(ctx, 0, 84, WIDTH, 1, c.seamLight);
-  // Floor either side of the desk
-  rect(ctx, 0, DESK_TOP, WIDTH, HEIGHT - DESK_TOP, c.floor);
-}
-
-const SCREEN = { x: 64, y: 26, w: 192, h: 27 };
-
-function drawRearScreen(ctx: PixelCtx, show: Show | undefined, lineup: Lineup): void {
-  const c = setColors(show?.color ?? NEUTRAL_SHOW);
-  const { x, y, w, h } = SCREEN;
-  rect(ctx, x - 2, y - 2, w + 4, h + 4, INK);
-  rect(ctx, x, y, w, h, c.screen);
-  // faint scan rows
-  for (let yy = y + 1; yy < y + h; yy += 3) rect(ctx, x, yy, w, 1, mix(c.screen, c.motif, 0.08));
-
-  const name = (show?.name ?? lineup.network).toUpperCase();
-  const motif = motifFor(show);
-  const w2 = textWidth(name, 2);
-  const motifW = 13;
-  const gap = 8;
-  if (w2 + 2 * (motifW + gap) <= w - 12) {
-    const total = w2 + 2 * (motifW + gap);
-    const left = x + Math.floor((w - total) / 2);
-    drawMotif(ctx, motif, left, y + 7, c.motif);
-    drawTextScaled(ctx, name, left + motifW + gap, y + 7, c.screenInk, 2);
-    drawMotif(ctx, motif, left + total - motifW, y + 7, c.motif);
-  } else if (w2 <= w - 8) {
-    drawTextScaled(ctx, name, x + Math.floor((w - w2) / 2), y + 7, c.screenInk, 2);
-  } else {
-    const t = truncate(name, w - 8);
-    drawText(ctx, t, x + Math.floor((w - textWidth(t)) / 2), y + 10, c.screenInk);
-  }
-}
-
-function drawDesk(ctx: PixelCtx, show: Show | undefined, network: string): void {
-  const c = setColors(show?.color ?? NEUTRAL_SHOW);
-  const x0 = 26;
-  const x1 = WIDTH - 26;
-  // Top surface, seen slightly from above
-  rect(ctx, x0 + 2, DESK_TOP, x1 - x0 - 4, 1, "#d6dae0");
-  rect(ctx, x0, DESK_TOP + 1, x1 - x0, 3, "#9aa1ab");
-  rect(ctx, x0, DESK_TOP + 4, x1 - x0, 1, "#5d636d");
-  // Front panel
-  const fy = DESK_TOP + 5;
-  rect(ctx, x0 + 2, fy, x1 - x0 - 4, HEIGHT - fy, "#22252c");
-  rect(ctx, x0 + 2, fy, x1 - x0 - 4, 1, "#14161a");
-  rect(ctx, x0 + 2, fy + 2, x1 - x0 - 4, 2, c.stripe);
-  rect(ctx, x0 + 2, fy + 4, x1 - x0 - 4, 1, shadeOf(c.stripe, 0.4));
-  // Side bevels
-  rect(ctx, x0 + 2, fy, 2, HEIGHT - fy, "#2d3139");
-  rect(ctx, x1 - 4, fy, 2, HEIGHT - fy, "#181a1f");
-  // Network mark on the front. Rows 118..131 sit under the caption bar
-  // whichever lower third is up, so captions cover it completely.
-  const mark = network.toUpperCase();
-  const mw = textWidth(mark, 2);
-  drawTextScaled(ctx, mark, Math.floor((WIDTH - mw) / 2), fy + 7, PAPER, 2);
-}
-
-// ---------------------------------------------------------------------------
-// Anchors
-
-interface Seat {
+interface Cast {
+  seat: Seat;
   anchor: Anchor;
-  cx: number;
+  acting: Acting;
+  hands: Hands;
+  x: number; // bust top-left
+  y: number;
 }
 
-function seats(lineup: Lineup, ids: string[]): Seat[] {
-  const anchors = ids.map((id) => findAnchor(lineup, id)).filter((a): a is Anchor => !!a);
-  const n = anchors.length;
-  const spacing = 72;
-  return anchors.map((anchor, i) => ({ anchor, cx: Math.round(WIDTH / 2 + (i - (n - 1) / 2) * spacing) }));
-}
-
-/** Work out every anchor's face, head and hands for this frame. */
-function actSeats(input: FrameInput, list: Seat[], segment: Segment, cur: CurrentLine | null): Acting[] {
+function castFor(input: FrameInput, segment: Segment, layout: Layout, cur: CurrentLine | null): Cast[] {
+  const anchors = segment.anchors.map((id) => findAnchor(input.lineup, id)).filter((a): a is Anchor => !!a);
+  const seats = layout.seats.slice(0, anchors.length);
   const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;
-  const speakerSeat = active ? list.findIndex((s) => s.anchor.id === active.line.speaker) : -1;
+  const speakerSeat = active ? anchors.findIndex((a) => a.id === active.line.speaker) : -1;
   const previous = cur && cur.index > 0 ? segment.lines[cur.index - 1] : null;
-  const previousSeat = previous ? list.findIndex((s) => s.anchor.id === previous.speaker) : -1;
-  return list.map((seat, i) =>
-    act({
-      anchorId: seat.anchor.id,
+  const previousSeat = previous ? anchors.findIndex((a) => a.id === previous.speaker) : -1;
+  const word = cur ? letterAt(cur.line, cur.lineElapsedMs).word : 0;
+  return seats.map((seat, i) => {
+    const anchor = anchors[i];
+    const acting = act({
+      anchorId: anchor.id,
       seat: i,
       nowMs: input.nowMs,
       speakerSeat,
@@ -440,256 +169,192 @@ function actSeats(input: FrameInput, list: Seat[], segment: Segment, cur: Curren
       lineElapsedMs: cur?.lineElapsedMs ?? 0,
       previousSeat,
       open: i === speakerSeat && active ? mouthOpenness(active.line, active.lineElapsedMs) : 0,
-    }),
-  );
-}
-
-function drawAnchors(ctx: PixelCtx, input: FrameInput, list: Seat[], acting: Acting[]): void {
-  list.forEach((seat, i) => {
-    const { anchor } = seat;
-    const dy = breathOffset(input.nowMs, anchor.id);
-    const sx = seat.cx - SPRITE_W / 2;
-    const sy = DESK_TOP - SPRITE_DESK_ROW + dy;
-    const a = acting[i];
-    drawAnchor(ctx, anchor.look, a.pose, sx, sy, SPRITE_DESK_ROW + 2 - dy, a.head);
-    if (a.emote) drawEmote(ctx, a.emote.kind, sx + a.head.dx, sy + a.head.dy, a.emote.ms, a.pose.turn);
+    });
+    const hands = gesture({
+      anchorId: anchor.id,
+      nowMs: input.nowMs,
+      talking: i === speakerSeat,
+      someoneTalking: speakerSeat >= 0,
+      mood: acting.mood,
+      lineElapsedMs: cur?.lineElapsedMs ?? 0,
+      lineMs: cur?.line.durationMs ?? 0,
+      lineIndex: cur?.index ?? 0,
+      word,
+      standing: seat.standing,
+      boardSide: seat.boardSide,
+      segmentLeftMs: segment.durationMs - input.segmentElapsedMs,
+    });
+    const dy = seat.standing ? 0 : breathOffset(input.nowMs, anchor.id);
+    return { seat, anchor, acting, hands, x: seat.cx - CHAR_W / 2, y: seat.top + dy };
   });
 }
 
-function drawHands(ctx: PixelCtx, list: Seat[], acting: Acting[]): void {
-  list.forEach((seat, i) => {
-    const y = DESK_TOP - HAND_H + 3;
-    const [left, right] = acting[i].hands;
-    drawHand(ctx, seat.anchor.look, seat.cx - 19, y - left);
-    drawHand(ctx, seat.anchor.look, seat.cx + 10, y - right);
-  });
+function drawCast(ctx: PixelCtx, input: FrameInput, layout: Layout, cast: Cast[], show: Show | undefined): void {
+  // Bodies, behind the desks.
+  for (const c of cast) {
+    if (c.seat.standing) drawLegs(ctx, c.anchor.look, c.x, c.y, Math.sin(input.nowMs / 1700 + c.x) > 0.6 ? 1 : 0);
+    drawBust(ctx, c.anchor.look, c.acting.pose, c.x, c.y, c.seat.standing ? CHAR_H : CHAR_DESK_ROW + 2, c.acting.head, c.seat.standing);
+  }
+  drawDeskTops(ctx, layout);
+  // Props on the desk, then arms and whatever is in hand.
+  for (const c of cast) {
+    if (c.seat.standing) continue;
+    const deskY = c.y + CHAR_DESK_ROW;
+    if (!c.hands.sheet) drawNotes(ctx, c.x + 18, deskY + 2);
+    if (layout.set === "latenight" && c === cast[0]) drawDeskMic(ctx, c.x - 14, deskY - 12);
+    if (!c.hands.mug.inHand && layout.set !== "latenight" ? true : !c.hands.mug.inHand && c === cast[0]) {
+      drawMug(ctx, c.x + c.hands.mug.x, c.y + c.hands.mug.y, c.anchor.look.accent, input.nowMs + c.x * 37, true);
+    }
+  }
+  for (const c of cast) {
+    if (c.hands.sheet) drawHeldSheet(ctx, c.x + c.hands.sheet.x, c.y + c.hands.sheet.y, input.nowMs);
+    drawArm(ctx, c.anchor.look, c.x, c.y, -1, c.hands.left);
+    drawArm(ctx, c.anchor.look, c.x, c.y, 1, c.hands.right);
+    if (c.hands.pen) rect(ctx, c.x + c.hands.left.hx - 6, c.y + c.hands.left.hy - 8, 2, 9, "#1c1822");
+    if (c.hands.mug.inHand) drawMug(ctx, c.x + c.hands.mug.x, c.y + c.hands.mug.y, c.anchor.look.accent, input.nowMs, false);
+  }
+  drawDeskFronts(ctx, layout, input.lineup.network, show);
+  // Emotes last, so a desk never hides them.
+  for (const c of cast) {
+    const e = c.acting.emote;
+    if (!e) continue;
+    drawEmote(doubled(ctx, c.x + c.acting.head.dx * 2, c.y + c.acting.head.dy * 2), e.kind, 0, 0, e.ms, c.acting.pose.turn);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Overlays
 
-function drawBug(ctx: PixelCtx, network: string, live: boolean): void {
+function drawBug(ctx: PixelCtx, network: string, showName: string): void {
   const mark = network.toUpperCase();
-  const mw = textWidth(mark, 2);
-  rect(ctx, 6, 6, mw + 8, 18, INK);
-  drawTextScaled(ctx, mark, 10, 8, PAPER, 2);
-  if (live) {
-    const lx = 6 + mw + 8;
-    rect(ctx, lx, 6, textWidth("LIVE") + 8, 11, ACCENT);
-    drawText(ctx, "LIVE", lx + 4, 8, PAPER);
+  const mw = measure(mark) * 2;
+  rect(ctx, 8, 8, mw + 12, 22, RED);
+  drawTextScaled(ctx, mark, 14, 12, PAPER, 2);
+  rect(ctx, 8 + mw + 12, 8, measure(showName) + 16, 22, INK);
+  drawText(ctx, showName, 8 + mw + 20, 15, PAPER);
+}
+
+function drawClockBox(ctx: PixelCtx, showName: string, clock: string): void {
+  const name = truncate(showName, 150);
+  const nameW = measure(name) * 1 + 16;
+  const liveW = measure("LIVE") * 2 + 12;
+  const clockW = measure(clock) + 16;
+  const total = nameW + liveW + clockW;
+  const x = W - 8 - total;
+  const y = 300;
+  rect(ctx, x, y, nameW, 30, NAVY);
+  drawText(ctx, name, x + 8, y + 11, GOLD);
+  rect(ctx, x + nameW, y, liveW, 30, RED);
+  drawTextScaled(ctx, "LIVE", x + nameW + 6, y + 7, PAPER, 2);
+  rect(ctx, x + nameW + liveW, y, clockW, 30, PAPER);
+  drawText(ctx, clock, x + nameW + liveW + 8, y + 11, INK);
+}
+
+/** Name and role of whoever is talking, under a tag with the segment's headline. */
+function drawLowerThird(ctx: PixelCtx, tag: string, speaker: Anchor | undefined): void {
+  const tagText = truncate(tag.toUpperCase(), 300);
+  const tagW = measure(tagText) + 16;
+  rect(ctx, 8, 276, tagW, 18, RED);
+  drawText(ctx, tagText, 16, 281, PAPER);
+  if (!speaker) return;
+  const name = speaker.name;
+  const role = speaker.role;
+  const w = Math.max(measure(name) * 2 + measure(role) + 32, tagW);
+  rect(ctx, 8, 294, Math.min(w, 380), 38, NAVY);
+  rect(ctx, 8, 294, Math.min(w, 380), 2, GOLD);
+  drawTextScaled(ctx, name, 16, 304, PAPER, 2);
+  drawText(ctx, truncate(role, 380 - measure(name) * 2 - 32), 24 + measure(name) * 2, 311, GOLD);
+}
+
+/** The line being spoken, in a bubble pointing at the speaker. */
+function drawBubble(ctx: PixelCtx, line: ScriptLine, c: Cast): void {
+  const text = normalizeText(line.text);
+  const maxW = 240;
+  const lines = wrap(text, maxW).slice(0, 5);
+  const w = Math.max(...lines.map((l) => measure(l))) + 20;
+  const h = lines.length * 11 + 14;
+  const headTop = c.y + c.acting.head.dy - 6;
+  let x = Math.round(c.seat.cx - w / 2);
+  x = Math.max(8, Math.min(W - 8 - w, x));
+  const y = Math.max(36, headTop - h - 10);
+  rect(ctx, x - 2, y - 2, w + 4, h + 4, "#3a3328");
+  rect(ctx, x, y, w, h, "#f6efd8");
+  rect(ctx, x, y + h - 3, w, 3, "#e3d8b8");
+  // Tail toward the speaker's head.
+  const tx = Math.max(x + 10, Math.min(x + w - 14, c.seat.cx - 4));
+  for (let k = 0; k < 6; k++) {
+    rect(ctx, tx + k, y + h + k, 8 - k * 2 > 0 ? 8 - k * 2 : 1, 1, k === 5 ? "#3a3328" : "#f6efd8");
+    rect(ctx, tx + k - 1, y + h + k, 1, 1, "#3a3328");
   }
+  lines.forEach((l, i) => drawText(ctx, l, x + 10, y + 8 + i * 11, "#1c1a16"));
 }
 
-function drawClock(ctx: PixelCtx, label: string): void {
-  const text = normalizeText(label).trim();
-  if (!text) return;
-  const m = /^(\d{1,2}:\d{2})\s*(.*)$/.exec(text);
-  if (m) {
-    const big = m[1];
-    const small = m[2];
-    const bw = textWidth(big, 2);
-    const sw = small ? textWidth(small) + 4 : 0;
-    const w = bw + sw + 8;
-    const x = WIDTH - 6 - w;
-    rect(ctx, x, 6, w, 18, INK);
-    drawTextScaled(ctx, big, x + 4, 8, PAPER, 2);
-    if (small) drawText(ctx, small, x + 4 + bw + 4, 15, MUTED);
-  } else {
-    const t = truncate(text, 120);
-    const w = textWidth(t) + 8;
-    rect(ctx, WIDTH - 6 - w, 6, w, 11, INK);
-    drawText(ctx, t, WIDTH - 6 - w + 4, 8, PAPER);
-  }
+const TICKER_SPEED = 40; // px per second
+
+function easternLabel(hourUtc: number, nowMs: number): string {
+  const d = new Date(nowMs);
+  d.setUTCHours(hourUtc, 0, 0, 0);
+  return new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "numeric" }).format(d);
 }
 
-/** Wrap to at most maxLines, ending the last line with "..." when text was cut. */
-function clampLines(text: string, width: number, maxLines: number): string[] {
-  const lines = wrap(text, width);
-  if (lines.length <= maxLines) return lines;
-  const kept = lines.slice(0, maxLines);
-  const rest = lines.slice(maxLines - 1).join(" ");
-  const maxChars = Math.floor((width + 1) / ADVANCE);
-  let last = rest.slice(0, Math.max(0, maxChars - 3));
-  const sp = last.lastIndexOf(" ");
-  if (sp > maxChars / 2) last = last.slice(0, sp);
-  kept[maxLines - 1] = `${last.replace(/[\s,.;:-]+$/, "")}...`;
-  return kept;
-}
-
-/** Draws the lower third and returns its top y. */
-function drawLowerThird(ctx: PixelCtx, segment: Segment, show: Show | undefined, speaker: Anchor | undefined): number {
-  const pad = 6;
-  const lines = clampLines(segment.title, LT_W - pad * 2, 2);
-  const boxH = lines.length * LINE_HEIGHT + 4;
-  const boxY = LT_BOTTOM - boxH;
-  const stripH = 11;
-  const stripY = boxY - stripH;
-
-  // Title box
-  rect(ctx, LT_X, boxY, LT_W, boxH, PAPER);
-  lines.forEach((l, i) => drawText(ctx, l, LT_X + pad, boxY + 3 + i * LINE_HEIGHT, "#121417"));
-
-  // Strip: show tag, speaker, source
-  rect(ctx, LT_X, stripY, LT_W, stripH, INK);
-  let x = LT_X;
-  const tag = (show?.name ?? segment.showId).toUpperCase();
-  const tagW = textWidth(tag) + 8;
-  rect(ctx, x, stripY, tagW, stripH, ACCENT);
-  drawText(ctx, tag, x + 4, stripY + 2, PAPER);
-  x += tagW + 6;
-
-  // Source attribution has priority; the speaker's name shows only when it fits whole.
-  const source = segment.articles[0]?.source?.trim();
-  const right = LT_X + LT_W - pad;
-  let via = source ? truncate(`via ${source}`, right - x) : "";
-  if (via.length < 8) via = "";
-  const viaW = via ? textWidth(via) : 0;
-  if (via) drawText(ctx, via, right - viaW, stripY + 2, MUTED);
-  if (speaker) {
-    const limit = via ? right - viaW - 12 : right;
-    const name = normalizeText(speaker.name).toUpperCase();
-    const nameW = textWidth(name);
-    if (x + nameW <= limit) {
-      drawText(ctx, name, x, stripY + 2, PAPER);
-      const roleX = x + nameW + 6;
-      if (roleX + textWidth(speaker.role) <= limit) drawText(ctx, speaker.role, roleX, stripY + 2, MUTED);
-    }
-  }
-  return stripY;
-}
-
-const CAPTION_TEXT_W = 228;
-const CAPTION_W = CAPTION_TEXT_W + 12;
-const CAPTION_H = 2 * LINE_HEIGHT + 5;
-const CAPTION_HOLD_MS = 1500;
-
-/**
- * Captions for the current line in a fixed-size bar whose bottom edge is at
- * `bottom`. Text stays up through the gap to the next line (like broadcast
- * pop-on captions) and clears CAPTION_HOLD_MS after the last line ends.
- */
-function drawCaptions(ctx: PixelCtx, segment: Segment, cur: CurrentLine | null, bottom: number): void {
-  if (!cur) return;
-  const { line, lineElapsedMs } = cur;
-  const isLast = cur.index === segment.lines.length - 1 || !segment.lines.some((l) => l.startMs > line.startMs);
-  if (lineElapsedMs < 0 || (isLast && lineElapsedMs >= line.durationMs + CAPTION_HOLD_MS)) return;
-  const all = wrap(line.text, CAPTION_TEXT_W);
-  if (all.length === 1 && !all[0]) return;
-  // Two-line pages, each shown for a share of the line proportional to its length.
-  const pages: string[][] = [];
-  for (let i = 0; i < all.length; i += 2) pages.push(all.slice(i, i + 2));
-  const lens = pages.map((p) => p.join(" ").length + 1);
-  const total = lens.reduce((a, b) => a + b, 0);
-  const frac = Math.min(0.9999, Math.max(0, lineElapsedMs / Math.max(1, line.durationMs)));
-  let acc = 0;
-  let page = pages[pages.length - 1];
-  for (let i = 0; i < pages.length; i++) {
-    acc += lens[i] / total;
-    if (frac < acc) {
-      page = pages[i];
-      break;
-    }
-  }
-  const x = Math.floor((WIDTH - CAPTION_W) / 2);
-  const y = bottom - CAPTION_H;
-  rect(ctx, x, y, CAPTION_W, CAPTION_H, "#08090b");
-  const textH = page.length * LINE_HEIGHT - 1;
-  const ty = y + Math.floor((CAPTION_H - textH) / 2);
-  page.forEach((l, i) => drawText(ctx, l, x + 6, ty + i * LINE_HEIGHT, PAPER));
-}
-
-const TICKER_SPEED = 30; // px per second
-
-function tickerText(input: FrameInput): { label: string; text: string } {
+function tickerText(input: FrameInput): string {
   const titles = input.upcoming.map((s) => normalizeText(s.title).trim()).filter(Boolean);
-  if (titles.length > 0) return { label: "UP NEXT", text: titles.join(" / ") };
-  // Nothing queued: run the day's grid instead.
+  if (titles.length > 0) return `UP NEXT: ${titles.join("  /  ")}`;
   const grid = [...input.lineup.grid].sort((a, b) => a.hourUtc - b.hourUtc);
   const hour = new Date(input.nowMs).getUTCHours();
   const next = grid.filter((g) => g.hourUtc > hour).concat(grid.filter((g) => g.hourUtc <= hour));
-  const text = next
+  return next
     .map((g) => {
       const s = findShow(input.lineup, g.show);
-      return s ? `${String(g.hourUtc).padStart(2, "0")}:00 UTC ${s.name}` : "";
+      return s ? `${easternLabel(g.hourUtc, input.nowMs)} ET ${s.name}` : "";
     })
     .filter(Boolean)
-    .join(" / ");
-  return { label: "SCHEDULE", text };
+    .join("  /  ");
 }
 
 function drawTicker(ctx: PixelCtx, input: FrameInput): void {
-  rect(ctx, 0, TICKER_Y, WIDTH, TICKER_H, INK);
-  const { label, text } = tickerText(input);
-  const labelW = textWidth(label) + 10;
+  rect(ctx, 0, TICKER_Y, W, H - TICKER_Y, INK);
+  rect(ctx, 0, TICKER_Y, W, 2, GOLD);
+  const label = input.lineup.network.toUpperCase();
+  const labelW = measure(label) * 2 + 16;
+  const text = tickerText(input);
   if (text) {
-    const loop = `${text} / `;
-    const loopW = loop.length * ADVANCE;
-    const offset = Math.floor((input.nowMs / 1000) * TICKER_SPEED) % loopW;
-    const clip = { x0: labelW, x1: WIDTH };
-    for (let x = labelW + 4 - offset; x < WIDTH; x += loopW) {
-      drawText(ctx, loop, x, TICKER_Y + 2, PAPER, clip);
+    const loop = `${text}   *   `;
+    const loopW = measure(loop) * 2;
+    const offset = Math.floor((input.nowMs / 1000) * TICKER_SPEED) % Math.max(1, loopW);
+    for (let x = labelW + 6 - offset; x < W; x += loopW) {
+      // Clip by drawing only glyph runs right of the label: draw, then cover.
+      drawTextScaled(ctx, loop, x, TICKER_Y + 5, PAPER, 2);
     }
   }
-  rect(ctx, 0, TICKER_Y, labelW, TICKER_H, PAPER);
-  drawText(ctx, label, 5, TICKER_Y + 2, INK);
+  rect(ctx, 0, TICKER_Y, labelW, H - TICKER_Y, RED);
+  drawTextScaled(ctx, label, 8, TICKER_Y + 5, PAPER, 2);
 }
 
-function drawIdentCard(ctx: PixelCtx, show: Show | undefined, lineup: Lineup): number {
-  const c = setColors(show?.color ?? NEUTRAL_SHOW);
-  const name = show?.name ?? lineup.network;
-  const blurb = show ? clampLines(show.blurb, 228, 2) : [];
-  const h = 14 + 8 + blurb.length * LINE_HEIGHT + 10;
-  const y = LT_BOTTOM - h;
-  const x = 36;
-  const w = WIDTH - 72;
-  rect(ctx, x, y, w, h, mix(c.screen, "#000000", 0.2));
-  rect(ctx, x, y, w, 1, PAPER);
-  rect(ctx, x, y + h - 1, w, 1, PAPER);
-  const nw = textWidth(name, 2);
-  if (nw <= w - 12) drawTextScaled(ctx, name, x + Math.floor((w - nw) / 2), y + 6, PAPER, 2);
-  else {
-    const t = truncate(name, w - 12);
-    drawText(ctx, t, x + Math.floor((w - textWidth(t)) / 2), y + 10, PAPER);
+function drawIdentCard(ctx: PixelCtx, show: Show | undefined, network: string): void {
+  const name = (show?.name ?? network).toUpperCase();
+  const nw = measure(name) * 4;
+  const scale = nw <= 560 ? 4 : 2;
+  const w = Math.min(600, measure(name) * scale + 48);
+  const x = (W - w) / 2;
+  rect(ctx, x, 196, w, 70, NAVY);
+  rect(ctx, x, 196, w, 3, GOLD);
+  rect(ctx, x, 263, w, 3, GOLD);
+  drawTextScaled(ctx, name, Math.round(W / 2 - (measure(name) * scale) / 2), 206, PAPER, scale);
+  if (show) {
+    const blurb = truncate(show.blurb, w - 24);
+    drawText(ctx, blurb, Math.round(W / 2 - measure(blurb) / 2), 248, GOLD);
   }
-  blurb.forEach((l, i) =>
-    drawText(ctx, l, x + Math.floor((w - textWidth(l)) / 2), y + 6 + 14 + 6 + i * LINE_HEIGHT, c.screenInk),
-  );
-  return y;
 }
 
 function drawStandby(ctx: PixelCtx, input: FrameInput): void {
-  const { lineup } = input;
-  const bg = "#14161c";
-  rect(ctx, 0, 0, WIDTH, HEIGHT, bg);
-  for (let x = 20; x < WIDTH; x += 40) rect(ctx, x, 0, 1, HEIGHT, "#1a1d24");
-  for (let y = 30; y < HEIGHT; y += 40) rect(ctx, 0, y, WIDTH, 1, "#1a1d24");
-
-  const mark = lineup.network.toUpperCase();
-  const scale = 5;
-  const mw = textWidth(mark, scale);
-  const my = 42;
-  drawTextScaled(ctx, mark, Math.floor((WIDTH - mw) / 2), my, PAPER, scale);
-  const tag = "AI NEWS NETWORK";
-  // letter-spaced subtitle under the wordmark
-  const spaced = tag.split("").join(" ");
-  const sw = textWidth(spaced);
-  drawText(ctx, spaced, Math.floor((WIDTH - sw) / 2), my + 7 * scale + 8, MUTED);
-  rect(ctx, Math.floor((WIDTH - mw) / 2), my + 7 * scale + 20, mw, 1, "#3a3f4a");
-
-  const nextShow = input.upcoming[0] ? findShow(lineup, input.upcoming[0].showId) : undefined;
-  const y = my + 7 * scale + 28;
-  if (nextShow) {
-    const lw = textWidth("NEXT UP");
-    drawText(ctx, "NEXT UP", Math.floor((WIDTH - lw) / 2), y, MUTED);
-    const n = nextShow.name;
-    const nw = textWidth(n, 2);
-    if (nw <= WIDTH - 24) drawTextScaled(ctx, n, Math.floor((WIDTH - nw) / 2), y + 12, PAPER, 2);
-    else drawText(ctx, truncate(n, WIDTH - 24), 12, y + 12, PAPER);
-  } else {
-    const t = "Back shortly";
-    const tw = textWidth(t, 2);
-    drawTextScaled(ctx, t, Math.floor((WIDTH - tw) / 2), y + 6, PAPER, 2);
-  }
+  const layout = layoutFor("desk", 0);
+  drawBackdrop(ctx, layout, { nowMs: input.nowMs, show: undefined, network: input.lineup.network, headline: "", source: "", board: null, showName: "Back shortly" });
+  drawDeskTops(ctx, layout);
+  drawDeskFronts(ctx, layout, input.lineup.network, undefined);
+  const msg = "BACK SHORTLY";
+  rect(ctx, 160, 222, 320, 36, NAVY);
+  drawTextScaled(ctx, msg, Math.round(W / 2 - measure(msg)), 232, PAPER, 2);
 }
 
 // ---------------------------------------------------------------------------
@@ -699,32 +364,44 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
 
   if (!segment) {
     drawStandby(ctx, input);
-    drawClock(ctx, input.clockLabel);
-    if (input.upcoming.length > 0) drawTicker(ctx, input);
+    drawBug(ctx, lineup.network, "Live desk");
+    drawClockBox(ctx, lineup.network, input.clockLabel);
+    drawTicker(ctx, input);
     return;
   }
 
   const show = findShow(lineup, segment.showId);
+  const set: StudioSet = segment.set ?? show?.set ?? "desk";
+  const layout = layoutFor(set, segment.anchors.length);
   const cur = currentLine(segment, input.segmentElapsedMs);
-  const list = seats(lineup, segment.anchors);
+  const article = segment.articles[0];
 
-  drawStudio(ctx, show);
-  drawRearScreen(ctx, show, lineup);
-  const acting = actSeats(input, list, segment, cur);
-  drawAnchors(ctx, input, list, acting);
-  drawDesk(ctx, show, lineup.network);
-  drawHands(ctx, list, acting);
+  drawBackdrop(ctx, layout, {
+    nowMs: input.nowMs,
+    show,
+    network: lineup.network,
+    headline: segment.title,
+    source: article?.source ?? "",
+    board: segment.board,
+    showName: show?.name ?? lineup.network,
+  });
+  const cast = castFor(input, segment, layout, cur);
+  drawCast(ctx, input, layout, cast, show);
 
-  let overlayTop: number;
   if (segment.kind === "ident") {
-    overlayTop = drawIdentCard(ctx, show, lineup);
+    drawIdentCard(ctx, show, lineup.network);
   } else {
     const speakerId = cur?.line.speaker ?? segment.anchors[0];
-    overlayTop = drawLowerThird(ctx, segment, show, speakerId ? findAnchor(lineup, speakerId) : undefined);
+    const tag = layout.set === "desk" ? (show?.name ?? lineup.network) : segment.title;
+    drawLowerThird(ctx, tag, speakerId ? findAnchor(lineup, speakerId) : undefined);
   }
-  if (input.captions) drawCaptions(ctx, segment, cur, overlayTop - 1);
+  const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;
+  if (input.captions && active) {
+    const speaker = cast.find((c) => c.anchor.id === active.line.speaker);
+    if (speaker) drawBubble(ctx, active.line, speaker);
+  }
 
-  drawBug(ctx, lineup.network, true);
-  drawClock(ctx, input.clockLabel);
+  drawBug(ctx, lineup.network, show?.name ?? "Live desk");
+  drawClockBox(ctx, show?.name ?? lineup.network, input.clockLabel);
   drawTicker(ctx, input);
 }

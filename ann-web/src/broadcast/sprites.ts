@@ -877,3 +877,18 @@ export function drawEmote(ctx: PixelCtx, emote: Emote, x: number, y: number, ms:
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// For the 2x characters (character.ts): the outlined base grid and palette.
+
+export const SLOT = {
+  T, SKIN, SKIN_SH, SKIN_HI, SKIN_OL, HAIR, HAIR_SH, HAIR_HI, HAIR_OL,
+  COAT, COAT_SH, COAT_HI, COAT_OL, ACC, ACC_SH, ACC_OL, SHIRT, SHIRT_SH,
+  EYE, EYE_HI, MOUTH, LIP, BLUSH, BROW, GLASS, BUZZ, TEETH, COUNT: SLOTS,
+} as const;
+
+/** The outlined 48x64 base (hair, head, torso; no face features) and its palette. */
+export function baseSlots(look: AnchorLook): { data: Uint8Array; palette: string[] } {
+  const a = getAnchor(look);
+  return { data: a.base.d, palette: a.palette };
+}

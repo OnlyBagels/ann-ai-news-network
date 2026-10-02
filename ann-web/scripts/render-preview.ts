@@ -14,13 +14,13 @@ import lineupJson from "../src/broadcast/lineup.json";
 import type { Lineup, Segment } from "../src/broadcast/types";
 import { HEIGHT, WIDTH, drawFrame, type FrameInput } from "../src/broadcast/scene";
 import { drawText, drawTextScaled, LINE_HEIGHT, normalizeText } from "../src/broadcast/font";
-import { drawAnchor, SPRITE_W, SPRITE_H } from "../src/broadcast/sprites";
+import { drawBust, CHAR_W as SPRITE_W, CHAR_H as SPRITE_H } from "../src/broadcast/character";
 import { expressionPose } from "../src/broadcast/face";
 import { MOODS } from "../src/broadcast/types";
 
 const lineup = lineupJson as Lineup;
 const OUT = join(__dirname, "..", ".preview");
-const SCALE = 4;
+const SCALE = 2;
 mkdirSync(OUT, { recursive: true });
 
 const T0 = Date.UTC(2026, 9, 2, 14, 5, 0);
@@ -195,8 +195,8 @@ frame("09-wire-gap-ticker-grid", { segment: wire, segmentElapsedMs: 7200, nowMs:
   // Each anchor in every mood: resting face on top, talking face below.
   lineup.anchors.forEach((a, row) => {
     MOODS.forEach((mood, col) => {
-      drawAnchor(ctx, a.look, expressionPose(mood, false), 4 + col * (SPRITE_W + 4), 4 + row * 2 * (SPRITE_H + 4));
-      drawAnchor(ctx, a.look, expressionPose(mood, true), 4 + col * (SPRITE_W + 4), 4 + (row * 2 + 1) * (SPRITE_H + 4));
+      drawBust(ctx, a.look, expressionPose(mood, false), 4 + col * (SPRITE_W + 4), 4 + row * 2 * (SPRITE_H + 4));
+      drawBust(ctx, a.look, expressionPose(mood, true), 4 + col * (SPRITE_W + 4), 4 + (row * 2 + 1) * (SPRITE_H + 4));
     });
   });
   writeFileSync(join(OUT, "anchor-sheet.png"), scaled(c, SCALE));

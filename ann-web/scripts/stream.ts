@@ -9,14 +9,14 @@
  * It reads the timeline from the site's /api/live/now (ANN_SITE_URL,
  * default http://localhost:3000) and checks in as a viewer, so the
  * director keeps writing while the stream is up. Frames are drawn with the
- * same scene.ts the web player uses, at 320x180, and scaled to 1080p by
+ * same scene.ts the web player uses, at 640x360, and scaled 3x to 1080p by
  * ffmpeg with nearest-neighbour so the pixels stay square.
  */
 import { spawn } from "node:child_process";
 import { hostname } from "node:os";
 import { Writable } from "node:stream";
 import { createCanvas } from "@napi-rs/canvas";
-import { drawFrame, currentLine, WIDTH, HEIGHT } from "../src/broadcast/scene";
+import { drawFrame, currentLine, easternClock, WIDTH, HEIGHT } from "../src/broadcast/scene";
 import type { LiveNow, Lineup, Segment } from "../src/broadcast/types";
 import lineupJson from "../src/broadcast/lineup.json";
 
@@ -225,7 +225,7 @@ async function main() {
       segment,
       segmentElapsedMs: segment ? nowMs - Date.parse(segment.startsAt) : 0,
       upcoming,
-      clockLabel: `${new Date(nowMs).toISOString().slice(11, 16)} UTC`,
+      clockLabel: easternClock(nowMs),
       captions: true,
     });
     const pixels = Buffer.from(ctx.getImageData(0, 0, WIDTH, HEIGHT).data.buffer);
