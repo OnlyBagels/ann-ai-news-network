@@ -112,7 +112,7 @@ class DatabaseBridge:
                 ) RETURNING id
             """),
             {
-                "title": story.title,
+                "title": self._headline(story),
                 "slug": slug,
                 "url": url,
                 "source": source_name,
@@ -147,6 +147,14 @@ class DatabaseBridge:
             },
         )
         return result.fetchone()[0]
+
+    @staticmethod
+    def _headline(story: Story) -> str:
+        """The edited headline when there is one, else the reporter's, else the feed's title."""
+        for candidate in [story.headline, *story.suggested_headlines, story.title]:
+            if candidate and candidate.strip():
+                return candidate.strip()[:200]
+        return story.title
 
     @staticmethod
     def _sources(story: Story) -> List[Dict[str, Any]]:
@@ -200,7 +208,7 @@ class DatabaseBridge:
             """),
             {
                 "id": article_id,
-                "title": story.title,
+                "title": self._headline(story),
                 "summary": self._summary(story),
                 "tl_dr": story.tl_dr,
                 "content": story.content,

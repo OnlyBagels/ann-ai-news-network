@@ -11,6 +11,7 @@ the same moment.
 from __future__ import annotations
 
 import asyncio
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -151,6 +152,10 @@ class Director:
                 segment = await self._book(draft, show, now, clock)
             finally:
                 self._data_pending.discard(hit)
+        elif (question := self._question_due(now)) is not None:
+            draft = self._question(question, show)
+            segment = await self._book(draft, show, now, clock)
+            self.store.mark_question_aired(question["id"], segment.id)
         else:
             story = self._pick_story(show, now)
             if story is None:
@@ -228,6 +233,27 @@ class Director:
             return None
         return Draft(kind=kind, title=title, anchors=desk, lines=lines, articles=[], writer="data",
                      spend=Spend(), dropped=[], set=kind, board=board)
+
+    QUESTION_GAP = timedelta(minutes=20)
+
+    def _question_due(self, now: datetime) -> Optional[dict]:
+        """An answered viewer question, if none has aired in the last 20 minutes."""
+        if self.store.kind_aired_since("question", now - self.QUESTION_GAP):
+            return None
+        return self.store.next_answered_question()
+
+    def _question(self, q: dict, show: Show) -> Draft:
+        """A viewer's question, read with their handle, and the desk's checked answer."""
+        a = show.anchors[0]
+        b = show.anchors[1] if len(show.anchors) > 1 else a
+        sentences = [x.strip() for x in re.split(r"(?<=[.!?])\s+", q["answer"]) if x.strip()]
+        halves = [" ".join(sentences[: (len(sentences) + 1) // 2]), " ".join(sentences[(len(sentences) + 1) // 2 :])]
+        lines = [ScriptLine(speaker=a, text=f"A question from a viewer, {q['handle']}: {q['text']}", mood="neutral")]
+        lines += [ScriptLine(speaker=b, text=h, mood="neutral") for h in halves if h]
+        lines.append(ScriptLine(speaker=a, text="Send the desk your questions on our website.", mood="happy"))
+        articles = [SegmentArticle(id=st["id"], title=st["title"], source=st["source"], url=st["url"]) for st in q["stories"]]
+        return Draft(kind="question", title="Viewer question", anchors=[a] if a == b else [a, b], lines=lines,
+                     articles=articles, writer="desk", spend=Spend(), dropped=[])
 
     def _ident(self, show: Show) -> Draft:
         anchors = [grid.anchor(self.lineup, a) for a in show.anchors]

@@ -13,6 +13,7 @@ const PAGES = [
   { href: "/live", label: "Live" },
   { href: "/weather", label: "Weather" },
   { href: "/newsroom", label: "Newsroom" },
+  { href: "/ask", label: "Ask the desk" },
   { href: "/search", label: "Search" },
 ];
 

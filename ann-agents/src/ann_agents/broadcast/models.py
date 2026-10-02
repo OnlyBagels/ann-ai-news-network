@@ -134,7 +134,7 @@ class DroppedLine(BaseModel):
 class Segment(_Camel):
     id: str
     show_id: str
-    kind: Literal["story", "reel", "ident", "weather", "sports", "markets", "bit"]
+    kind: Literal["story", "reel", "ident", "weather", "sports", "markets", "bit", "question"]
     starts_at: datetime
     duration_ms: int
     title: str

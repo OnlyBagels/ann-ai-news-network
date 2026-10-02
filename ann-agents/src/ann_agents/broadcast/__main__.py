@@ -130,6 +130,19 @@ async def prune_loop(director: Director) -> None:
         await asyncio.sleep(3600)
 
 
+async def question_loop(director: Director) -> None:
+    """Work viewers' questions through the desk every minute."""
+    from ann_agents.desk.questions import QuestionDesk
+
+    desk = QuestionDesk(director.store.engine)
+    while True:
+        try:
+            await desk.process()
+        except Exception as e:
+            logger.error(f"[questions] round failed: {e}")
+        await asyncio.sleep(60)
+
+
 async def run(once: bool, watch: bool) -> None:
     director = build_director()
     if once:
@@ -138,7 +151,7 @@ async def run(once: bool, watch: bool) -> None:
     # One loop per writer, so several model servers write at the same time.
     writers = max(1, settings.broadcast_writers)
     loops = [writer_loop(director, watch, once=False) for _ in range(writers)]
-    await asyncio.gather(prune_loop(director), *loops)
+    await asyncio.gather(prune_loop(director), question_loop(director), *loops)
 
 
 def main() -> None:

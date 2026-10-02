@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from ann_agents.core.db import make_engine
 
-TABLES = ['"Source"', '"BroadcastSegment"', '"BroadcastSpend"', '"LiveViewer"', '"AgentAction"', '"Scores"', '"Article"']
+TABLES = ['"ViewerQuestion"', '"User"', '"Source"', '"BroadcastSegment"', '"BroadcastSpend"', '"LiveViewer"', '"AgentAction"', '"Scores"', '"Article"']
 
 
 @pytest.fixture

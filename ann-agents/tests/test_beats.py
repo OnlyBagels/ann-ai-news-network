@@ -151,3 +151,19 @@ async def test_every_source_is_saved_with_its_outlet_and_lean(monkeypatch, engin
         sources = conn.execute(text('SELECT sources FROM "Article"')).scalar_one()
     assert [(s["name"], s["lean"]) for s in sources] == [("Example Lab Blog", "center"), ("Other Outlet", "center-right")]
     assert sources[1]["url"] == "https://example.net/b"
+
+
+async def test_ai_only_feeds_stay_on_the_ai_desk(monkeypatch):
+    monkeypatch.setattr(beat_module, "watersheep", lambda: ChoosingWaterSheep("United States national news", "AI policy and regulation"))
+    story = make_story()
+    story.primary_source.metadata["ai_only"] = True
+    assert await beat_module.assign_beat(story) == "regulation"
+
+
+def test_saved_title_is_the_edited_headline():
+    story = make_story()
+    assert DatabaseBridge._headline(story) == story.title
+    story.suggested_headlines = ["Reporter's headline"]
+    assert DatabaseBridge._headline(story) == "Reporter's headline"
+    story.headline = "Editor's headline"
+    assert DatabaseBridge._headline(story) == "Editor's headline"

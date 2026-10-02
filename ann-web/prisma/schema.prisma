@@ -200,3 +200,38 @@ model LiveViewer {
 
   @@index([lastSeenAt])
 }
+
+// Viewer accounts, for sending the desk questions.
+model User {
+  id           String   @id @default(cuid())
+  handle       String   @unique // shown on air with a question, e.g. @pixelfan
+  passwordHash String
+  createdAt    DateTime @default(now())
+  questions    ViewerQuestion[]
+}
+
+enum QuestionStatus {
+  received    // waiting for the desk
+  screened    // WaterSheep: not a question about the news, or not something we read on air
+  declined    // the desk decided not to take it on (reason given)
+  answered    // researched and answered from ANN's reporting
+  aired       // answered on ANN Live too
+}
+
+model ViewerQuestion {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text       String
+  status     QuestionStatus @default(received)
+  reason     String?        // why it was screened out or declined, shown to the viewer
+  answer     String?
+  articleIds String[]       @default([]) // the ANN stories the answer is drawn from
+  judge      Json?          // WaterSheep's scores for the screen and the answer
+  segmentId  String?        // the broadcast segment it aired in
+  createdAt  DateTime       @default(now())
+  answeredAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+}

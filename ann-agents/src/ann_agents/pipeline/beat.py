@@ -87,6 +87,12 @@ async def assign_beat(story: Story) -> Optional[str]:
     if ws is None:
         return hint
     text = f"{story.title}\n{source_text(source)[:1500] if source else ''}"
+    # AI-only feeds publish AI news: skip straight to the AI beat.
+    if source and source.metadata.get("ai_only"):
+        if hint in AI_CATEGORIES:
+            return hint
+        beat = await asyncio.to_thread(ws.ask, text, AI_QUESTION, list(AI_BEATS))
+        return AI_BEATS[beat.answer]
     group = await asyncio.to_thread(ws.ask, text, GROUP_QUESTION, list(GROUPS))
     if group.confidence < MIN_CONFIDENCE and hint:
         return hint

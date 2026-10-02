@@ -128,7 +128,7 @@ export interface ScriptLine {
   factIds?: number[];
 }
 
-export type SegmentKind = "story" | "reel" | "ident" | "weather" | "sports" | "markets" | "bit";
+export type SegmentKind = "story" | "reel" | "ident" | "weather" | "sports" | "markets" | "bit" | "question";
 
 export interface Segment {
   id: string;

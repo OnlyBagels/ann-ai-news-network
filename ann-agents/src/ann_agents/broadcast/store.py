@@ -60,6 +60,29 @@ class BroadcastStore:
     def ident_aired_since(self, since: datetime) -> bool:
         return self.kind_aired_since("ident", since)
 
+    def next_answered_question(self) -> Optional[dict]:
+        """The oldest answered viewer question that hasn't aired, with its stories."""
+        with self.engine.connect() as conn:
+            row = conn.execute(text("""
+                SELECT q.id, q.text, u.handle, q.answer, q."articleIds"
+                FROM "ViewerQuestion" q JOIN "User" u ON u.id = q."userId"
+                WHERE q.status = 'answered' ORDER BY q."answeredAt" LIMIT 1
+            """)).first()
+            if row is None:
+                return None
+            stories = conn.execute(
+                text('SELECT id, title, source, url FROM "Article" WHERE id = ANY(:ids)'), {"ids": list(row[4] or [])}
+            ).fetchall()
+        return {"id": row[0], "text": row[1], "handle": row[2], "answer": row[3],
+                "stories": [{"id": r[0], "title": r[1], "source": r[2], "url": r[3]} for r in stories]}
+
+    def mark_question_aired(self, question_id: str, segment_id: str) -> None:
+        with self.engine.begin() as conn:
+            conn.execute(
+                text("""UPDATE "ViewerQuestion" SET status = 'aired', "segmentId" = :seg WHERE id = :id"""),
+                {"id": question_id, "seg": segment_id},
+            )
+
     def kind_aired_since(self, kind: str, since: datetime) -> bool:
         with self.engine.connect() as conn:
             return conn.execute(

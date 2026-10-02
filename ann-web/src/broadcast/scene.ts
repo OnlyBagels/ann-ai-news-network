@@ -230,13 +230,15 @@ function drawCast(ctx: PixelCtx, input: FrameInput, layout: Layout, cast: Cast[]
 // ---------------------------------------------------------------------------
 // Overlays
 
-function drawBug(ctx: PixelCtx, network: string, showName: string): void {
+/** The network bug, alternating the show's name with the invitation to ask the desk. */
+function drawBug(ctx: PixelCtx, network: string, showName: string, nowMs: number): void {
   const mark = network.toUpperCase();
   const mw = measure(mark) * 2;
+  const label = Math.floor(nowMs / 8000) % 2 === 0 ? showName : "Send the desk your questions";
   rect(ctx, 8, 8, mw + 12, 22, RED);
   drawTextScaled(ctx, mark, 14, 12, PAPER, 2);
-  rect(ctx, 8 + mw + 12, 8, measure(showName) + 16, 22, INK);
-  drawText(ctx, showName, 8 + mw + 20, 15, PAPER);
+  rect(ctx, 8 + mw + 12, 8, measure(label) + 16, 22, INK);
+  drawText(ctx, label, 8 + mw + 20, 15, PAPER);
 }
 
 function drawClockBox(ctx: PixelCtx, showName: string, clock: string): void {
@@ -389,7 +391,7 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
     drawBackdrop(ctx, layout, { nowMs: input.nowMs, show, network: lineup.network, headline: "", source: "", board: null, showName: show?.name ?? lineup.network });
     drawCast(ctx, input, layout, castFor({ ...input, segmentElapsedMs: input.nowMs % 60_000 }, idle, layout, null), show);
     drawLowerThird(ctx, `Coming up on ${show?.name ?? lineup.network}`, undefined);
-    drawBug(ctx, lineup.network, show?.name ?? "Live desk");
+    drawBug(ctx, lineup.network, show?.name ?? "Live desk", input.nowMs);
     drawClockBox(ctx, show?.name ?? lineup.network, input.clockLabel);
     drawTicker(ctx, input);
     return;
@@ -417,7 +419,8 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
     drawIdentCard(ctx, show, lineup.network);
   } else {
     const speakerId = cur?.line.speaker ?? segment.anchors[0];
-    const tag = layout.set === "desk" ? (show?.name ?? lineup.network) : segment.title;
+    const tag =
+      segment.kind === "question" ? "Viewer question" : layout.set === "desk" ? (show?.name ?? lineup.network) : segment.title;
     drawLowerThird(ctx, tag, speakerId ? findAnchor(lineup, speakerId) : undefined);
   }
   const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;
@@ -426,7 +429,7 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
     if (speaker) drawBubble(ctx, active.line, speaker);
   }
 
-  drawBug(ctx, lineup.network, show?.name ?? "Live desk");
+  drawBug(ctx, lineup.network, show?.name ?? "Live desk", input.nowMs);
   drawClockBox(ctx, show?.name ?? lineup.network, input.clockLabel);
   drawTicker(ctx, input);
 }
