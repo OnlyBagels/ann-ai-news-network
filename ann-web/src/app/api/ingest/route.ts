@@ -1,4 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
+
+// The agent API checks AGENT_API_TOKEN when it is set.
+function agentAuth(): Record<string, string> {
+  const token = process.env.AGENT_API_TOKEN;
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 /**
  * POST /api/ingest
@@ -6,6 +13,8 @@ import { NextRequest, NextResponse } from "next/server";
  * This calls the Python agent service via HTTP.
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const body = await request.json().catch(() => ({}));
     const source = body.source || "all";
@@ -17,7 +26,7 @@ export async function POST(request: NextRequest) {
 
     const response = await fetch(`${agentServiceUrl}/api/ingest`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...agentAuth() },
       body: JSON.stringify({ source, limit }),
     });
 
@@ -45,12 +54,15 @@ export async function POST(request: NextRequest) {
  * GET /api/ingest
  * Returns the current status of the agent pipeline.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const agentServiceUrl =
       process.env.AGENT_SERVICE_URL || "http://localhost:8001";
 
     const response = await fetch(`${agentServiceUrl}/api/health`, {
+      headers: agentAuth(),
       signal: AbortSignal.timeout(5000),
     });
 

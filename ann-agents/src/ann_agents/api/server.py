@@ -10,11 +10,13 @@ Provides endpoints that the Next.js frontend can call to:
 from __future__ import annotations
 
 import asyncio
+import hmac
 import os
 from datetime import datetime
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 from pydantic import BaseModel
 
@@ -24,6 +26,21 @@ from ann_agents.bridge.scheduler import NewsroomScheduler
 from ann_agents.core.config import settings
 
 app = FastAPI(title="ANN Agent Service", version="0.1.0")
+
+
+@app.middleware("http")
+async def require_token(request: Request, call_next):
+    """With AGENT_API_TOKEN set, every call needs it as a bearer token.
+
+    The review endpoints approve stories for the site and the live channel,
+    so anything that can reach this port could otherwise publish.
+    """
+    token = os.environ.get("AGENT_API_TOKEN")
+    if token:
+        sent = request.headers.get("authorization", "")
+        if not (sent.startswith("Bearer ") and hmac.compare_digest(sent[7:].strip(), token)):
+            return JSONResponse({"detail": "Unauthorized"}, status_code=401)
+    return await call_next(request)
 
 # Shared instances
 db = DatabaseBridge()
@@ -105,6 +122,8 @@ async def process_review(action: ReviewAction):
             search.index_article(action.article_id)
     elif action.action == "reject":
         success = db.reject_article(action.article_id, action.notes)
+        if success:
+            search.remove_article(action.article_id)
     else:
         raise HTTPException(status_code=400, detail=f"Unknown action: {action.action}")
 

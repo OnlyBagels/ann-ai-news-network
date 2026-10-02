@@ -11,6 +11,7 @@ import {
   Terminal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "./actions";
 
 const adminNavItems = [
   {
@@ -41,6 +42,9 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+
+  // The sign-in page sits outside the admin chrome.
+  if (pathname === "/admin/login") return <>{children}</>;
 
   return (
     <div className="flex min-h-[calc(100vh-8rem)]">
@@ -97,6 +101,14 @@ export default function AdminLayout({
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Feed
           </Link>
+          <form action={signOut} className="mt-3">
+            <button
+              type="submit"
+              className="text-xs font-mono text-muted hover:text-accent-cyan transition-colors"
+            >
+              Sign out
+            </button>
+          </form>
         </div>
       </aside>
 

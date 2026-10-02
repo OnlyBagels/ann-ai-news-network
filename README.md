@@ -162,7 +162,11 @@ docker compose --profile local-models --profile youtube up -d --build
 | `streamer` (profile `youtube`) | Sends the channel to YouTube with `YOUTUBE_STREAM_KEY` |
 | `ollama`, `ollama-pull` (profile `local-models`) | A CPU model server, and a one-off pull of `LOCAL_LLM_MODEL` |
 
-Put a reverse proxy with TLS (Caddy, nginx) in front of `web`. The admin pages have no login yet, so keep `/admin` and `/api/admin` behind the proxy's auth or off the public internet until they do.
+Put a reverse proxy with TLS (Caddy, nginx) in front of `web`.
+
+**Admin access.** Set `ADMIN_TOKEN` to a long random string (`openssl rand -base64 32`). Editors sign in at `/admin/login` with it and get a signed, HTTP-only session cookie that lasts 7 days. Scripts can send it as `Authorization: Bearer <token>`. While `ADMIN_TOKEN` is empty, the admin pages, `/api/admin/*` and `POST /api/ingest` stay locked.
+
+Set `AGENT_API_TOKEN` too. The agent API's review endpoint can approve stories for the site and the channel, so with the token set it refuses any call that doesn't carry it, and the site sends it automatically.
 
 ### Self-hosted models on CPU
 

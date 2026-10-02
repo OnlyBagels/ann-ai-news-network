@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAdmin } from "@/lib/admin-auth";
 import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/admin/review
  * Returns articles needing human review (risk flags, low confidence, etc.)
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const articles = await prisma.article.findMany({
       where: {
@@ -70,6 +73,8 @@ export async function GET() {
  * Approve or reject an article
  */
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const body = await request.json();
     const { articleId, action, reviewer, notes } = body;

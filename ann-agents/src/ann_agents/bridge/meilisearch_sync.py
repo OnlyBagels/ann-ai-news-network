@@ -52,6 +52,12 @@ class MeilisearchSync:
                 logger.warning(f"Article {article_id} not found for indexing")
                 return False
 
+            # Search is public: only approved or published stories go in, and
+            # anything else that was indexed earlier comes out.
+            if str(row[13]) not in ("approved", "published"):
+                self.remove_article(article_id)
+                return False
+
             document = {
                 "id": row[0],
                 "title": row[1],
