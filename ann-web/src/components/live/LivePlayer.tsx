@@ -269,7 +269,7 @@ export function LivePlayer({ lineup, youtube = null, variant = "full" }: LivePla
           </h2>
           {transcript.length === 0 ? (
             <p className="mt-4 text-muted-foreground">
-              {segment ? "The segment is starting." : "Nothing is on the desk right now. The next segment starts as soon as it is written."}
+              {segment ? "The segment is starting." : "Between stories. The next one is on its way."}
             </p>
           ) : (
             <ol className="mt-2" aria-live="off">

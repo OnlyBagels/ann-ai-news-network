@@ -281,7 +281,7 @@ function newsDesk(ctx: PixelCtx, input: BackdropInput, r: Room): void {
   // Right monitor: the story on air, with its source.
   monitor(ctx, 464, 44, 152, 104, "#123a7a");
   rect(ctx, 464, 124, 152, 2, "#e3b341");
-  const words = input.headline ? input.headline.toUpperCase() : input.network + " LIVE";
+  const words = input.headline ? input.headline.toUpperCase() : "MORE NEWS IN A MOMENT";
   wrapInto(ctx, words, 472, 54, 136, 4, PAPER);
   if (input.source) drawText(ctx, truncate(`Source: ${input.source}`, 136), 472, 132, "#cfe0ff");
 }

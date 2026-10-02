@@ -347,14 +347,34 @@ function drawIdentCard(ctx: PixelCtx, show: Show | undefined, network: string): 
   }
 }
 
-function drawStandby(ctx: PixelCtx, input: FrameInput): void {
-  const layout = layoutFor("desk", 0);
-  drawBackdrop(ctx, layout, { nowMs: input.nowMs, show: undefined, network: input.lineup.network, headline: "", source: "", board: null, showName: "Back shortly" });
-  drawDeskTops(ctx, layout);
-  drawDeskFronts(ctx, layout, input.lineup.network, undefined);
-  const msg = "BACK SHORTLY";
-  rect(ctx, 160, 222, 320, 36, NAVY);
-  drawTextScaled(ctx, msg, Math.round(W / 2 - measure(msg)), 232, PAPER, 2);
+/** The show on the grid right now. */
+function showOnGrid(lineup: Lineup, nowMs: number): Show | undefined {
+  const hour = new Date(nowMs).getUTCHours();
+  const grid = [...lineup.grid].sort((a, b) => a.hourUtc - b.hourUtc);
+  let slot = grid[0];
+  for (const g of grid) if (g.hourUtc <= hour) slot = g;
+  return slot ? findShow(lineup, slot.show) : undefined;
+}
+
+/**
+ * Nothing queued: the channel stays live. The show's anchors sit at the desk
+ * between stories (coffee, notes, a look around) under a "Coming up" tag.
+ */
+function idleSegment(input: FrameInput): Segment {
+  const show = showOnGrid(input.lineup, input.nowMs);
+  const anchors = show?.anchors ?? input.lineup.anchors.slice(0, 2).map((a) => a.id);
+  return {
+    id: "between-stories",
+    showId: show?.id ?? "",
+    kind: "reel",
+    startsAt: new Date(input.nowMs - (input.nowMs % 60_000)).toISOString(),
+    durationMs: 120_000,
+    title: "",
+    anchors,
+    articles: [],
+    lines: [],
+    set: "desk",
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -363,9 +383,14 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
   const { lineup, segment } = input;
 
   if (!segment) {
-    drawStandby(ctx, input);
-    drawBug(ctx, lineup.network, "Live desk");
-    drawClockBox(ctx, lineup.network, input.clockLabel);
+    const idle = idleSegment(input);
+    const show = findShow(lineup, idle.showId);
+    const layout = layoutFor("desk", idle.anchors.length);
+    drawBackdrop(ctx, layout, { nowMs: input.nowMs, show, network: lineup.network, headline: "", source: "", board: null, showName: show?.name ?? lineup.network });
+    drawCast(ctx, input, layout, castFor({ ...input, segmentElapsedMs: input.nowMs % 60_000 }, idle, layout, null), show);
+    drawLowerThird(ctx, `Coming up on ${show?.name ?? lineup.network}`, undefined);
+    drawBug(ctx, lineup.network, show?.name ?? "Live desk");
+    drawClockBox(ctx, show?.name ?? lineup.network, input.clockLabel);
     drawTicker(ctx, input);
     return;
   }
