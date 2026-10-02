@@ -23,6 +23,23 @@ from ann_agents.ingestion.source_ingester import SourceIngester
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
+def interleave_sources(items: List[SourceItem]) -> List[SourceItem]:
+    """Newest first within each source, then one from each source in turn.
+
+    Without this the first feed in the list fills every slot in a cycle.
+    """
+    by_source: dict = {}
+    for item in items:
+        by_source.setdefault(item.source_name, []).append(item)
+    queues = [sorted(group, key=lambda i: i.published_at, reverse=True) for group in by_source.values()]
+    ordered: List[SourceItem] = []
+    while any(queues):
+        for queue in queues:
+            if queue:
+                ordered.append(queue.pop(0))
+    return ordered
+
+
 class NewsroomScheduler:
     """Orchestrates periodic ingestion and processing of AI news."""
 
@@ -53,6 +70,11 @@ class NewsroomScheduler:
                 unique_items.append(item)
 
         logger.info(f"{len(unique_items)} unique items after dedup")
+
+        # Skip what an earlier cycle already ran; every rerun costs model calls.
+        known = self.db.existing_urls([item.url for item in unique_items])
+        unique_items = interleave_sources([item for item in unique_items if item.url not in known])
+        logger.info(f"{len(unique_items)} new items, {len(known)} already in the newsroom")
 
         # Step 3: Run pipeline on each item
         processed = 0

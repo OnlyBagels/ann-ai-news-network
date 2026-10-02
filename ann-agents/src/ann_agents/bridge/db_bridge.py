@@ -117,7 +117,7 @@ class DatabaseBridge:
                 "source_url": source_url,
                 "author": author,
                 "published_at": published_at,
-                "summary": story.summary or "",
+                "summary": self._summary(story),
                 "tl_dr": story.tl_dr,
                 "content": story.content,
                 "tags": self._to_pg_array(story.tags),
@@ -177,7 +177,7 @@ class DatabaseBridge:
             {
                 "id": article_id,
                 "title": story.title,
-                "summary": story.summary or "",
+                "summary": self._summary(story),
                 "tl_dr": story.tl_dr,
                 "content": story.content,
                 "tags": self._to_pg_array(story.tags),
@@ -288,6 +288,19 @@ class DatabaseBridge:
                 },
             )
 
+    def existing_urls(self, urls: List[str]) -> set:
+        """Which of these source URLs already have an article."""
+        if not urls:
+            return set()
+        session = self.SessionLocal()
+        try:
+            rows = session.execute(
+                text('SELECT url FROM "Article" WHERE url = ANY(:urls)'), {"urls": list(urls)}
+            ).fetchall()
+            return {r[0] for r in rows}
+        finally:
+            session.close()
+
     def get_human_review_queue(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get articles needing human review."""
         session = self.SessionLocal()
@@ -372,6 +385,15 @@ class DatabaseBridge:
             return False
         finally:
             session.close()
+
+    def _summary(self, story: Story) -> str:
+        """The edited summary, else the source's own description as plain text."""
+        if story.summary:
+            return story.summary
+        source = story.primary_source.summary if story.primary_source else None
+        if not source:
+            return ""
+        return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", source)).strip()
 
     def _make_slug(self, title: str) -> str:
         """Create a URL-friendly slug from a title."""

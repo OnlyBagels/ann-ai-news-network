@@ -110,3 +110,22 @@ async def test_pipeline_output_saves_and_reviews_round_trip(monkeypatch, engine)
     with engine.connect() as conn:
         reviewer = conn.execute(text('SELECT human_reviewer, "storyStatus"::text FROM "Article"')).one()
     assert reviewer == ("editor", "approved")
+
+
+def test_interleave_sources_takes_turns_newest_first():
+    from ann_agents.bridge.scheduler import interleave_sources
+
+    def item(source, day):
+        return SourceItem(title=f"{source} {day}", url=f"https://x/{source}/{day}", source_name=source,
+                          source_type="rss", published_at=datetime(2026, 10, day))
+
+    ordered = interleave_sources([item("a", 1), item("a", 3), item("a", 2), item("b", 1)])
+    assert [i.title for i in ordered] == ["a 3", "b 1", "a 2", "a 1"]
+
+
+def test_existing_urls(monkeypatch, engine):
+    from conftest import insert_article
+
+    monkeypatch.setattr(settings, "database_url", str(engine.url.render_as_string(hide_password=False)))
+    insert_article(engine, "a1", "Story")
+    assert DatabaseBridge().existing_urls(["https://example.org/a1", "https://example.org/nope"]) == {"https://example.org/a1"}

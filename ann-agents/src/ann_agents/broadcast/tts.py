@@ -12,6 +12,7 @@ from their word count and the player shows captions.
 from __future__ import annotations
 
 import asyncio
+import re
 import wave
 from array import array
 from dataclasses import dataclass
@@ -29,6 +30,19 @@ class Clip:
     file: str  # file name inside the audio dir
     duration_ms: int
     mouth: List[float]
+
+
+# Spoken forms for words a TTS voice gets wrong. Captions keep the written form.
+SAY_AS = [
+    (re.compile(r"\bANN\b"), "A N N"),
+    (re.compile(r"\bAI\b"), "A I"),
+]
+
+
+def spoken(text: str) -> str:
+    for pattern, replacement in SAY_AS:
+        text = pattern.sub(replacement, text)
+    return text
 
 
 class Voice(Protocol):
@@ -72,7 +86,7 @@ class PiperVoice:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
-        _, err = await proc.communicate(text.encode("utf-8"))
+        _, err = await proc.communicate(spoken(text).encode("utf-8"))
         if proc.returncode != 0 or not out.exists():
             logger.error(f"[broadcast] Piper failed ({proc.returncode}): {err.decode(errors='replace')[-300:]}")
             return None
