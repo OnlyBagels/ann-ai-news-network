@@ -126,19 +126,21 @@ class NewsroomScheduler:
         all_items: List[SourceItem] = []
 
         # RSS Feeds (AI news sources)
-        rss_feeds = [
-            "https://openai.com/blog/rss.xml",
-            "https://www.anthropic.com/feed.xml",
-            "https://blog.google/technology/ai/rss/",
-            "https://ai.meta.com/blog/rss/",
-            "https://deepmind.google/blog/rss.xml",
-            "https://mistral.ai/news/rss/",
-            "https://huggingface.co/blog/feed.xml",
-            "https://news.ycombinator.com/rss",
-        ]
+        # Named here because some feeds title themselves vaguely (Google's
+        # AI blog calls itself "AI"), and the name is read out on air.
+        rss_feeds = {
+            "https://openai.com/blog/rss.xml": "OpenAI News",
+            "https://www.anthropic.com/feed.xml": "Anthropic News",
+            "https://blog.google/technology/ai/rss/": "Google AI Blog",
+            "https://ai.meta.com/blog/rss/": "Meta AI Blog",
+            "https://deepmind.google/blog/rss.xml": "Google DeepMind",
+            "https://mistral.ai/news/rss/": "Mistral AI",
+            "https://huggingface.co/blog/feed.xml": "Hugging Face Blog",
+            "https://news.ycombinator.com/rss": "Hacker News",
+        }
 
-        for feed_url in rss_feeds:
-            items = await self.ingester.ingest_rss(feed_url)
+        for feed_url, source_name in rss_feeds.items():
+            items = await self.ingester.ingest_rss(feed_url, source_name=source_name)
             all_items.extend(items)
 
         # Hacker News

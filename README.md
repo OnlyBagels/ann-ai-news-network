@@ -73,6 +73,71 @@ Ingestion: feedparser · BeautifulSoup · lxml · arxiv · PRAW · huggingface-h
 
 ---
 
+## ANN Live
+
+A 24-hour channel on the site at `/live` and on YouTube. Pixel-art anchors read the AI news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
+
+**How a segment is made** (`ann-agents/src/ann_agents/broadcast/`)
+
+1. The director (`director.py`) checks who is watching and what the grid in `ann-web/src/broadcast/lineup.json` says is on air. It then picks the next approved story for that show that hasn't aired in the last 6 hours.
+2. `facts.py` builds a numbered fact sheet from the article's own title, TL;DR and summary.
+3. Claude writes the dialogue as structured lines, and each line lists the facts it relies on (`writer.py`). Routine stories go to `claude-haiku-4-5`; stories scoring 80 or more go to `claude-sonnet-5-5`.
+4. `standards.py` cuts lines in code: a figure that isn't in the facts the line cites, a spelled-out figure, a quote that isn't verbatim, a URL, or a speaker who isn't at the desk. Next, `claude-sonnet-5-5` reviews the remaining lines against the fact sheet. If more than a third of the script is cut, the story airs as a straight headline read from the article (`reel.py`). Cut lines stay in the database with their reasons.
+5. Piper voices each line locally (`tts.py`). The clip length sets the timing, and its loudness drives the anchors' mouths. Without voices, lines are timed from their word count and shown as captions.
+6. The segment is appended to the timeline in Postgres (`BroadcastSegment`).
+
+Each show opens with a short intro at the top of its slot.
+
+**Cost controls**
+
+- Nothing is written while nobody is watching. Browsers on `/live` and the streamer check in, and the director stops writing once no one has checked in within `BROADCAST_VIEWER_WINDOW_SECONDS`.
+- Claude spend is tracked per UTC day in `BroadcastSpend`. When `BROADCAST_DAILY_BUDGET_USD` is used up, the channel switches to headline reads, which cost nothing.
+- The director only writes `BROADCAST_LOOKAHEAD_SECONDS` ahead of air.
+
+**Rendering.** `ann-web/src/broadcast/scene.ts` draws a 320x180 frame using only `fillRect`. The web player (`src/components/live/LivePlayer.tsx`) and the streamer (`scripts/stream.ts`) both use it, so the site and YouTube show the same picture.
+
+### Running it
+
+You need the newsroom (above) producing approved stories, plus three processes:
+
+```bash
+# 1. the site, which serves /live and the timeline API
+cd ann-web && npm run build && npm run start
+
+# 2. the director, which keeps the timeline filled
+cd ann-agents && python -m ann_agents.broadcast
+
+# 3. the streamer, which sends the channel to YouTube Live
+cd ann-web && YOUTUBE_STREAM_KEY=xxxx npx tsx scripts/stream.ts
+```
+
+- Set `ANTHROPIC_API_KEY` in `ann-agents/.env`. Without it, the channel airs headline reads only.
+- The YouTube stream key comes from YouTube Studio, under Go live, then Stream. The streamer sends 1080p30 H.264 with AAC audio. It needs `ffmpeg` on the PATH.
+- To check the output without going live, record a file instead: `npx tsx scripts/stream.ts --out test.mp4 --seconds 30`.
+
+**Voices.** Install Piper with `pip install piper-tts`. Then download the four voices named in `lineup.json` from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) into `voices/`. You need both the `.onnx` and the `.onnx.json` file for each voice. Then set these in `ann-agents/.env`:
+
+```
+BROADCAST_TTS=piper
+BROADCAST_PIPER_VOICES_DIR=/abs/path/voices
+BROADCAST_AUDIO_DIR=/abs/path/broadcast-audio
+```
+
+Set the same `BROADCAST_AUDIO_DIR` in `ann-web/.env.local`.
+
+**Changing the lineup.** Edit `ann-web/src/broadcast/lineup.json`, which holds the anchors (look, voice, persona), the shows (anchors, categories, set colour) and the 24-hour grid in UTC. To preview the set, run `npx tsx scripts/render-preview.ts`, which writes frames to `ann-web/.preview/`.
+
+### Tests
+
+```bash
+cd ann-web && DATABASE_URL=postgresql://.../ann_test npx prisma db push
+cd ann-agents && pip install -e ".[dev]" && TEST_DATABASE_URL=postgresql://.../ann_test pytest
+```
+
+The database tests truncate every table, so point `TEST_DATABASE_URL` at a separate database.
+
+---
+
 ## Running locally
 
 You bring the infra (Postgres, Redis, Meilisearch) and the API keys.

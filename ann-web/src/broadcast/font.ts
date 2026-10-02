@@ -186,7 +186,7 @@ const CHAR_MAP: Record<string, string> = {
   "\t": " ", "\n": " ", "\r": " ",
 };
 
-const DROP = /[​-‍⁠﻿︀-️]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]/gu;
+const DROP = /[\u200B-\u200D\u2060\uFEFF\uFE00-\uFE0F]|\p{Extended_Pictographic}|\p{Emoji_Modifier}|[\u{E0020}-\u{E007F}]/gu;
 const PRINTABLE = /^[\x20-\x7E]*$/;
 
 function mapChars(s: string): string {

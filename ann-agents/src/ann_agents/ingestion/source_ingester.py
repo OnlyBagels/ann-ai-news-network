@@ -13,7 +13,7 @@ from ann_agents.core.types import SourceItem
 class SourceIngester:
     """Ingests raw data from various sources and normalizes into SourceItems."""
 
-    async def ingest_rss(self, feed_url: str) -> List[SourceItem]:
+    async def ingest_rss(self, feed_url: str, source_name: Optional[str] = None) -> List[SourceItem]:
         """Ingest articles from an RSS/Atom feed."""
         import feedparser
 
@@ -24,7 +24,7 @@ class SourceIngester:
                 item = SourceItem(
                     title=entry.get("title", "Untitled"),
                     url=entry.get("link", ""),
-                    source_name=feed.feed.get("title", feed_url),
+                    source_name=source_name or feed.feed.get("title", feed_url),
                     source_type="rss",
                     author=entry.get("author"),
                     published_at=self._parse_date(entry.get("published_parsed") or entry.get("updated_parsed")),
