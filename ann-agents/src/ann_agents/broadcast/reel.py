@@ -31,8 +31,8 @@ def headline_read(story: StoryInput, facts: Sequence[Fact], anchor_id: str) -> L
 
 def show_open(show: Show, anchors: Sequence[Anchor], network: str) -> List[ScriptLine]:
     host, *others = anchors
-    lines = [ScriptLine(speaker=host.id, text=f"This is {show.name} on {network}. I'm {host.name}.")]
+    lines = [ScriptLine(speaker=host.id, text=f"This is {show.name} on {network}. I'm {host.name}.", mood="happy")]
     for other in others:
-        lines.append(ScriptLine(speaker=other.id, text=f"And I'm {other.name}."))
+        lines.append(ScriptLine(speaker=other.id, text=f"And I'm {other.name}.", mood="happy"))
     lines.append(ScriptLine(speaker=host.id, text=show.blurb))
     return lines

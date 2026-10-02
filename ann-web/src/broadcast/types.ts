@@ -64,9 +64,28 @@ export interface SegmentArticle {
   url: string;
 }
 
+// How the speaker feels saying a line. The writer picks one per line; the
+// renderer turns it into a face, and the other anchors react to it.
+export const MOODS = [
+  "neutral",
+  "happy",
+  "excited",
+  "amused",
+  "concerned",
+  "empathetic",
+  "sad",
+  "angry",
+  "serious",
+  "surprised",
+  "skeptical",
+  "confused",
+] as const;
+export type Mood = (typeof MOODS)[number];
+
 export interface ScriptLine {
   speaker: string; // anchor id
   text: string;
+  mood?: Mood | null;
   startMs: number; // offset from the segment start
   durationMs: number;
   audio?: string | null; // path under /api/live/audio/

@@ -14,6 +14,13 @@ from pydantic.alias_generators import to_camel
 
 MOUTH_FPS = 15
 
+# How a line is delivered. Matches MOODS in ann-web/src/broadcast/types.ts,
+# where the renderer turns it into a face and the others' reactions.
+Mood = Literal[
+    "neutral", "happy", "excited", "amused", "concerned", "empathetic",
+    "sad", "angry", "serious", "surprised", "skeptical", "confused",
+]
+
 
 class _Camel(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -103,6 +110,7 @@ class SegmentArticle(_Camel):
 class ScriptLine(_Camel):
     speaker: str
     text: str
+    mood: Mood = "neutral"
     start_ms: int = 0
     duration_ms: int = 0
     audio: Optional[str] = None
@@ -137,6 +145,10 @@ class Segment(_Camel):
 class DraftLine(BaseModel):
     speaker: str = Field(description="Anchor id of the person speaking")
     text: str = Field(description="What they say, as spoken words")
+    mood: Mood = Field(
+        default="neutral",
+        description="How the anchor delivers the line; drives their face on screen",
+    )
     fact_ids: List[int] = Field(
         description="Ids of the facts this line relies on. Empty only for lines with no factual claim."
     )

@@ -58,6 +58,8 @@ export const SPRITE_W = 48;
 export const SPRITE_H = 64;
 /** Sprite rows from the top down to the desk surface (what is visible when seated). */
 export const SPRITE_DESK_ROW = 57;
+/** Rows above this belong to the head, which can nod and bob on its own. */
+const HEAD_SPLIT = 26;
 const CX = 24; // symmetry axis sits between columns 23 and 24
 
 // Palette slots
@@ -69,7 +71,8 @@ const ACC = 13, ACC_SH = 14, ACC_OL = 15;
 const SHIRT = 16, SHIRT_SH = 17;
 const EYE = 18, EYE_HI = 19, MOUTH = 20, LIP = 21, BLUSH = 22, BROW = 23, GLASS = 24;
 const BUZZ = 25;
-const SLOTS = 26;
+const TEETH = 26;
+const SLOTS = 27;
 
 type Group = "skin" | "hair" | "coat" | "acc" | "shirt" | "none";
 const GROUP: Group[] = [];
@@ -350,52 +353,188 @@ function outline(src: Grid): Grid {
 
 // ---------------------------------------------------------------------------
 // Pose variants
+//
+// A pose is a face (mouth shape, eyelids, gaze, brows, cheeks) plus a head
+// turn. Every combination is stamped onto the base sprite and compiled the
+// first time it is drawn, then cached.
 
-export type MouthState = 0 | 1 | 2; // closed, half, open
+/** Mouth shapes. Talking mixes the open shapes; the rest carry expression. */
+export type Mouth =
+  | "closed" // flat line
+  | "half" // slightly open
+  | "open" // open vowel, "ah"
+  | "wide" // teeth showing, "ee"
+  | "round" // "oo"
+  | "smile" // closed, corners up
+  | "frown" // closed, corners down
+  | "smirk" // closed, one corner up
+  | "laugh" // wide open with teeth
+  | "grin"; // open, corners up
+export type Lids = "open" | "half" | "closed" | "wide" | "happy";
+export type Brows = "flat" | "raised" | "furrowed" | "sad" | "skeptical";
 export type Turn = -1 | 0 | 1; // -1 looks to screen left, 1 to screen right
 
 export interface Pose {
-  mouth: MouthState;
-  blink: boolean;
+  mouth: Mouth;
+  lids: Lids;
+  brows: Brows;
+  /** Where the eyes point inside the head: -1..1 across, -1 up .. 1 down. */
+  gazeX: -1 | 0 | 1;
+  gazeY: -1 | 0 | 1;
   turn: Turn;
+  blush?: boolean;
+}
+
+export const NEUTRAL_POSE: Pose = { mouth: "closed", lids: "open", brows: "flat", gazeX: 0, gazeY: 0, turn: 0 };
+
+function poseKey(p: Pose): string {
+  return `${p.mouth}|${p.lids}|${p.brows}|${p.gazeX}|${p.gazeY}|${p.turn}|${p.blush ? 1 : 0}`;
+}
+
+function stampBrows(g: Grid, brows: Brows, L: number, R: number): void {
+  // Left brow spans L-1..L+1 (inner end L+1); right brow R..R+2 (inner end R).
+  const left = (outer: number, mid: number, inner: number) => {
+    g.set(L - 1, outer, BROW);
+    g.set(L, mid, BROW);
+    g.set(L + 1, inner, BROW);
+  };
+  const right = (inner: number, mid: number, outer: number) => {
+    g.set(R, inner, BROW);
+    g.set(R + 1, mid, BROW);
+    g.set(R + 2, outer, BROW);
+  };
+  switch (brows) {
+    case "raised":
+      left(12, 12, 12);
+      right(12, 12, 12);
+      break;
+    case "furrowed":
+      left(13, 13, 14);
+      right(14, 13, 13);
+      break;
+    case "sad":
+      left(13, 13, 12);
+      right(12, 13, 13);
+      break;
+    case "skeptical":
+      left(12, 12, 13);
+      right(13, 13, 13);
+      break;
+    default:
+      left(13, 13, 13);
+      right(13, 13, 13);
+  }
+}
+
+function stampEyes(g: Grid, pose: Pose, L: number, R: number): void {
+  const gx = pose.gazeX;
+  const gy = pose.gazeY;
+  for (const base of [L, R]) {
+    const ex = base + gx;
+    switch (pose.lids) {
+      case "closed":
+        g.row(16, base, base + 1, EYE);
+        break;
+      case "half":
+        // Upper lid down: a shaded lid over the top row of the eye.
+        g.row(15, base, base + 1, SKIN_SH);
+        g.row(16, ex, ex + 1, EYE);
+        break;
+      case "happy":
+        // Smiling eyes: a small upturned arc.
+        g.row(15, base, base + 1, EYE);
+        g.set(base - 1, 16, EYE);
+        g.set(base + 2, 16, EYE);
+        break;
+      case "wide":
+        g.row(14, ex, ex + 1, EYE);
+        g.row(15, ex, ex + 1, EYE);
+        g.row(16, ex, ex + 1, EYE);
+        g.set(ex + (gx > 0 ? 1 : 0), 14, EYE_HI);
+        break;
+      default: {
+        const top = 15 + gy;
+        g.row(top, ex, ex + 1, EYE);
+        g.row(top + 1, ex, ex + 1, EYE);
+        g.set(ex + (gx > 0 ? 1 : 0), top, EYE_HI);
+      }
+    }
+  }
+}
+
+function stampMouth(g: Grid, mouth: Mouth, m0: number): void {
+  // m0 is the left end of the 4-pixel mouth on row 21.
+  switch (mouth) {
+    case "half":
+      g.row(21, m0, m0 + 3, LIP);
+      g.row(22, m0 + 1, m0 + 2, MOUTH);
+      break;
+    case "open":
+      g.row(20, m0, m0 + 3, LIP);
+      g.row(21, m0, m0 + 3, MOUTH);
+      g.row(22, m0 + 1, m0 + 2, MOUTH);
+      break;
+    case "wide":
+      g.row(20, m0, m0 + 3, LIP);
+      g.set(m0 - 1, 21, MOUTH);
+      g.row(21, m0, m0 + 3, TEETH);
+      g.set(m0 + 4, 21, MOUTH);
+      g.row(22, m0, m0 + 3, LIP);
+      break;
+    case "round":
+      g.row(20, m0 + 1, m0 + 2, LIP);
+      g.set(m0, 21, LIP);
+      g.row(21, m0 + 1, m0 + 2, MOUTH);
+      g.set(m0 + 3, 21, LIP);
+      g.row(22, m0 + 1, m0 + 2, LIP);
+      break;
+    case "smile":
+      g.set(m0 - 1, 20, LIP);
+      g.row(21, m0, m0 + 3, LIP);
+      g.set(m0 + 4, 20, LIP);
+      break;
+    case "frown":
+      g.set(m0 - 1, 22, LIP);
+      g.row(21, m0, m0 + 3, LIP);
+      g.set(m0 + 4, 22, LIP);
+      break;
+    case "smirk":
+      g.row(21, m0, m0 + 3, LIP);
+      g.set(m0 + 4, 20, LIP);
+      break;
+    case "grin":
+      g.set(m0 - 1, 20, LIP);
+      g.row(21, m0, m0 + 3, MOUTH);
+      g.set(m0 + 4, 20, LIP);
+      g.row(22, m0 + 1, m0 + 2, LIP);
+      break;
+    case "laugh":
+      g.set(m0 - 1, 20, LIP);
+      g.row(20, m0, m0 + 3, TEETH);
+      g.set(m0 + 4, 20, LIP);
+      g.row(21, m0, m0 + 3, MOUTH);
+      g.row(22, m0 + 1, m0 + 2, MOUTH);
+      break;
+    default:
+      g.row(21, m0, m0 + 3, LIP);
+  }
 }
 
 function stampFeatures(g: Grid, look: AnchorLook, pose: Pose): void {
   const dx = pose.turn;
   const L = CX - 5 + dx; // left eye x (2 px)
   const R = CX + 3 + dx; // right eye x
-  // Brows
-  g.row(13, L - 1, L + 1, BROW);
-  g.row(13, R, R + 2, BROW);
-  // Eyes
-  if (pose.blink) {
-    g.row(16, L, L + 1, EYE);
-    g.row(16, R, R + 1, EYE);
-  } else {
-    for (const ex of [L, R]) {
-      g.row(15, ex, ex + 1, EYE);
-      g.row(16, ex, ex + 1, EYE);
-      g.set(ex + (dx > 0 ? 1 : 0), 15, EYE_HI);
-    }
-  }
-  // Cheeks
-  g.row(18, L - 2, L - 1, BLUSH);
-  g.row(18, R + 2, R + 3, BLUSH);
+  stampBrows(g, pose.brows, L, R);
+  // Glasses frames sit on rows 14 and 17, so behind them the eyes stay level.
+  stampEyes(g, look.glasses ? { ...pose, gazeY: 0 } : pose, L, R);
+  // Cheeks: lifted and warmer when smiling.
+  const cheekRow = pose.blush ? 17 : 18;
+  g.row(cheekRow, L - 2, L - 1, BLUSH);
+  g.row(cheekRow, R + 2, R + 3, BLUSH);
   // Nose: a small shadow on the side away from the light.
   g.set(CX + dx, 18, SKIN_SH);
   g.row(19, CX - 1 + dx, CX + dx, SKIN_SH);
-  // Mouth
-  const m0 = CX - 2 + dx;
-  if (pose.mouth === 0) {
-    g.row(21, m0, m0 + 3, LIP);
-  } else if (pose.mouth === 1) {
-    g.row(21, m0, m0 + 3, LIP);
-    g.row(22, m0 + 1, m0 + 2, MOUTH);
-  } else {
-    g.row(20, m0, m0 + 3, LIP);
-    g.row(21, m0, m0 + 3, MOUTH);
-    g.row(22, m0 + 1, m0 + 2, MOUTH);
-  }
+  stampMouth(g, pose.mouth, CX - 2 + dx);
   if (look.glasses) {
     for (const ex of [L, R]) {
       const x0 = ex - 2;
@@ -440,9 +579,11 @@ function paletteFor(look: AnchorLook): string[] {
   p[EYE] = "#1a1220";
   p[EYE_HI] = "#f4f1ea";
   p[MOUTH] = "#4a1820";
+  p[TEETH] = "#f1ece4";
   p[LIP] = mix(skin, "#6b2630", 0.55);
   p[BLUSH] = mix(skin, "#e0606a", 0.28);
-  p[BROW] = darkHair ? hair : mix(hair, "#1a1018", 0.45);
+  // Brows must read against the skin, so dark skin gets near-black brows.
+  p[BROW] = luminance(skin) < 0.2 ? mix(hair, "#08060a", 0.75) : darkHair ? hair : mix(hair, "#1a1018", 0.45);
   p[GLASS] = "#1c1a22";
   return p;
 }
@@ -470,7 +611,7 @@ function compile(g: Grid, palette: string[]): CompiledSprite {
       if (!list) byColor.set(color, (list = []));
       // merge with an identical run straight above to save calls
       const n = list.length;
-      if (n >= 4 && list[n - 4] === x0 && list[n - 2] === x - x0 && list[n - 3] + list[n - 1] === y) {
+      if (n >= 4 && y !== HEAD_SPLIT && list[n - 4] === x0 && list[n - 2] === x - x0 && list[n - 3] + list[n - 1] === y) {
         list[n - 1]++;
       } else {
         list.push(x0, y, x - x0, 1);
@@ -483,7 +624,7 @@ function compile(g: Grid, palette: string[]): CompiledSprite {
 interface AnchorSprites {
   base: Grid;
   palette: string[];
-  variants: Map<number, CompiledSprite>;
+  variants: Map<string, CompiledSprite>;
   hand: CompiledSprite;
 }
 
@@ -535,7 +676,7 @@ function getAnchor(look: AnchorLook): AnchorSprites {
 
 function variant(look: AnchorLook, pose: Pose): CompiledSprite {
   const a = getAnchor(look);
-  const key = pose.mouth * 6 + (pose.blink ? 3 : 0) + (pose.turn + 1);
+  const key = poseKey(pose);
   let v = a.variants.get(key);
   if (!v) {
     const g = a.base.clone();
@@ -546,15 +687,25 @@ function variant(look: AnchorLook, pose: Pose): CompiledSprite {
   return v;
 }
 
-function blit(ctx: PixelCtx, s: CompiledSprite, x: number, y: number, maxRow = SPRITE_H): void {
-  for (let i = 0; i < s.colors.length; i++) {
-    ctx.fillStyle = s.colors[i];
-    const r = s.runs[i];
-    for (let j = 0; j < r.length; j += 4) {
-      const ry = r[j + 1];
-      if (ry >= maxRow) continue;
-      const h = Math.min(r[j + 3], maxRow - ry);
-      ctx.fillRect(x + r[j], y + ry, r[j + 2], h);
+/**
+ * Draw compiled runs. With a head offset the body rows go first and the head
+ * rows (above HEAD_SPLIT) are drawn on top, shifted by (headDx, headDy).
+ */
+function blit(ctx: PixelCtx, s: CompiledSprite, x: number, y: number, maxRow = SPRITE_H, headDx = 0, headDy = 0): void {
+  const split = headDx === 0 && headDy === 0 ? 0 : HEAD_SPLIT;
+  for (const pass of split ? [0, 1] : [0]) {
+    for (let i = 0; i < s.colors.length; i++) {
+      ctx.fillStyle = s.colors[i];
+      const r = s.runs[i];
+      for (let j = 0; j < r.length; j += 4) {
+        const ry = r[j + 1];
+        if (ry >= maxRow) continue;
+        const isHead = split > 0 && ry < split;
+        if ((pass === 0) === isHead) continue;
+        const h = Math.min(r[j + 3], maxRow - ry);
+        if (isHead) ctx.fillRect(x + r[j] + headDx, y + ry + headDy, r[j + 2], h);
+        else ctx.fillRect(x + r[j], y + ry, r[j + 2], h);
+      }
     }
   }
 }
@@ -563,8 +714,16 @@ function blit(ctx: PixelCtx, s: CompiledSprite, x: number, y: number, maxRow = S
  * Draw an anchor's bust. (x, y) is the sprite's top-left; rows at or below
  * `visibleRows` are skipped (they would be behind the desk anyway).
  */
-export function drawAnchor(ctx: PixelCtx, look: AnchorLook, pose: Pose, x: number, y: number, visibleRows = SPRITE_H): void {
-  blit(ctx, variant(look, pose), Math.round(x), Math.round(y), visibleRows);
+export function drawAnchor(
+  ctx: PixelCtx,
+  look: AnchorLook,
+  pose: Pose,
+  x: number,
+  y: number,
+  visibleRows = SPRITE_H,
+  head: { dx: number; dy: number } = { dx: 0, dy: 0 },
+): void {
+  blit(ctx, variant(look, pose), Math.round(x), Math.round(y), visibleRows, head.dx, head.dy);
 }
 
 export const HAND_W = 9;
@@ -594,16 +753,32 @@ function mix32(a: number): number {
 }
 
 const BLINK_WINDOW_MS = 4500;
-const BLINK_MS = 120;
+const BLINK_MS = 160;
 
-/** True during a ~120ms blink. Blinks land 3..6s apart, different per anchor. */
-export function isBlinking(nowMs: number, anchorId: string): boolean {
+/**
+ * The blink phase: 0 open, 1 half-closed, 2 closed. A blink runs
+ * half / closed / half over ~160ms; blinks land 3..6s apart, different per
+ * anchor, with an occasional double blink.
+ */
+export function blinkPhase(nowMs: number, anchorId: string): 0 | 1 | 2 {
   const h = hashString(anchorId);
   const t = nowMs + (h % 9973) * 7;
   const k = Math.floor(t / BLINK_WINDOW_MS);
-  const offset = mix32(k ^ h) % 1500;
-  const local = t - k * BLINK_WINDOW_MS - offset;
-  return local >= 0 && local < BLINK_MS;
+  const r = mix32(k ^ h);
+  const offset = r % 1500;
+  let local = t - k * BLINK_WINDOW_MS - offset;
+  if (local >= BLINK_MS + 140 && r % 7 === 0) local -= BLINK_MS + 140; // double blink
+  if (local < 0 || local >= BLINK_MS) return 0;
+  return local < 40 || local >= 120 ? 1 : 2;
+}
+
+export function isBlinking(nowMs: number, anchorId: string): boolean {
+  return blinkPhase(nowMs, anchorId) !== 0;
+}
+
+/** A deterministic 0..1 value for (anchor, slot), for picking idle behaviour. */
+export function noise(anchorId: string, slot: number): number {
+  return mix32(hashString(anchorId) ^ Math.imul(slot, 0x9e3779b1)) / 4294967296;
 }
 
 /** Breathing: 0 or -1 px, switching every ~2s, phase offset per anchor. */
@@ -613,9 +788,92 @@ export function breathOffset(nowMs: number, anchorId: string): number {
   return Math.floor((nowMs + (h % 2000)) / period) % 2 === 0 ? 0 : -1;
 }
 
-/** Map a 0..1 openness to one of the three mouth shapes. */
-export function mouthState(openness: number): MouthState {
-  if (openness < 0.2) return 0;
-  if (openness < 0.55) return 1;
-  return 2;
+// ---------------------------------------------------------------------------
+// Emotes: small pixel marks around the head that make a mood read at a glance.
+
+export type Emote = "tear" | "sweat" | "anger" | "sparkle" | "exclaim" | "question" | "laugh" | "heart";
+
+const EMOTE_COLORS: Record<string, string> = {
+  w: "#f4f1ea", // white
+  k: "#120c18", // outline
+  b: "#7ec8f0", // water
+  B: "#3f8fc4",
+  r: "#e8384f", // anger
+  y: "#ffd84a", // sparkle
+  p: "#ff6f91", // heart
+};
+
+const BITMAPS: Record<string, string[]> = {
+  exclaim: [".kkk.", "kwwwk", "kwwwk", "kwwwk", ".kwk.", ".kwk.", "..k..", ".kwk.", ".kkk."],
+  question: [".kkkk.", "kwwwwk", "kkk.wk", "..kwwk", ".kwkk.", ".kwk..", "..k...", ".kwk..", ".kkk.."],
+  anger: ["r.r.r", ".r.r.", "rr.rr", ".r.r.", "r.r.r"],
+  heart: [".pp.pp.", "ppppppp", "ppppppp", ".ppppp.", "..ppp..", "...p..."],
+  sweat: ["..b.", ".bb.", "bbbB", "bbbB", ".BB."],
+  sparkleBig: ["..y..", "..y..", "yyyyy", "..y..", "..y.."],
+  sparkleSmall: [".y.", "yyy", ".y."],
+};
+
+function stamp(ctx: PixelCtx, rows: string[], x: number, y: number): void {
+  rows.forEach((row, dy) => {
+    for (let dx = 0; dx < row.length; dx++) {
+      const c = EMOTE_COLORS[row[dx]];
+      if (!c) continue;
+      ctx.fillStyle = c;
+      ctx.fillRect(x + dx, y + dy, 1, 1);
+    }
+  });
+}
+
+/**
+ * Draw an emote for an anchor whose sprite top-left is (x, y), with the head
+ * offset already added. `ms` is the time since the emote started, for its
+ * small loop of animation.
+ */
+export function drawEmote(ctx: PixelCtx, emote: Emote, x: number, y: number, ms: number, turn: Turn): void {
+  const dx = turn;
+  const pop = ms < 120 ? 1 : 0; // a one-pixel pop as it appears
+  switch (emote) {
+    case "exclaim":
+      stamp(ctx, BITMAPS.exclaim, x + CX + 7, y - 6 - pop);
+      break;
+    case "question":
+      stamp(ctx, BITMAPS.question, x + CX + 7, y - 6 - (Math.floor(ms / 400) % 2));
+      break;
+    case "anger": {
+      // Pulses at the temple.
+      if (Math.floor(ms / 300) % 2 === 0) stamp(ctx, BITMAPS.anger, x + CX + 5, y + 1);
+      break;
+    }
+    case "heart":
+      stamp(ctx, BITMAPS.heart, x + CX + 8, y - 4 - (Math.floor(ms / 350) % 2));
+      break;
+    case "sweat":
+      stamp(ctx, BITMAPS.sweat, x + CX + 9, y + 8 + Math.min(3, Math.floor(ms / 250)));
+      break;
+    case "tear": {
+      // A drop runs down from each eye, on a loop.
+      const fall = Math.floor(ms / 110) % 6;
+      for (const ex of [CX - 5 + dx, CX + 4 + dx]) {
+        ctx.fillStyle = EMOTE_COLORS.b;
+        ctx.fillRect(x + ex, y + 17 + fall, 1, 2);
+        ctx.fillStyle = EMOTE_COLORS.B;
+        ctx.fillRect(x + ex, y + 17 + fall + 1, 1, 1);
+      }
+      break;
+    }
+    case "sparkle": {
+      const t = Math.floor(ms / 220) % 4;
+      stamp(ctx, t % 2 === 0 ? BITMAPS.sparkleBig : BITMAPS.sparkleSmall, x + CX - 15 + (t % 2), y + 2);
+      stamp(ctx, t % 2 === 1 ? BITMAPS.sparkleBig : BITMAPS.sparkleSmall, x + CX + 11, y - 2 + (t % 2));
+      if (t === 2) stamp(ctx, BITMAPS.sparkleSmall, x + CX + 9, y + 12);
+      break;
+    }
+    case "laugh": {
+      // Short lines either side of the head, jumping with the laugh.
+      const up = Math.floor(ms / 140) % 2;
+      ctx.fillStyle = EMOTE_COLORS.w;
+      for (const [lx, ly] of [[CX - 13, 10], [CX - 14, 13], [CX + 11, 10], [CX + 12, 13]]) ctx.fillRect(x + lx, y + ly - up, 2, 1);
+      break;
+    }
+  }
 }

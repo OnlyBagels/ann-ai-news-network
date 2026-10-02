@@ -14,7 +14,9 @@ import lineupJson from "../src/broadcast/lineup.json";
 import type { Lineup, Segment } from "../src/broadcast/types";
 import { HEIGHT, WIDTH, drawFrame, type FrameInput } from "../src/broadcast/scene";
 import { drawText, drawTextScaled, LINE_HEIGHT, normalizeText } from "../src/broadcast/font";
-import { drawAnchor, SPRITE_W, SPRITE_H, type MouthState, type Turn } from "../src/broadcast/sprites";
+import { drawAnchor, SPRITE_W, SPRITE_H } from "../src/broadcast/sprites";
+import { expressionPose } from "../src/broadcast/face";
+import { MOODS } from "../src/broadcast/types";
 
 const lineup = lineupJson as Lineup;
 const OUT = join(__dirname, "..", ".preview");
@@ -181,25 +183,21 @@ frame("09-wire-gap-ticker-grid", { segment: wire, segmentElapsedMs: 7200, nowMs:
   console.log("wrote", join(OUT, "font-sheet.png"));
 }
 
-// --- anchor sheet: every anchor in every mouth state, blink and turn ---------
+// --- anchor sheet: every anchor in every mood, resting and talking ----------
 {
-  const cols = 6;
+  const cols = MOODS.length;
   const w = cols * (SPRITE_W + 4) + 4;
-  const h = lineup.anchors.length * (SPRITE_H + 4) + 4;
+  const h = lineup.anchors.length * 2 * (SPRITE_H + 4) + 4;
   const c = createCanvas(w, h);
   const ctx = c.getContext("2d");
   ctx.fillStyle = "#5b6b84";
   ctx.fillRect(0, 0, w, h);
-  const poses: { mouth: MouthState; blink: boolean; turn: Turn }[] = [
-    { mouth: 0, blink: false, turn: 0 },
-    { mouth: 1, blink: false, turn: 0 },
-    { mouth: 2, blink: false, turn: 0 },
-    { mouth: 0, blink: true, turn: 0 },
-    { mouth: 0, blink: false, turn: -1 },
-    { mouth: 0, blink: false, turn: 1 },
-  ];
+  // Each anchor in every mood: resting face on top, talking face below.
   lineup.anchors.forEach((a, row) => {
-    poses.forEach((p, col) => drawAnchor(ctx, a.look, p, 4 + col * (SPRITE_W + 4), 4 + row * (SPRITE_H + 4)));
+    MOODS.forEach((mood, col) => {
+      drawAnchor(ctx, a.look, expressionPose(mood, false), 4 + col * (SPRITE_W + 4), 4 + row * 2 * (SPRITE_H + 4));
+      drawAnchor(ctx, a.look, expressionPose(mood, true), 4 + col * (SPRITE_W + 4), 4 + (row * 2 + 1) * (SPRITE_H + 4));
+    });
   });
   writeFileSync(join(OUT, "anchor-sheet.png"), scaled(c, SCALE));
   console.log("wrote", join(OUT, "anchor-sheet.png"));

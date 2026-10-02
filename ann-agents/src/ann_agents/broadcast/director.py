@@ -255,7 +255,7 @@ class Director:
                         kind="story",
                         title=_title(title, story.title),
                         anchors=desk,
-                        lines=[ScriptLine(speaker=l.speaker, text=l.text, fact_ids=l.fact_ids) for l in kept],
+                        lines=[ScriptLine(speaker=l.speaker, text=l.text, mood=l.mood, fact_ids=l.fact_ids) for l in kept],
                         articles=[article],
                         writer=written.model,
                         spend=spend,

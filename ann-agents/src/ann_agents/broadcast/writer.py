@@ -53,6 +53,7 @@ How a segment works:
 - Write 4 to 7 lines of spoken dialogue between the anchors at the desk. One anchor reads the story; the other reacts, asks the obvious follow-up, or says what it means for people building with AI. Keep their personalities, but the story leads.
 - Name the source out loud once, by the name on the fact sheet.
 - Each line is one or two spoken sentences, under 240 characters. Plain words a person would say on air. No stage directions, no emoji, no markdown, no URLs.
+- Give every line a mood, the way the anchor would deliver it: neutral, happy, excited, amused, concerned, empathetic, sad, angry, serious, surprised, skeptical or confused. Match the story: serious or empathetic for deaths, disasters and people being hurt, never happy or amused; excited for a big launch; skeptical about a claim the facts don't back; angry only at a situation (a breach that exposed people's data), never at a person or group. Mix moods across the lines so the desk feels alive.
 
 Accuracy rules. These are checked by code and by an editor, and a line that breaks one is cut before air:
 - State as fact only what the fact sheet says. Opinions and questions are fine when they are clearly opinions or questions.

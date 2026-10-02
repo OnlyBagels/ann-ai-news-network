@@ -15,18 +15,17 @@ import {
   truncate,
   wrap,
 } from "./font";
+import { act, type Acting } from "./face";
 import {
   HAND_H,
   SPRITE_DESK_ROW,
   SPRITE_W,
-  type Turn,
   breathOffset,
   drawAnchor,
+  drawEmote,
   drawHand,
-  isBlinking,
   lightOf,
   mix,
-  mouthState,
   shadeOf,
 } from "./sprites";
 
@@ -424,40 +423,45 @@ function seats(lineup: Lineup, ids: string[]): Seat[] {
   return anchors.map((anchor, i) => ({ anchor, cx: Math.round(WIDTH / 2 + (i - (n - 1) / 2) * spacing) }));
 }
 
-function drawAnchors(ctx: PixelCtx, input: FrameInput, list: Seat[], cur: CurrentLine | null): void {
-  const { nowMs } = input;
+/** Work out every anchor's face, head and hands for this frame. */
+function actSeats(input: FrameInput, list: Seat[], segment: Segment, cur: CurrentLine | null): Acting[] {
   const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;
-  const speakerIdx = active ? list.findIndex((s) => s.anchor.id === active.line.speaker) : -1;
+  const speakerSeat = active ? list.findIndex((s) => s.anchor.id === active.line.speaker) : -1;
+  const previous = cur && cur.index > 0 ? segment.lines[cur.index - 1] : null;
+  const previousSeat = previous ? list.findIndex((s) => s.anchor.id === previous.speaker) : -1;
+  return list.map((seat, i) =>
+    act({
+      anchorId: seat.anchor.id,
+      seat: i,
+      nowMs: input.nowMs,
+      speakerSeat,
+      line: cur?.line ?? null,
+      lineIndex: cur?.index ?? 0,
+      lineElapsedMs: cur?.lineElapsedMs ?? 0,
+      previousSeat,
+      open: i === speakerSeat && active ? mouthOpenness(active.line, active.lineElapsedMs) : 0,
+    }),
+  );
+}
 
+function drawAnchors(ctx: PixelCtx, input: FrameInput, list: Seat[], acting: Acting[]): void {
   list.forEach((seat, i) => {
     const { anchor } = seat;
-    const speaking = i === speakerIdx;
-    const open = speaking && active ? mouthOpenness(active.line, active.lineElapsedMs) : 0;
-    let turn: Turn = 0;
-    if (!speaking && speakerIdx >= 0) turn = speakerIdx > i ? 1 : -1;
-    const dy = breathOffset(nowMs, anchor.id);
+    const dy = breathOffset(input.nowMs, anchor.id);
     const sx = seat.cx - SPRITE_W / 2;
     const sy = DESK_TOP - SPRITE_DESK_ROW + dy;
-    drawAnchor(
-      ctx,
-      anchor.look,
-      { mouth: mouthState(open), blink: isBlinking(nowMs, anchor.id), turn },
-      sx,
-      sy,
-      SPRITE_DESK_ROW + 2 - dy,
-    );
+    const a = acting[i];
+    drawAnchor(ctx, anchor.look, a.pose, sx, sy, SPRITE_DESK_ROW + 2 - dy, a.head);
+    if (a.emote) drawEmote(ctx, a.emote.kind, sx + a.head.dx, sy + a.head.dy, a.emote.ms, a.pose.turn);
   });
 }
 
-function drawHands(ctx: PixelCtx, list: Seat[], cur: CurrentLine | null): void {
-  const active = cur && cur.lineElapsedMs < cur.line.durationMs ? cur : null;
-  list.forEach((seat) => {
-    const speaking = !!active && active.line.speaker === seat.anchor.id;
-    // A speaker's hands move a little as they talk.
-    const beat = speaking && active ? Math.floor(active.lineElapsedMs / 650) % 4 : 0;
+function drawHands(ctx: PixelCtx, list: Seat[], acting: Acting[]): void {
+  list.forEach((seat, i) => {
     const y = DESK_TOP - HAND_H + 3;
-    drawHand(ctx, seat.anchor.look, seat.cx - 19, y - (beat === 1 ? 1 : 0));
-    drawHand(ctx, seat.anchor.look, seat.cx + 10, y - (beat === 3 ? 1 : 0));
+    const [left, right] = acting[i].hands;
+    drawHand(ctx, seat.anchor.look, seat.cx - 19, y - left);
+    drawHand(ctx, seat.anchor.look, seat.cx + 10, y - right);
   });
 }
 
@@ -706,9 +710,10 @@ export function drawFrame(ctx: PixelCtx, input: FrameInput): void {
 
   drawStudio(ctx, show);
   drawRearScreen(ctx, show, lineup);
-  drawAnchors(ctx, input, list, cur);
+  const acting = actSeats(input, list, segment, cur);
+  drawAnchors(ctx, input, list, acting);
   drawDesk(ctx, show, lineup.network);
-  drawHands(ctx, list, cur);
+  drawHands(ctx, list, acting);
 
   let overlayTop: number;
   if (segment.kind === "ident") {

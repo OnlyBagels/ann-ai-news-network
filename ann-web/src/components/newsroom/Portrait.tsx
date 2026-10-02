@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import type { AnchorLook } from "@/broadcast/types";
-import { SPRITE_DESK_ROW, SPRITE_W, drawAnchor } from "@/broadcast/sprites";
+import { NEUTRAL_POSE, SPRITE_DESK_ROW, SPRITE_W, drawAnchor } from "@/broadcast/sprites";
 
 // A head-and-shoulders pixel portrait, drawn with the same sprite code as
 // the live channel so the newsroom page and the broadcast match.
@@ -14,7 +14,7 @@ export function Portrait({ look, name, size = 96 }: { look: AnchorLook; name: st
     if (!ctx) return;
     ctx.fillStyle = "#16121c"; // --color-panel
     ctx.fillRect(0, 0, SPRITE_W, SPRITE_DESK_ROW);
-    drawAnchor(ctx, look, { mouth: 0, blink: false, turn: 0 }, 0, 0, SPRITE_DESK_ROW);
+    drawAnchor(ctx, look, { ...NEUTRAL_POSE, mouth: "smile" }, 0, 0, SPRITE_DESK_ROW);
   }, [look]);
 
   return (
