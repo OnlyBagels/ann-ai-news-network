@@ -55,3 +55,14 @@ async def test_fetch_all_records_health_and_tags_items(engine):
 
     await registry.fetch_all()
     assert health(engine)["Dead Feed"][2] == 2  # failures in a row
+
+
+async def test_seed_moves_a_source_off_a_retired_url(engine):
+    from ann_agents.ingestion.source_registry import RETIRED_URLS
+
+    old = "https://openai.com/blog/rss.xml"
+    assert old in RETIRED_URLS
+    registry = SourceRegistry(engine)
+    registry.seed([("OpenAI News", "rss", old, "models", True)])
+    registry.seed([("OpenAI News", "rss", "https://openai.com/news/rss.xml", "models", True)])
+    assert [s.url for s in registry.active()] == ["https://openai.com/news/rss.xml"]

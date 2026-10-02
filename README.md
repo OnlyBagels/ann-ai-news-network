@@ -14,7 +14,9 @@ ANN ingests AI models, repos, papers, benchmarks, and news, drafts briefings and
 sources → ingest → normalize → dedupe → summarize → score → review → human gate → publish
 ```
 
-Sources: RSS, GitHub trending, Hugging Face, arXiv, Hacker News, Reddit. Targets: website, newsletter, social.
+Sources: 58 RSS feeds plus arXiv, Hacker News, GitHub Trending and Hugging Face models. The feeds cover lab blogs (OpenAI, Google DeepMind, Microsoft Research, Apple, NVIDIA, Mistral, Ai2), AI desks at news sites (The Verge, TechCrunch, Ars Technica, MIT Technology Review, Wired), developer tools (GitHub, JetBrains, LangChain, MCP), open models (Hugging Face, Ollama, vLLM), research (Google Research, METR, Epoch AI), AI security (OWASP GenAI, Trail of Bits, Embrace The Red), funding (Crunchbase, TechCrunch Venture, Sifted) and policy (Federal Register, FTC, the EU AI Act newsletter). The list is `DEFAULT_SOURCES` in `ann-agents/src/ann_agents/ingestion/source_registry.py`; it seeds the `Source` table once, and after that sources are managed at `/admin/sources`.
+
+Each feed was checked on 2026-10-02: it answered, parsed, and had a post in the last 60 days. Gaps: Anthropic publishes no feed, so ANN reads the community mirror at github.com/Olshansk/rss-feeds; Meta AI, xAI and Cohere have no working feed. Feeds that carry only headlines are fine, because the newsroom fetches each article before writing it. Paywalled sites are left out because their text can't be fetched to check against.
 
 ---
 

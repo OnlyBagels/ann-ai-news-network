@@ -19,19 +19,137 @@ from sqlalchemy.engine import Engine
 from ann_agents.core.types import SourceItem
 from ann_agents.ingestion.source_ingester import SourceIngester
 
-# (name, type, url, category, ai_only). Names are read on air, so they are
-# the names readers know, not whatever the feed calls itself.
+# The feeds a new newsroom starts with, as (name, type, url, category,
+# ai_only). Names are read on air, so they are the names readers know, not
+# whatever the feed calls itself. Each feed was fetched and parsed on
+# 2026-10-02 and had a post within the last 60 days. The category is a hint
+# for the beat; WaterSheep makes the call per story. ai_only feeds skip the
+# "is this about AI?" screen. Anthropic has no official feed, so its two
+# entries are the community mirror at github.com/Olshansk/rss-feeds.
 DEFAULT_SOURCES: List[Tuple[str, str, Optional[str], Optional[str], bool]] = [
-    ("OpenAI News", "rss", "https://openai.com/blog/rss.xml", "models", True),
-    ("Google AI Blog", "rss", "https://blog.google/technology/ai/rss/", "models", True),
+    # models
+    ("Ai2 Blog", "rss", "https://allenai.org/rss.xml", "models", True),
+    (
+        "Anthropic News",
+        "rss",
+        "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_anthropic_news.xml",
+        "models",
+        True,
+    ),
+    ("Apple Machine Learning Research", "rss", "https://machinelearning.apple.com/rss.xml", "models", True),
+    ("Ars Technica AI", "rss", "https://arstechnica.com/ai/feed/", "models", True),
+    ("Google AI Blog", "rss", "https://blog.google/innovation-and-ai/technology/ai/rss/", "models", True),
     ("Google DeepMind", "rss", "https://deepmind.google/blog/rss.xml", "models", True),
-    ("Mistral AI", "rss", "https://mistral.ai/news/rss/", "models", True),
+    ("Microsoft Research Blog", "rss", "https://www.microsoft.com/en-us/research/feed/", "models", True),
+    ("Mistral AI", "rss", "https://mistral.ai/news/rss", "models", True),
+    (
+        "MIT Technology Review AI",
+        "rss",
+        "https://www.technologyreview.com/topic/artificial-intelligence/feed",
+        "models",
+        True,
+    ),
+    ("NVIDIA Blog: Generative AI", "rss", "https://blogs.nvidia.com/blog/category/generative-ai/feed/", "models", True),
+    ("One Useful Thing", "rss", "https://www.oneusefulthing.org/feed", "models", True),
+    ("OpenAI News", "rss", "https://openai.com/news/rss.xml", "models", True),
+    ("Stability AI News", "rss", "https://stability.ai/news-updates?format=rss", "models", True),
+    ("TechCrunch AI", "rss", "https://techcrunch.com/category/artificial-intelligence/feed/", "models", True),
+    ("The Decoder", "rss", "https://the-decoder.com/feed/", "models", True),
+    (
+        "The Register AI",
+        "rss",
+        "https://api.theregister.com/api/v1/article?orderBy=published&site_id=2&remapper=rss&query=(tag:software+AND+tag:%22ai+and+ml%22)",
+        "models",
+        True,
+    ),
+    ("The Verge AI", "rss", "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml", "models", True),
+    ("Wired AI", "rss", "https://www.wired.com/feed/tag/ai/latest/rss", "models", True),
+    ("Amazon Science", "rss", "https://www.amazon.science/index.rss", "models", False),
+    # open_source
     ("Hugging Face Blog", "rss", "https://huggingface.co/blog/feed.xml", "open_source", True),
+    ("Interconnects", "rss", "https://www.interconnects.ai/feed", "open_source", True),
+    ("Mozilla.ai Blog", "rss", "https://blog.mozilla.ai/rss/", "open_source", True),
+    ("Ollama Blog", "rss", "https://ollama.com/blog/rss.xml", "open_source", True),
+    ("Together AI Blog", "rss", "https://www.together.ai/blog/rss.xml", "open_source", True),
+    ("vLLM Blog", "rss", "https://vllm.ai/blog/rss.xml", "open_source", True),
+    # coding_ai
+    ("GitHub Blog: AI & ML", "rss", "https://github.blog/ai-and-ml/feed/", "coding_ai", True),
+    ("GitHub Changelog: Copilot", "rss", "https://github.blog/changelog/label/copilot/feed/", "coding_ai", True),
+    ("JetBrains AI Blog", "rss", "https://blog.jetbrains.com/ai/feed/", "coding_ai", True),
+    (
+        "Simon Willison: AI-assisted programming",
+        "rss",
+        "https://simonwillison.net/tags/ai-assisted-programming.atom",
+        "coding_ai",
+        True,
+    ),
+    ("The New Stack AI", "rss", "https://thenewstack.io/category/ai/feed/", "coding_ai", True),
+    # agents
+    ("AI News (smol.ai)", "rss", "https://news.smol.ai/rss.xml", "agents", True),
+    (
+        "Claude Blog",
+        "rss",
+        "https://raw.githubusercontent.com/Olshansk/rss-feeds/main/feeds/feed_claude.xml",
+        "agents",
+        True,
+    ),
+    ("LangChain Blog", "rss", "https://www.langchain.com/blog/rss.xml", "agents", True),
+    ("Latent Space", "rss", "https://www.latent.space/feed", "agents", True),
+    ("Model Context Protocol Blog", "rss", "https://blog.modelcontextprotocol.io/index.xml", "agents", True),
+    # research
+    ("Ahead of AI", "rss", "https://magazine.sebastianraschka.com/feed", "research", True),
+    ("Epoch AI", "rss", "https://epochai.substack.com/feed", "research", True),
+    ("Google Research Blog", "rss", "https://research.google/blog/rss/", "research", True),
+    ("IEEE Spectrum AI", "rss", "https://spectrum.ieee.org/feeds/topic/artificial-intelligence.rss", "research", True),
+    ("Import AI", "rss", "https://importai.substack.com/feed", "research", True),
+    ("METR", "rss", "https://metr.org/feed.xml", "research", True),
+    # security
+    ("Adversa AI", "rss", "https://adversa.ai/rss.xml", "security", True),
+    ("OWASP GenAI Security Project", "rss", "https://genai.owasp.org/feed/", "security", True),
+    (
+        "Simon Willison: prompt injection",
+        "rss",
+        "https://simonwillison.net/tags/prompt-injection.atom",
+        "security",
+        True,
+    ),
+    ("Embrace The Red", "rss", "https://embracethered.com/blog/index.xml", "security", False),
+    ("tl;dr sec", "rss", "https://rss.beehiiv.com/feeds/xgTKUmMmUm.xml", "security", False),
+    ("Trail of Bits Blog", "rss", "https://blog.trailofbits.com/index.xml", "security", False),
+    # funding
+    ("AI Business", "rss", "https://aibusiness.com/rss.xml", "funding", True),
+    ("SiliconANGLE AI", "rss", "https://siliconangle.com/category/ai/feed/", "funding", True),
+    ("Crunchbase News AI", "rss", "https://news.crunchbase.com/sections/ai/feed/", "funding", False),
+    ("Sifted AI", "rss", "https://sifted.eu/sector/artificial-intelligence/feed", "funding", False),
+    ("TechCrunch Venture", "rss", "https://techcrunch.com/category/venture/feed/", "funding", False),
+    # regulation
+    ("AI Now Institute", "rss", "https://ainowinstitute.org/feed", "regulation", True),
+    ("AI Safety Newsletter (CAIS)", "rss", "https://newsletter.safe.ai/feed", "regulation", True),
+    ("EU AI Act Newsletter", "rss", "https://artificialintelligenceact.substack.com/feed", "regulation", True),
+    ("Transformer", "rss", "https://www.transformernews.ai/feed", "regulation", True),
+    (
+        "Federal Register: AI",
+        "rss",
+        "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bterm%5D=%22artificial+intelligence%22&order=newest",
+        "regulation",
+        False,
+    ),
+    ("FTC Press Releases", "rss", "https://www.ftc.gov/feeds/press-release.xml", "regulation", False),
+    ("Politico Technology", "rss", "https://rss.politico.com/technology.xml", "regulation", False),
+    # not RSS
     ("Hacker News", "hackernews", "https://news.ycombinator.com", None, False),
     ("arXiv", "arxiv", "https://arxiv.org/list/cs.AI/recent", "research", True),
     ("GitHub Trending", "github_trending", "https://github.com/trending", "open_source", False),
     ("HuggingFace", "huggingface", "https://huggingface.co/models", "open_source", True),
 ]
+
+# Feed URLs that earlier versions seeded and that have since moved. Seeding
+# points a source still on one of these at its new URL.
+RETIRED_URLS = {
+    "https://openai.com/blog/rss.xml",
+    "https://blog.google/technology/ai/rss/",
+    "https://mistral.ai/news/rss/",
+}
 
 FEED_LIMIT = 30
 
@@ -57,10 +175,16 @@ class SourceRegistry:
         with self.engine.begin() as conn:
             for name, kind, url, category, ai_only in sources:
                 exists = conn.execute(
-                    text('SELECT 1 FROM "Source" WHERE name = :name OR (url IS NOT NULL AND url = :url)'),
+                    text('SELECT id, url FROM "Source" WHERE name = :name OR (url IS NOT NULL AND url = :url)'),
                     {"name": name, "url": url},
                 ).first()
                 if exists:
+                    if exists[1] in RETIRED_URLS and url != exists[1]:
+                        conn.execute(
+                            text('UPDATE "Source" SET url = :url, failures = 0, "lastError" = NULL, '
+                                 '"updatedAt" = now() WHERE id = :id'),
+                            {"url": url, "id": exists[0]},
+                        )
                     continue
                 conn.execute(
                     text("""
