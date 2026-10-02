@@ -46,7 +46,11 @@ class Settings(BaseSettings):
     llm_cheap_model: str = Field(default="deepseek-chat")  # DeepSeek V4 Flash
     llm_long_context_model: str = Field(default="gemini-2.0-flash")  # Gemini Flash
     llm_social_model: str = Field(default="grok-2")  # Grok
-    llm_premium_model: str = Field(default="claude-sonnet-4")  # Claude/GPT
+    openai_model: str = Field(default="gpt-4o-mini", alias="OPENAI_MODEL")
+    # Claude models per tier. Claude stands in for DeepSeek, Gemini and Grok
+    # when only ANTHROPIC_API_KEY is set.
+    anthropic_cheap_model: str = Field(default="claude-haiku-4-5", alias="ANTHROPIC_CHEAP_MODEL")
+    anthropic_premium_model: str = Field(default="claude-sonnet-5-5", alias="ANTHROPIC_PREMIUM_MODEL")
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

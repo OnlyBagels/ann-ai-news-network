@@ -117,7 +117,7 @@ class StoryPipeline:
         """Run all reporter agents in parallel."""
         tasks = []
         for role, agent in self.reporters.items():
-            tasks.append(agent.run(story.copy(deep=True)))
+            tasks.append(agent.run(story.model_copy(deep=True)))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -134,7 +134,7 @@ class StoryPipeline:
         """Run all editorial agents in parallel."""
         tasks = []
         for role, agent in self.editorial_agents.items():
-            tasks.append(agent.run(story.copy(deep=True)))
+            tasks.append(agent.run(story.model_copy(deep=True)))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -152,7 +152,7 @@ class StoryPipeline:
         for role, agent in self.oversight_agents.items():
             if role == AgentRole.EDITOR_IN_CHIEF:
                 continue
-            tasks.append(agent.run(story.copy(deep=True)))
+            tasks.append(agent.run(story.model_copy(deep=True)))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

@@ -13,10 +13,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from ann_agents.core.config import settings
+from ann_agents.core.db import make_engine
 from ann_agents.core.types import Story, StoryStatus
 
 
@@ -28,7 +29,7 @@ class DatabaseBridge:
     """
 
     def __init__(self):
-        self.engine = create_engine(settings.database_url)
+        self.engine = make_engine()
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def save_story(self, story: Story) -> Optional[str]:
@@ -52,7 +53,7 @@ class DatabaseBridge:
     def _upsert_article(self, session: Session, story: Story) -> str:
         """Insert or update an article record."""
         slug = story.slug or self._make_slug(story.title)
-        url = story.url or story.primary_source.url if story.primary_source else f"https://ann.news/story/{slug}"
+        url = story.url or (story.primary_source.url if story.primary_source else f"https://ann.news/story/{slug}")
 
         # Check if article already exists
         existing = session.execute(
@@ -97,8 +98,8 @@ class DatabaseBridge:
                     "createdAt", "updatedAt"
                 ) VALUES (
                     gen_random_uuid()::text, :title, :slug, :url, :source, :source_url, :author,
-                    :published_at, :summary, :tl_dr, :content, :tags, :category::"Category",
-                    :status::"StoryStatus", :agents, :sources_analyzed,
+                    :published_at, :summary, :tl_dr, :content, :tags, CAST(:category AS "Category"),
+                    CAST(:status AS "StoryStatus"), :agents, :sources_analyzed,
                     :fact_check_status,
                     :overall_confidence, :source_quality, :controversy_score,
                     :citation_count, :verified_claims, :unverified_claims,
@@ -152,8 +153,8 @@ class DatabaseBridge:
                     "tlDr" = :tl_dr,
                     content = :content,
                     tags = :tags,
-                    category = :category::"Category",
-                    "storyStatus" = :status::"StoryStatus",
+                    category = CAST(:category AS "Category"),
+                    "storyStatus" = CAST(:status AS "StoryStatus"),
                     "agentsInvolved" = :agents,
                     "sourcesAnalyzed" = :sources_analyzed,
                     "factCheckStatus" = :fact_check_status,
@@ -272,7 +273,7 @@ class DatabaseBridge:
                         "startedAt", "completedAt", output, error, "durationMs"
                     ) VALUES (
                         gen_random_uuid()::text, :article_id, :role, :state,
-                        :started_at, :completed_at, :output::jsonb, :error, :duration_ms
+                        :started_at, :completed_at, CAST(:output AS jsonb), :error, :duration_ms
                     )
                 """),
                 {
@@ -333,8 +334,8 @@ class DatabaseBridge:
                 text("""
                     UPDATE "Article" SET
                         "storyStatus" = 'approved'::"StoryStatus",
-                        "humanReviewer" = :reviewer,
-                        "publishedAtReal" = NOW(),
+                        "human_reviewer" = :reviewer,
+                        "published_at_real" = NOW(),
                         "updatedAt" = NOW()
                     WHERE id = :id
                 """),
@@ -357,7 +358,7 @@ class DatabaseBridge:
                 text("""
                     UPDATE "Article" SET
                         "storyStatus" = 'rejected'::"StoryStatus",
-                        "humanNotes" = :notes,
+                        "human_notes" = :notes,
                         "updatedAt" = NOW()
                     WHERE id = :id
                 """),
@@ -382,9 +383,6 @@ class DatabaseBridge:
         timestamp = int(datetime.utcnow().timestamp())
         return f"{slug[:80]}-{timestamp}"
 
-    def _to_pg_array(self, items: List[str]) -> str:
-        """Convert a Python list to a PostgreSQL array string."""
-        if not items:
-            return "{}"
-        escaped = [f'"{item.replace('"', '\\"')}"' for item in items]
-        return "{" + ",".join(escaped) + "}"
+    def _to_pg_array(self, items: List[str]) -> List[str]:
+        """Pass a list for a text[] column; psycopg2 adapts it to an ARRAY."""
+        return [str(item) for item in items if item]

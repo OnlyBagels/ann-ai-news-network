@@ -139,9 +139,14 @@ class EditorInChief(BaseAgent):
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
         elif risk and risk.risk_level == RiskLevel.HIGH:
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif confidence and confidence.overall_confidence < 0.5:
+        elif confidence is None:
+            # The fact-check never produced a score (no model configured,
+            # request failed, unparseable reply). Unchecked stories don't
+            # publish on their own.
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
-        elif confidence and confidence.hallucination_risk > 0.7:
+        elif confidence.overall_confidence < 0.5:
+            story.status = StoryStatus.NEEDS_HUMAN_REVIEW
+        elif confidence.hallucination_risk > 0.7:
             story.status = StoryStatus.NEEDS_HUMAN_REVIEW
         elif has_agents:
             story.status = StoryStatus.APPROVED

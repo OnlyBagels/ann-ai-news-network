@@ -190,6 +190,3 @@ class Story(BaseModel):
     sources_analyzed: int = 0
     agents_involved: List[AgentRole] = Field(default_factory=list)
     fact_check_status: str = "pending"
-
-    class Config:
-        use_enum_values = True
