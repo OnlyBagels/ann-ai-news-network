@@ -7,7 +7,7 @@ ann-web/src/broadcast/types.ts, which the web player and the streamer read.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -37,6 +37,19 @@ class Anchor(BaseModel):
     persona: str
 
 
+class Reporter(BaseModel):
+    """A beat journalist: writes that beat's stories and reports on air."""
+
+    id: str
+    name: str
+    beat: str
+    title: str
+    voice: str
+    look: AnchorLook
+    bio: str
+    style: str
+
+
 class Show(_Camel):
     id: str
     name: str
@@ -57,6 +70,8 @@ class Lineup(BaseModel):
     anchors: List[Anchor]
     shows: List[Show]
     grid: List[GridSlot]
+    reporters: List[Reporter] = Field(default_factory=list)
+    beats: Dict[str, str] = Field(default_factory=dict)  # category -> reporter id
 
 
 class Fact(BaseModel):

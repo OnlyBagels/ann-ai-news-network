@@ -15,6 +15,14 @@ export interface Article {
   scores: Scores;
   imageUrl?: string;
   relatedArticles?: string[];
+  byline?: Byline;
+}
+
+// The AI reporter who wrote the story, from the newsroom lineup.
+export interface Byline {
+  id: string;
+  name: string;
+  title: string;
 }
 
 export interface Scores {

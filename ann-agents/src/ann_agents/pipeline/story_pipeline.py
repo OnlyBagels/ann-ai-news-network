@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from loguru import logger
 
 from ann_agents.core.config import settings
-from ann_agents.core.types import AgentRole, Story, StoryStatus
+from ann_agents.core.types import AgentRole, Category, Story, StoryStatus
+from ann_agents.pipeline.beat import REPORTER_ROLE, assign_beat
 from ann_agents.reporters.model_reporter import ModelReporter
 from ann_agents.reporters.open_source_reporter import OpenSourceReporter
 from ann_agents.reporters.research_reporter import ResearchReporter
@@ -44,8 +45,8 @@ class StoryPipeline:
     """
 
     def __init__(self, lean: Optional[bool] = None):
-        # Lean mode (NEWSROOM_LEAN=true) is for slow, self-hosted models: one
-        # reporter, no research pass, the headline and summary editors, and
+        # Lean mode (NEWSROOM_LEAN=true) is for slow, self-hosted models: only
+        # the beat's reporter, no research pass, the headline and summary editors, and
         # the risk check. The fact-check and the editor-in-chief always run.
         self.lean = settings.newsroom_lean if lean is None else lean
 
@@ -83,7 +84,6 @@ class StoryPipeline:
         }
 
         if self.lean:
-            self.reporters = {AgentRole.MODEL_REPORTER: self.reporters[AgentRole.MODEL_REPORTER]}
             for role in (AgentRole.TECHNICAL_EDITOR, AgentRole.STYLE_EDITOR):
                 del self.editorial_agents[role]
             for role in (AgentRole.LEGAL_AGENT, AgentRole.BIAS_AGENT):
@@ -97,27 +97,33 @@ class StoryPipeline:
         logger.info(f"=== Starting pipeline for story: {story.title[:60]} ===")
         story.status = StoryStatus.INVESTIGATING
 
-        # Step 1: Reporter Agents investigate (run in parallel)
-        story = await self._run_reporters(story)
+        # Step 1: WaterSheep picks the beat, which decides the reporter.
+        beat = await assign_beat(story)
+
+        # Step 2: Reporter Agents investigate (run in parallel)
+        story = await self._run_reporters(story, beat)
+        if beat:
+            story.category = Category(beat)
+        story.byline = self._byline(story.category)
         story.status = StoryStatus.ENRICHED
 
-        # Step 2: Research Agent enriches
+        # Step 3: Research Agent enriches
         if not self.lean:
             story = await self.research_agent.run(story)
 
-        # Step 3: Fact-Check Agent verifies
+        # Step 4: Fact-Check Agent verifies
         story = await self.fact_check_agent.run(story)
         story.status = StoryStatus.VERIFIED
 
-        # Step 4: Editorial Agents refine (run in parallel)
+        # Step 5: Editorial Agents refine (run in parallel)
         story = await self._run_editorial(story)
         story.status = StoryStatus.EDITED
 
-        # Step 5: Oversight Agents review (run in parallel)
+        # Step 6: Oversight Agents review (run in parallel)
         story = await self._run_oversight(story)
         story.status = StoryStatus.REVIEWED
 
-        # Step 6: Editor-in-Chief makes final decision
+        # Step 7: Editor-in-Chief makes final decision
         story = await self.oversight_agents[AgentRole.EDITOR_IN_CHIEF].run(story)
 
         logger.info(
@@ -129,11 +135,31 @@ class StoryPipeline:
 
         return story
 
-    async def _run_reporters(self, story: Story) -> Story:
-        """Run all reporter agents in parallel."""
+    def _reporter_roles(self, beat: Optional[str]) -> List[AgentRole]:
+        """Every reporter, or in lean mode just the beat's (models by default)."""
+        if not self.lean:
+            return list(self.reporters)
+        return [REPORTER_ROLE.get(beat or "", AgentRole.MODEL_REPORTER)]
+
+    def _byline(self, category: Optional[Category]) -> Optional[str]:
+        """The beat reporter's id from the lineup, if the lineup is available."""
+        if category is None:
+            return None
+        try:
+            from ann_agents.broadcast.lineup import load_lineup
+
+            return load_lineup().beats.get(category.value)
+        except Exception as e:
+            logger.warning(f"lineup unavailable, no byline: {e}")
+            return None
+
+    async def _run_reporters(self, story: Story, beat: Optional[str] = None) -> Story:
+        """Run the reporter agents in parallel."""
         tasks = []
-        for role, agent in self.reporters.items():
-            tasks.append(agent.run(story.model_copy(deep=True)))
+        for role in self._reporter_roles(beat):
+            copy = story.model_copy(deep=True)
+            copy.byline = self._byline(Category(beat)) if beat else None
+            tasks.append(self.reporters[role].run(copy))
 
         results = await asyncio.gather(*tasks, return_exceptions=True)
 

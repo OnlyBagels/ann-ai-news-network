@@ -95,6 +95,7 @@ class DatabaseBridge:
                     "hallucination_risk",
                     "risk_level", "risk_factors", "requires_human_review",
                     "legal_concerns", "bias_concerns", "safety_flags",
+                    byline, judge,
                     "createdAt", "updatedAt"
                 ) VALUES (
                     gen_random_uuid()::text, :title, :slug, :url, :source, :source_url, :author,
@@ -106,6 +107,7 @@ class DatabaseBridge:
                     :hallucination_risk,
                     :risk_level, :risk_factors, :requires_human_review,
                     :legal_concerns, :bias_concerns, :safety_flags,
+                    :byline, CAST(:judge AS jsonb),
                     NOW(), NOW()
                 ) RETURNING id
             """),
@@ -139,6 +141,8 @@ class DatabaseBridge:
                 "legal_concerns": self._to_pg_array(story.risk.legal_concerns if story.risk else []),
                 "bias_concerns": self._to_pg_array(story.risk.bias_concerns if story.risk else []),
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
+                "byline": story.byline,
+                "judge": json.dumps(story.judge) if story.judge else None,
             },
         )
         return result.fetchone()[0]
@@ -171,6 +175,8 @@ class DatabaseBridge:
                     "legal_concerns" = :legal_concerns,
                     "bias_concerns" = :bias_concerns,
                     "safety_flags" = :safety_flags,
+                    byline = :byline,
+                    judge = CAST(:judge AS jsonb),
                     "updatedAt" = NOW()
                 WHERE id = :id
             """),
@@ -199,6 +205,8 @@ class DatabaseBridge:
                 "legal_concerns": self._to_pg_array(story.risk.legal_concerns if story.risk else []),
                 "bias_concerns": self._to_pg_array(story.risk.bias_concerns if story.risk else []),
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
+                "byline": story.byline,
+                "judge": json.dumps(story.judge) if story.judge else None,
             },
         )
 

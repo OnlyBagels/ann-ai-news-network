@@ -36,11 +36,25 @@ export interface GridSlot {
   show: string;
 }
 
+// A beat journalist: writes that beat's stories (the byline on the site).
+export interface Reporter {
+  id: string;
+  name: string;
+  beat: string; // database category, e.g. open_source
+  title: string;
+  voice: string;
+  look: AnchorLook;
+  bio: string;
+  style: string;
+}
+
 export interface Lineup {
   network: string;
   anchors: Anchor[];
   shows: Show[];
   grid: GridSlot[];
+  reporters: Reporter[];
+  beats: Record<string, string>; // category -> reporter id
 }
 
 export interface SegmentArticle {

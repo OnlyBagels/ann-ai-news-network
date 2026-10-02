@@ -5,6 +5,7 @@ from __future__ import annotations
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, Category, Story
 from ann_agents.llm.router import LLMTier, llm_router
+from ann_agents.reporters.persona import persona_note
 
 
 SYSTEM_PROMPT = """You are the Security Reporter for ANN (AI News Network).
@@ -36,7 +37,7 @@ class SecurityReporter(BaseAgent):
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
             system_prompt=SYSTEM_PROMPT,
-            user_prompt=f"Analyze this AI security story:\n\n{source_text}",
+            user_prompt=f"Analyze this AI security story:\n\n{source_text}{persona_note(story)}",
             response_format={"type": "json_object"},
         )
 

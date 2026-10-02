@@ -180,6 +180,7 @@ class Story(BaseModel):
     judge: Optional[Dict[str, float]] = None
 
     # Editorial
+    byline: Optional[str] = None  # reporter id from the lineup
     headline: Optional[str] = None
     suggested_headlines: List[str] = Field(default_factory=list)
 

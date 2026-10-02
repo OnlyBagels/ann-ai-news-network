@@ -48,6 +48,8 @@ model Article {
   category        Category
   imageUrl        String?
   relatedArticles String[]
+  byline          String?    // reporter id from src/broadcast/lineup.json
+  judge           Json?      // WaterSheep scores: relevance, support, clickbait
 
   // Agent pipeline tracking
   storyStatus     StoryStatus @default(raw)

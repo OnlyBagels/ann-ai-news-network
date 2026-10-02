@@ -6,7 +6,14 @@
       "name": "Marla Quill",
       "role": "Lead anchor",
       "voice": "en_US-amy-medium",
-      "look": { "skin": "#c68863", "hair": "#2b1d16", "hairStyle": "bob", "outfit": "#24364f", "accent": "#e0e4ea", "glasses": false },
+      "look": {
+        "skin": "#c68863",
+        "hair": "#2b1d16",
+        "hairStyle": "bob",
+        "outfit": "#24364f",
+        "accent": "#e0e4ea",
+        "glasses": false
+      },
       "persona": "Runs the desk. Dry, quick, allergic to hype. Asks the question the press release dodged. Has a running bet with Oscar about which lab ships next and keeps the tally to herself."
     },
     {
@@ -14,7 +21,14 @@
       "name": "Oscar Byrne",
       "role": "Models and coding",
       "voice": "en_US-ryan-medium",
-      "look": { "skin": "#e9c1a0", "hair": "#b5651d", "hairStyle": "short", "outfit": "#3c4a3a", "accent": "#f2d16b", "glasses": true },
+      "look": {
+        "skin": "#e9c1a0",
+        "hair": "#b5651d",
+        "hairStyle": "short",
+        "outfit": "#3c4a3a",
+        "accent": "#f2d16b",
+        "glasses": true
+      },
       "persona": "Former backend engineer. Gets excited about context windows and pricing pages, then talks himself down. Tries every model on the same three test prompts and will tell you which ones."
     },
     {
@@ -22,7 +36,14 @@
       "name": "Juno Sato",
       "role": "Research desk",
       "voice": "en_US-kristin-medium",
-      "look": { "skin": "#f0cfa8", "hair": "#111111", "hairStyle": "long", "outfit": "#5a3e5d", "accent": "#d9d9d9", "glasses": false },
+      "look": {
+        "skin": "#f0cfa8",
+        "hair": "#111111",
+        "hairStyle": "long",
+        "outfit": "#5a3e5d",
+        "accent": "#d9d9d9",
+        "glasses": false
+      },
       "persona": "Reads the paper, not the thread about the paper. Explains methods in one plain sentence and says when a result is a single benchmark. Quietly unimpressed by leaderboards."
     },
     {
@@ -30,7 +51,14 @@
       "name": "Rhett Calder",
       "role": "Security and policy",
       "voice": "en_US-joe-medium",
-      "look": { "skin": "#8d5a3b", "hair": "#3a3a3a", "hairStyle": "buzz", "outfit": "#4a2a2a", "accent": "#c9c9c9", "glasses": false },
+      "look": {
+        "skin": "#8d5a3b",
+        "hair": "#3a3a3a",
+        "hairStyle": "buzz",
+        "outfit": "#4a2a2a",
+        "accent": "#c9c9c9",
+        "glasses": false
+      },
       "persona": "Ex incident responder. Calm, specific, a little grim. Always says who is affected and what to do on Monday. Thinks Oscar patches too slowly and says so."
     }
   ],
@@ -39,8 +67,20 @@
       "id": "the-wire",
       "name": "The Wire",
       "blurb": "The biggest AI stories of the hour, straight from the sources.",
-      "anchors": ["marla", "oscar"],
-      "categories": ["models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation"],
+      "anchors": [
+        "marla",
+        "oscar"
+      ],
+      "categories": [
+        "models",
+        "open_source",
+        "coding_ai",
+        "agents",
+        "research",
+        "security",
+        "funding",
+        "regulation"
+      ],
       "color": "#1d3557",
       "segmentsPerStory": 1
     },
@@ -48,8 +88,15 @@
       "id": "model-watch",
       "name": "Model Watch",
       "blurb": "Launches, pricing pages, benchmarks and API changes, read closely.",
-      "anchors": ["oscar", "marla"],
-      "categories": ["models", "coding_ai", "agents"],
+      "anchors": [
+        "oscar",
+        "marla"
+      ],
+      "categories": [
+        "models",
+        "coding_ai",
+        "agents"
+      ],
       "color": "#264d3b",
       "segmentsPerStory": 1
     },
@@ -57,8 +104,15 @@
       "id": "open-weights",
       "name": "Open Weights",
       "blurb": "New repos, released weights and the licenses attached to them.",
-      "anchors": ["oscar", "juno"],
-      "categories": ["open_source", "agents", "coding_ai"],
+      "anchors": [
+        "oscar",
+        "juno"
+      ],
+      "categories": [
+        "open_source",
+        "agents",
+        "coding_ai"
+      ],
       "color": "#3d3a1e",
       "segmentsPerStory": 1
     },
@@ -66,8 +120,13 @@
       "id": "paper-trail",
       "name": "Paper Trail",
       "blurb": "This week's preprints, with the method in plain words.",
-      "anchors": ["juno", "marla"],
-      "categories": ["research"],
+      "anchors": [
+        "juno",
+        "marla"
+      ],
+      "categories": [
+        "research"
+      ],
       "color": "#3b2a4d",
       "segmentsPerStory": 1
     },
@@ -75,8 +134,13 @@
       "id": "red-team",
       "name": "Red Team Report",
       "blurb": "Vulnerabilities, jailbreaks and incidents, and who has to patch what.",
-      "anchors": ["rhett", "oscar"],
-      "categories": ["security"],
+      "anchors": [
+        "rhett",
+        "oscar"
+      ],
+      "categories": [
+        "security"
+      ],
       "color": "#4d1f1f",
       "segmentsPerStory": 1
     },
@@ -84,8 +148,13 @@
       "id": "the-ledger",
       "name": "The Ledger",
       "blurb": "Rounds, acquisitions and compute deals.",
-      "anchors": ["marla", "rhett"],
-      "categories": ["funding"],
+      "anchors": [
+        "marla",
+        "rhett"
+      ],
+      "categories": [
+        "funding"
+      ],
       "color": "#1f3d4d",
       "segmentsPerStory": 1
     },
@@ -93,24 +162,196 @@
       "id": "rulebook",
       "name": "Rulebook",
       "blurb": "AI law and policy, and what changes for builders.",
-      "anchors": ["rhett", "juno"],
-      "categories": ["regulation"],
+      "anchors": [
+        "rhett",
+        "juno"
+      ],
+      "categories": [
+        "regulation"
+      ],
       "color": "#2e2e3f",
       "segmentsPerStory": 1
     }
   ],
   "grid": [
-    { "hourUtc": 0, "show": "the-wire" },
-    { "hourUtc": 2, "show": "open-weights" },
-    { "hourUtc": 4, "show": "paper-trail" },
-    { "hourUtc": 6, "show": "the-wire" },
-    { "hourUtc": 8, "show": "model-watch" },
-    { "hourUtc": 10, "show": "red-team" },
-    { "hourUtc": 12, "show": "the-wire" },
-    { "hourUtc": 14, "show": "model-watch" },
-    { "hourUtc": 16, "show": "the-ledger" },
-    { "hourUtc": 18, "show": "rulebook" },
-    { "hourUtc": 20, "show": "the-wire" },
-    { "hourUtc": 22, "show": "open-weights" }
-  ]
+    {
+      "hourUtc": 0,
+      "show": "the-wire"
+    },
+    {
+      "hourUtc": 2,
+      "show": "open-weights"
+    },
+    {
+      "hourUtc": 4,
+      "show": "paper-trail"
+    },
+    {
+      "hourUtc": 6,
+      "show": "the-wire"
+    },
+    {
+      "hourUtc": 8,
+      "show": "model-watch"
+    },
+    {
+      "hourUtc": 10,
+      "show": "red-team"
+    },
+    {
+      "hourUtc": 12,
+      "show": "the-wire"
+    },
+    {
+      "hourUtc": 14,
+      "show": "model-watch"
+    },
+    {
+      "hourUtc": 16,
+      "show": "the-ledger"
+    },
+    {
+      "hourUtc": 18,
+      "show": "rulebook"
+    },
+    {
+      "hourUtc": 20,
+      "show": "the-wire"
+    },
+    {
+      "hourUtc": 22,
+      "show": "open-weights"
+    }
+  ],
+  "reporters": [
+    {
+      "id": "tomas",
+      "name": "Tomas Reyes",
+      "beat": "models",
+      "title": "Models and APIs reporter",
+      "voice": "en_US-hfc_male-medium",
+      "look": {
+        "skin": "#b07850",
+        "hair": "#1f1a17",
+        "hairStyle": "short",
+        "outfit": "#2f3e5c",
+        "accent": "#d8dde6",
+        "glasses": false
+      },
+      "bio": "Covers model launches, pricing pages and API changes. Reads the changelog before the announcement post.",
+      "style": "Leads with what changed and what it costs. Short sentences. Names the model, the version and the date."
+    },
+    {
+      "id": "ada",
+      "name": "Ada Okonkwo",
+      "beat": "open_source",
+      "title": "Open source reporter",
+      "voice": "en_GB-alba-medium",
+      "look": {
+        "skin": "#6b4226",
+        "hair": "#141010",
+        "hairStyle": "long",
+        "outfit": "#3e5c3a",
+        "accent": "#efe6d2",
+        "glasses": true
+      },
+      "bio": "Covers released weights, repos and licenses. Always checks what the license actually allows.",
+      "style": "Says what was released, under which license, and where to get it. Notes what is missing (weights, data, code)."
+    },
+    {
+      "id": "lena",
+      "name": "Lena Fischer",
+      "beat": "coding_ai",
+      "title": "Agents and developer tools reporter",
+      "voice": "en_US-lessac-medium",
+      "look": {
+        "skin": "#f1d3b8",
+        "hair": "#c9a227",
+        "hairStyle": "bob",
+        "outfit": "#5c3a52",
+        "accent": "#dcdcdc",
+        "glasses": false
+      },
+      "bio": "Covers coding assistants, agent frameworks and the tools developers actually ship with.",
+      "style": "Explains what a developer can do now that they couldn't before. Concrete, practical, no superlatives."
+    },
+    {
+      "id": "kenji",
+      "name": "Kenji Watanabe",
+      "beat": "research",
+      "title": "Research reporter",
+      "voice": "en_US-john-medium",
+      "look": {
+        "skin": "#e8c8a0",
+        "hair": "#202020",
+        "hairStyle": "short",
+        "outfit": "#4a4a5c",
+        "accent": "#c8d0e0",
+        "glasses": true
+      },
+      "bio": "Covers papers and preprints. Separates the method from the headline number.",
+      "style": "States the question, the method in one plain sentence, and the result with its benchmark. Says when results are preliminary."
+    },
+    {
+      "id": "sam",
+      "name": "Sam Albright",
+      "beat": "security",
+      "title": "Security reporter",
+      "voice": "en_GB-northern_english_male-medium",
+      "look": {
+        "skin": "#d9a77f",
+        "hair": "#7a4a2a",
+        "hairStyle": "buzz",
+        "outfit": "#3a2f2f",
+        "accent": "#b5b5b5",
+        "glasses": false
+      },
+      "bio": "Covers vulnerabilities, jailbreaks, prompt injection and incidents in AI systems.",
+      "style": "Who is affected, how bad it is, whether there is a fix, and what to do. Never gives exploit details."
+    },
+    {
+      "id": "nadia",
+      "name": "Nadia Haddad",
+      "beat": "funding",
+      "title": "Business and funding reporter",
+      "voice": "en_US-hfc_female-medium",
+      "look": {
+        "skin": "#c99a72",
+        "hair": "#2a1a12",
+        "hairStyle": "long",
+        "outfit": "#1f3d4d",
+        "accent": "#e8e2d0",
+        "glasses": false
+      },
+      "bio": "Covers rounds, acquisitions, compute deals and revenue.",
+      "style": "Who paid whom, how much, at what valuation, and what the money is for. Only figures the source states."
+    },
+    {
+      "id": "marcus",
+      "name": "Marcus Bell",
+      "beat": "regulation",
+      "title": "Policy and regulation reporter",
+      "voice": "en_GB-alan-medium",
+      "look": {
+        "skin": "#5a3a28",
+        "hair": "#3a3a3a",
+        "hairStyle": "short",
+        "outfit": "#2e2e3f",
+        "accent": "#d0c8b8",
+        "glasses": true
+      },
+      "bio": "Covers AI law, regulators and policy: what is proposed, what is binding, and when.",
+      "style": "Says which body, which rule, whether it is proposed or in force, the dates, and who it applies to."
+    }
+  ],
+  "beats": {
+    "models": "tomas",
+    "open_source": "ada",
+    "coding_ai": "lena",
+    "agents": "lena",
+    "research": "kenji",
+    "security": "sam",
+    "funding": "nadia",
+    "regulation": "marcus"
+  }
 }

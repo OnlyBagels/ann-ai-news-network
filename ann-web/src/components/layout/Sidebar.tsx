@@ -45,6 +45,9 @@ export function Sidebar() {
             <span className="status-dot live" aria-hidden="true" />
             <span>ANN Live</span>
           </Link>
+          <Link href="/newsroom" className="block hover:text-foreground transition-colors">
+            Newsroom
+          </Link>
           <div className="text-[9px] text-muted/50">
             v0.1.0 · MVP Build
           </div>

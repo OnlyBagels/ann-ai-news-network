@@ -29,7 +29,8 @@ def voice_url(voice: str, ext: str) -> str:
 def main() -> int:
     target = Path(settings.broadcast_piper_voices_dir)
     target.mkdir(parents=True, exist_ok=True)
-    voices = sorted({a.voice for a in load_lineup().anchors})
+    lineup = load_lineup()
+    voices = sorted({a.voice for a in lineup.anchors} | {r.voice for r in lineup.reporters})
     failed = 0
     with httpx.Client(follow_redirects=True, timeout=120) as client:
         for voice in voices:

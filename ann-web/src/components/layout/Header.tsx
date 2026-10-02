@@ -36,6 +36,7 @@ export function Header() {
         <nav className="hidden md:flex items-center gap-1">
           <NavLink href="/" label="Feed" />
           <NavLink href="/live" label="Live" />
+          <NavLink href="/newsroom" label="Newsroom" />
           <NavLink href="/categories/models" label="Models" />
           <NavLink href="/categories/research" label="Research" />
           <NavLink href="/categories/security" label="Security" />
@@ -67,6 +68,7 @@ export function Header() {
           <nav className="flex flex-col gap-2">
             <MobileNavLink href="/" label="Feed" />
             <MobileNavLink href="/live" label="Live" />
+            <MobileNavLink href="/newsroom" label="Newsroom" />
             <MobileNavLink href="/categories/models" label="Models" />
             <MobileNavLink href="/categories/research" label="Research" />
             <MobileNavLink href="/categories/security" label="Security" />

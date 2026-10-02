@@ -11,7 +11,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-from ann_agents.broadcast.models import Anchor, Lineup, Show
+from ann_agents.broadcast.models import Anchor, Lineup, Reporter, Show
 from ann_agents.core.config import settings
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -39,10 +39,19 @@ def _validate(lineup: Lineup) -> None:
     for slot in lineup.grid:
         if slot.show not in show_ids:
             raise ValueError(f"grid names unknown show: {slot.show}")
+    reporter_ids = {r.id for r in lineup.reporters}
+    for beat, reporter_id in lineup.beats.items():
+        if reporter_id not in reporter_ids:
+            raise ValueError(f"beat {beat} names unknown reporter: {reporter_id}")
 
 
 def anchor(lineup: Lineup, anchor_id: str) -> Anchor:
     return next(a for a in lineup.anchors if a.id == anchor_id)
+
+
+def reporter_for(lineup: Lineup, beat: Optional[str]) -> Optional[Reporter]:
+    reporter_id = lineup.beats.get(beat or "")
+    return next((r for r in lineup.reporters if r.id == reporter_id), None)
 
 
 def show(lineup: Lineup, show_id: str) -> Show:

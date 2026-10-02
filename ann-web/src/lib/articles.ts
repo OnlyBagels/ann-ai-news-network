@@ -1,5 +1,6 @@
 import type { Prisma, Category as DbCategory, StoryStatus } from "@prisma/client";
-import type { Article, Category } from "@/types";
+import type { Article, Byline, Category } from "@/types";
+import { lineup } from "@/lib/live";
 
 // Only stories that passed the pipeline (or a human editor) are public.
 export const PUBLIC_STATUSES: StoryStatus[] = ["approved", "published"];
@@ -56,5 +57,11 @@ export function toArticle(row: ArticleWithScores): Article {
       : EMPTY_SCORES,
     imageUrl: row.imageUrl ?? undefined,
     relatedArticles: row.relatedArticles,
+    byline: bylineFor(row.byline),
   };
+}
+
+export function bylineFor(reporterId: string | null | undefined): Byline | undefined {
+  const reporter = lineup.reporters.find((r) => r.id === reporterId);
+  return reporter ? { id: reporter.id, name: reporter.name, title: reporter.title } : undefined;
 }

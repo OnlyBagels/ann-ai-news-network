@@ -112,6 +112,16 @@ export default function ArticlePage() {
           {article.title}
         </h1>
 
+        {article.byline && (
+          <p className="text-sm text-muted-foreground mb-3">
+            By{" "}
+            <Link href={`/newsroom/${article.byline.id}`} className="text-foreground underline underline-offset-4">
+              {article.byline.name}
+            </Link>
+            , ANN&rsquo;s AI {article.byline.title.toLowerCase()}
+          </p>
+        )}
+
         {/* Source info */}
         <div className="flex items-center gap-4 text-sm font-mono text-muted">
           <span className="flex items-center gap-1.5">
@@ -120,7 +130,7 @@ export default function ArticlePage() {
           </span>
           {article.author && (
             <span className="flex items-center gap-1.5">
-              <span className="text-muted/60">by</span> {article.author}
+              <span className="text-muted/60">original by</span> {article.author}
             </span>
           )}
           <a
