@@ -14,7 +14,8 @@ from ann_agents.broadcast.models import ScriptLine
 
 def _as_of(board: Dict[str, Any]) -> str:
     when = datetime.fromisoformat(board["asOf"]).astimezone(ZoneInfo("America/New_York"))
-    return when.strftime("%-I:%M %p").lower().replace(" ", " ") + " Eastern"
+    # %-I (no leading zero) is glibc-only; build the hour by hand so it runs on Windows too
+    return f"{when.hour % 12 or 12}:{when:%M} {when:%p}".lower() + " Eastern"
 
 
 def _chunks(items: List[Any], n: int) -> List[List[Any]]:

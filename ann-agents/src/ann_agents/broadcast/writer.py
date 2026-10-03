@@ -88,7 +88,7 @@ def writer_user_prompt(
     parts = [
         f"Show: {show.name}. {show.blurb}",
         f"At the desk, left to right: {at_desk}. Use these ids as speaker.",
-        f"Time on air: {local:%-I:%M %p} Eastern.",
+        f"Time on air: {local.hour % 12 or 12}:{local:%M %p} Eastern.",
     ]
     for g in guests:
         parts.append(f"{g.name} ({g.id}) is ANN's AI {g.role.lower()}, joining from the newsroom: {g.persona}")
