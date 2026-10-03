@@ -156,10 +156,17 @@ class EditorInChief(BaseAgent):
         elif problem := self._watersheep_problem(story):
             # WaterSheep disagrees: off-topic stories are dropped, anything
             # else it doubts goes to a person.
-            story.status = StoryStatus.REJECTED if problem.startswith("not news") else StoryStatus.NEEDS_HUMAN_REVIEW
+            # When the fact-check doubts the story too, both votes say no and
+            # it is dropped rather than queued for a person.
+            both_doubt = problem.startswith("summary support") and self._fact_check_doubts(story)
+            rejected = problem.startswith("not news") or both_doubt
+            story.status = StoryStatus.REJECTED if rejected else StoryStatus.NEEDS_HUMAN_REVIEW
             if story.risk is None:
                 story.risk = RiskAssessment()
             story.risk.risk_factors = list(story.risk.risk_factors) + [f"WaterSheep: {problem}"]
+            if both_doubt:
+                story.human_reviewer = "auto_audit"
+                story.human_notes = f"Auto-rejected: the fact-check doubts it and WaterSheep finds {problem}."
         elif confidence is None:
             # The fact-check never produced a score (no model configured,
             # request failed, unparseable reply). Unchecked stories don't
@@ -178,6 +185,16 @@ class EditorInChief(BaseAgent):
         story.scores = self._calculate_scores(story)
 
         return story
+
+    @staticmethod
+    def _fact_check_doubts(story: Story) -> bool:
+        """The fact-check found the story weak: very low confidence, a high
+        hallucination risk, or claims with nothing verified or cited."""
+        c = story.confidence
+        if c is None:
+            return False
+        nothing_checks_out = c.verified_claims == 0 and c.citation_count == 0 and c.unverified_claims > 0
+        return c.overall_confidence < 0.35 or c.hallucination_risk >= 0.85 or nothing_checks_out
 
     def _watersheep_problem(self, story: Story) -> Optional[str]:
         judge = story.judge
