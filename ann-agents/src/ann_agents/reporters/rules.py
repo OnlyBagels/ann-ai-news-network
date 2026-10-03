@@ -7,6 +7,7 @@ all of them and are what the fact-check holds them to.
 from __future__ import annotations
 
 from ann_agents.core.types import Story
+from ann_agents.core.voice import STYLE_RULES
 from ann_agents.ingestion.article_text import source_text
 
 ARTICLE_RULES = """
@@ -21,6 +22,7 @@ Write a complete news article from the sources you are given, for a general audi
 - Neutral language: no loaded or partisan labels, no adjectives about anyone's motives, no speculation, predictions or opinions of your own. Use people's official titles and the names groups use for themselves.
 - Use only what the sources say. Never add numbers, dates, names, quotes or background that are not in them, even if you believe them to be true.
 - If the sources are thin, write less. Two accurate paragraphs beat six padded ones.
+""" + STYLE_RULES + """
 
 Return JSON: {"headline": str, "summary": str, "body": str, "tags": [str], "key_points": [str]}"""
 

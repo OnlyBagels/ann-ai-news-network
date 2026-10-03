@@ -9,7 +9,8 @@ from typing import List, Optional
 from loguru import logger
 
 from ann_agents.core.config import settings
-from ann_agents.core.types import AgentRole, Category, Story, StoryStatus
+from ann_agents.core.types import AgentRole, Category, RiskAssessment, RiskLevel, Story, StoryStatus
+from ann_agents.core.voice import detect_slop
 from ann_agents.pipeline.beat import REPORTER_ROLE, assign_beat
 from ann_agents.reporters.model_reporter import ModelReporter
 from ann_agents.reporters.open_source_reporter import OpenSourceReporter
@@ -119,6 +120,7 @@ class StoryPipeline:
 
         # Step 5: Editorial Agents refine (run in parallel)
         story = await self._run_editorial(story)
+        self._flag_style(story)
         story.status = StoryStatus.EDITED
 
         # Step 6: Oversight Agents review (run in parallel)
@@ -136,6 +138,18 @@ class StoryPipeline:
         )
 
         return story
+
+    def _flag_style(self, story: Story) -> None:
+        """Note banned house-voice phrases for the editor in the review queue."""
+        text = "\n".join(t for t in (story.headline, story.summary, story.content) if t)
+        hits = detect_slop(text)
+        if not hits:
+            return
+        if story.risk is None:
+            story.risk = RiskAssessment()
+        story.risk.risk_factors = list(story.risk.risk_factors) + [
+            "style: " + ", ".join(f'"{phrase}" ({fix})' for phrase, fix in hits)
+        ]
 
     def _reporter_roles(self, beat: Optional[str]) -> List[AgentRole]:
         """The beat's reporter. With no beat yet, the AI desk in full mode, the
@@ -213,6 +227,26 @@ class StoryPipeline:
 
         return story
 
+    @staticmethod
+    def _merge_risk(a: Optional[RiskAssessment], b: RiskAssessment) -> RiskAssessment:
+        """Combine two agents' risk findings: the higher level, every concern,
+        and human review if either asked for it."""
+        if a is None:
+            return b
+        order = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
+
+        def union(x: List[str], y: List[str]) -> List[str]:
+            return list(dict.fromkeys([*x, *y]))
+
+        return RiskAssessment(
+            risk_level=max(a.risk_level, b.risk_level, key=order.index),
+            risk_factors=union(a.risk_factors, b.risk_factors),
+            requires_human_review=a.requires_human_review or b.requires_human_review,
+            legal_concerns=union(a.legal_concerns, b.legal_concerns),
+            bias_concerns=union(a.bias_concerns, b.bias_concerns),
+            safety_flags=union(a.safety_flags, b.safety_flags),
+        )
+
     def _merge_stories(self, original: Story, updated: Story) -> Story:
         """Merge updates from an agent's output back into the main story."""
         # Merge agent actions
@@ -249,8 +283,8 @@ class StoryPipeline:
             original.confidence = updated.confidence
         if updated.scores and not original.scores:
             original.scores = updated.scores
-        if updated.risk and not original.risk:
-            original.risk = updated.risk
+        if updated.risk:
+            original.risk = self._merge_risk(original.risk, updated.risk)
         if updated.judge and not original.judge:
             original.judge = updated.judge
 
