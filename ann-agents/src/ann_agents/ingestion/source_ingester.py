@@ -2,169 +2,68 @@
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime
-from typing import AsyncGenerator, List, Optional, Tuple
+from typing import List, Optional
 
-import httpx
 from loguru import logger
 
-from ann_agents.core.config import settings
 from ann_agents.core.types import SourceItem
-
-
-_USER_AGENT = "ANN-Agents/1.0 (+https://github.com/OnlyBagels/ann-ai-news-network)"
-
-# Broad news RSS feeds for All News Network coverage.
-# Each tuple: (display_name, feed_url, default_section)
-NEWS_FEEDS: List[Tuple[str, str, str]] = [
-    # World
-    ("Reuters Top News",      "https://www.reutersagency.com/feed/?best-topics=top-news&post_type=best", "World"),
-    ("Reuters World News",    "https://www.reutersagency.com/feed/?best-regions=north-america&post_type=best", "World"),
-    ("BBC News",              "https://feeds.bbci.co.uk/news/rss.xml",                                  "World"),
-    ("BBC World",             "https://feeds.bbci.co.uk/news/world/rss.xml",                            "World"),
-    ("Al Jazeera English",    "https://www.aljazeera.com/xml/rss/all.xml",                              "World"),
-    # Politics
-    ("The Guardian World",    "https://www.theguardian.com/world/rss",                                  "Politics"),
-    ("The Guardian Politics", "https://www.theguardian.com/politics/rss",                               "Politics"),
-    ("NPR News",              "https://feeds.npr.org/1001/rss.xml",                                     "Politics"),
-    ("Politico",              "https://www.politico.com/rss/politicopicks.xml",                         "Politics"),
-    # Business
-    ("Bloomberg Markets",     "https://feeds.bloomberg.com/markets/news.rss",                           "Business"),
-    # Tech
-    ("The Verge",             "https://www.theverge.com/rss/index.xml",                                 "Tech"),
-    # Science
-    ("Nature",                "https://www.nature.com/nature.rss",                                      "Science"),
-    # Climate
-    ("Reuters Climate",       "https://www.reutersagency.com/feed/?best-topics=environment&post_type=best", "Climate"),
-    # Sports
-    ("ESPN Headlines",        "https://www.espn.com/espn/rss/news",                                     "Sports"),
-    # Culture
-    ("Variety",               "https://variety.com/feed/",                                              "Culture"),
-    # Health
-    ("NPR Health",            "https://feeds.npr.org/1027/rss.xml",                                     "Health"),
-    # Additional broad coverage
-    ("BBC Technology",        "https://feeds.bbci.co.uk/news/technology/rss.xml",                       "Tech"),
-    ("The Guardian Science",  "https://www.theguardian.com/science/rss",                                "Science"),
-]
-
-
-async def fetch_github_readme(repo: str, timeout: float = 10.0) -> str:
-    """Fetch a public repo's README via the GitHub API.
-
-    Uses GITHUB_TOKEN from settings when present (5,000 req/hr) — falls
-    back to unauthenticated (60 req/hr). Returns empty string on any
-    failure; the caller treats that as "no content available."
-
-    READMEs are markdown; we cap at 15k chars so ArticleWriter has
-    enough to work with without blowing context budget.
-    """
-    if not repo:
-        return ""
-    headers = {
-        "User-Agent": _USER_AGENT,
-        "Accept": "application/vnd.github.raw",  # raw bytes instead of base64 json
-    }
-    if settings.github_token:
-        headers["Authorization"] = f"Bearer {settings.github_token}"
-
-    url = f"https://api.github.com/repos/{repo}/readme"
-    try:
-        async with httpx.AsyncClient(timeout=timeout, follow_redirects=True) as client:
-            resp = await client.get(url, headers=headers)
-        if resp.status_code == 404:
-            return ""  # repo has no README — common, not worth logging
-        if resp.status_code != 200:
-            logger.debug(f"[ingest] readme {resp.status_code} for {repo}")
-            return ""
-        text = resp.text
-        if len(text) > 15000:
-            text = text[:15000]
-        return text
-    except Exception as e:
-        logger.warning(f"[ingest] readme fetch failed for {repo}: {e}")
-        return ""
-
-
-async def _extract_article(html: str) -> str:
-    """Run trafilatura's extractor off the event loop (it's sync)."""
-    import trafilatura
-    def _call() -> str:
-        return trafilatura.extract(
-            html,
-            include_comments=False,
-            include_tables=False,
-            favor_precision=True,
-        ) or ""
-    return await asyncio.to_thread(_call)
-
-
-async def fetch_article_content(url: str, timeout: float = 10.0) -> str:
-    """Fetch a URL and extract clean article text. Empty string on failure.
-
-    Agents grounded on real article text hallucinate far less than agents
-    inferring from a title alone — every HN story that links out should
-    flow through this before reaching the pipeline.
-    """
-    if not url or url.startswith("https://news.ycombinator.com"):
-        return ""
-    try:
-        async with httpx.AsyncClient(
-            timeout=timeout,
-            follow_redirects=True,
-            headers={"User-Agent": _USER_AGENT},
-        ) as client:
-            resp = await client.get(url)
-        if resp.status_code != 200:
-            logger.debug(f"[ingest] {resp.status_code} from {url}")
-            return ""
-        text = await _extract_article(resp.text)
-        if text:
-            logger.debug(f"[ingest] fetched {len(text)} chars from {url}")
-        return text
-    except Exception as e:
-        logger.warning(f"[ingest] failed to fetch {url}: {e}")
-        return ""
 
 
 class SourceIngester:
     """Ingests raw data from various sources and normalizes into SourceItems."""
 
-    async def ingest_rss(self, feed_url: str) -> List[SourceItem]:
-        """Ingest articles from an RSS/Atom feed."""
+    async def fetch_feed(self, feed_url: str, source_name: Optional[str] = None, limit: int = 30) -> List[SourceItem]:
+        """Fetch an RSS/Atom feed's newest `limit` entries. Raises when the feed can't be read.
+
+        Some feeds serve their whole history (OpenAI's has over a thousand
+        posts); only the newest entries matter to a news cycle.
+        """
         import feedparser
+        import httpx
+
+        async with httpx.AsyncClient(follow_redirects=True, timeout=20) as client:
+            response = await client.get(feed_url, headers={"User-Agent": "ANN-Newsroom/1.0 (+feed reader)"})
+            response.raise_for_status()
+        feed = feedparser.parse(response.content)
+        if feed.bozo and not feed.entries:
+            raise ValueError(f"not a readable feed: {feed.bozo_exception}")
 
         items: List[SourceItem] = []
+        for entry in feed.entries:
+            if not entry.get("link"):
+                continue
+            items.append(SourceItem(
+                title=entry.get("title", "Untitled"),
+                url=entry.get("link", ""),
+                source_name=source_name or feed.feed.get("title", feed_url),
+                source_type="rss",
+                author=entry.get("author"),
+                published_at=self._parse_date(entry.get("published_parsed") or entry.get("updated_parsed")),
+                summary=entry.get("summary", ""),
+                content=(entry.get("content") or [{}])[0].get("value") or None,
+                tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
+            ))
+        items.sort(key=lambda i: i.published_at, reverse=True)
+        return items[:limit]
+
+    async def ingest_rss(self, feed_url: str, source_name: Optional[str] = None) -> List[SourceItem]:
+        """Like fetch_feed, but logs and returns nothing on failure."""
         try:
-            feed = feedparser.parse(feed_url)
-            for entry in feed.entries:
-                item = SourceItem(
-                    title=entry.get("title", "Untitled"),
-                    url=entry.get("link", ""),
-                    source_name=feed.feed.get("title", feed_url),
-                    source_type="rss",
-                    author=entry.get("author"),
-                    published_at=self._parse_date(entry.get("published_parsed") or entry.get("updated_parsed")),
-                    summary=entry.get("summary", ""),
-                    tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
-                )
-                items.append(item)
+            items = await self.fetch_feed(feed_url, source_name)
             logger.info(f"Ingested {len(items)} items from RSS: {feed_url}")
+            return items
         except Exception as e:
             logger.error(f"Failed to ingest RSS {feed_url}: {e}")
-
-        return items
+            return []
 
     async def ingest_hn(self, story_id: Optional[int] = None, top_n: int = 30) -> List[SourceItem]:
-        """Ingest from Hacker News API, enriching items with article body text.
+        """Ingest from Hacker News API."""
+        import httpx
 
-        HN posts often link out to a blog/paper/repo. The pipeline grounds
-        much better when each Story has real source text, so we fetch the
-        linked URL via trafilatura in parallel after building the items.
-        """
         items: List[SourceItem] = []
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
+            async with httpx.AsyncClient() as client:
                 if story_id:
                     ids = [story_id]
                 else:
@@ -190,33 +89,18 @@ class SourceIngester:
             logger.info(f"Ingested {len(items)} items from Hacker News")
         except Exception as e:
             logger.error(f"Failed to ingest Hacker News: {e}")
-            return items
-
-        # Enrich with article body text in parallel.
-        enrich_targets = [it for it in items if it.url and "news.ycombinator.com" not in it.url]
-        if enrich_targets:
-            contents = await asyncio.gather(
-                *(fetch_article_content(it.url) for it in enrich_targets),
-                return_exceptions=False,
-            )
-            for it, body in zip(enrich_targets, contents):
-                if body:
-                    it.content = body
-            enriched = sum(1 for it in enrich_targets if it.content)
-            logger.info(f"Enriched {enriched}/{len(enrich_targets)} HN items with article body")
 
         return items
 
-    async def ingest_arxiv(self, query: str = "cat:cs.AI+OR+cat:cs.LG", max_results: int = 50) -> List[SourceItem]:
+    async def ingest_arxiv(self, query: str = "cat:cs.AI OR cat:cs.LG", max_results: int = 50) -> List[SourceItem]:
         """Ingest papers from arXiv."""
         import arxiv
 
         items: List[SourceItem] = []
         try:
-            # arxiv 2.x moved .results() off Search and onto Client.
-            client = arxiv.Client()
             search = arxiv.Search(query=query, max_results=max_results, sort_by=arxiv.SortCriterion.SubmittedDate)
-            for result in client.results(search):
+            # arxiv 2.x removed Search.results(); a Client runs the search.
+            for result in arxiv.Client().results(search):
                 item = SourceItem(
                     title=result.title,
                     url=result.entry_id,
@@ -236,21 +120,15 @@ class SourceIngester:
         return items
 
     async def ingest_github_trending(self, language: str = "", since: str = "daily") -> List[SourceItem]:
-        """Ingest trending repos from GitHub, enriching each with its README.
-
-        The trending page only gives us repo name + one-line description —
-        not enough for ArticleWriter to write anything substantive. After
-        scraping the listing we fetch each repo's README via the GitHub
-        API in parallel and store it as item.content, the same field
-        trafilatura fills for HN-linked articles.
-        """
+        """Ingest trending repos from GitHub."""
+        import httpx
         from bs4 import BeautifulSoup
 
         items: List[SourceItem] = []
         url = f"https://github.com/trending/{language}?since={since}"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.get(url, headers={"User-Agent": _USER_AGENT})
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(url, headers={"User-Agent": "ANN-Agents/1.0"})
                 soup = BeautifulSoup(resp.text, "lxml")
                 articles = soup.select("article.Box-row")
 
@@ -278,20 +156,6 @@ class SourceIngester:
             logger.info(f"Ingested {len(items)} repos from GitHub Trending")
         except Exception as e:
             logger.error(f"Failed to ingest GitHub Trending: {e}")
-            return items
-
-        # Pull each repo's README in parallel.
-        readme_targets = [(it, str(it.metadata.get("repo", ""))) for it in items if it.metadata.get("repo")]
-        if readme_targets:
-            readmes = await asyncio.gather(
-                *(fetch_github_readme(repo) for _, repo in readme_targets),
-                return_exceptions=False,
-            )
-            for (it, _), readme in zip(readme_targets, readmes):
-                if readme:
-                    it.content = readme
-            enriched = sum(1 for (it, _) in readme_targets if it.content)
-            logger.info(f"Enriched {enriched}/{len(readme_targets)} GitHub Trending items with README")
 
         return items
 
@@ -302,10 +166,10 @@ class SourceIngester:
         items: List[SourceItem] = []
         try:
             api = HfApi()
+            # huggingface_hub renamed the task filter to pipeline_tag.
             models = api.list_models(
-                task=task,
+                pipeline_tag=task,
                 sort="downloads",
-                direction=-1,
                 limit=limit,
             )
             for model in models:
@@ -314,8 +178,8 @@ class SourceIngester:
                     url=f"https://huggingface.co/{model.modelId}",
                     source_name="HuggingFace",
                     source_type="api",
-                    published_at=model.created_at or datetime.utcnow(),
-                    summary=model.description or "",
+                    published_at=getattr(model, "created_at", None) or datetime.utcnow(),
+                    summary=getattr(model, "description", None) or "",
                     tags=["open-source", "model"] + (model.tags or []),
                     metadata={
                         "downloads": getattr(model, "downloads", 0),
@@ -329,85 +193,6 @@ class SourceIngester:
             logger.error(f"Failed to ingest HuggingFace: {e}")
 
         return items
-
-    async def ingest_news_feeds(self, limit_per_feed: int = 5) -> List[SourceItem]:
-        """Fetch all NEWS_FEEDS concurrently, normalize to SourceItem, enrich with article text.
-
-        Feeds that return 0 entries or an HTTP error are silently skipped so a
-        single broken endpoint never aborts the whole ingestion run.
-
-        Content enrichment runs in batches of 10 concurrent requests to avoid
-        hammering origin servers.
-        """
-        import feedparser
-
-        async def _fetch_feed(name: str, feed_url: str, section: str) -> List[SourceItem]:
-            results: List[SourceItem] = []
-            try:
-                async with httpx.AsyncClient(
-                    timeout=10.0,
-                    follow_redirects=True,
-                    headers={"User-Agent": _USER_AGENT},
-                ) as client:
-                    resp = await client.get(feed_url)
-                if resp.status_code >= 400:
-                    logger.warning(f"[ingest] feed {name} returned HTTP {resp.status_code} — skipped")
-                    return results
-                # feedparser accepts raw text; pass the decoded body so we
-                # avoid a second blocking network call inside feedparser.
-                feed = feedparser.parse(resp.text)
-            except Exception as exc:
-                logger.warning(f"[ingest] feed {name} fetch failed: {exc} — skipped")
-                return results
-
-            if not feed.entries:
-                logger.warning(f"[ingest] feed {name} returned 0 entries — skipped")
-                return results
-
-            for entry in feed.entries[:limit_per_feed]:
-                item = SourceItem(
-                    title=entry.get("title", "Untitled"),
-                    url=entry.get("link", ""),
-                    source_name=name,
-                    source_type="rss",
-                    author=entry.get("author"),
-                    published_at=self._parse_date(
-                        entry.get("published_parsed") or entry.get("updated_parsed")
-                    ),
-                    summary=entry.get("summary", ""),
-                    tags=[tag.get("term", "") for tag in entry.get("tags", []) if tag.get("term")],
-                    metadata={"section": section},
-                )
-                results.append(item)
-
-            logger.info(f"[ingest] {name}: {len(results)} items")
-            return results
-
-        # Fetch all feeds concurrently.
-        feed_batches = await asyncio.gather(
-            *(_fetch_feed(name, url, section) for name, url, section in NEWS_FEEDS),
-            return_exceptions=False,
-        )
-        all_items: List[SourceItem] = [item for batch in feed_batches for item in batch]
-        logger.info(f"[ingest] news feeds total: {len(all_items)} items across {len(NEWS_FEEDS)} feeds")
-
-        # Enrich article text in batches of 10 to be polite to origin servers.
-        enrich_targets = [it for it in all_items if it.url]
-        batch_size = 10
-        enriched_count = 0
-        for start in range(0, len(enrich_targets), batch_size):
-            batch = enrich_targets[start : start + batch_size]
-            contents = await asyncio.gather(
-                *(fetch_article_content(it.url) for it in batch),
-                return_exceptions=False,
-            )
-            for it, body in zip(batch, contents):
-                if body:
-                    it.content = body
-                    enriched_count += 1
-
-        logger.info(f"[ingest] enriched {enriched_count}/{len(enrich_targets)} news-feed items with article body")
-        return all_items
 
     def _parse_date(self, date_struct) -> datetime:
         """Parse a time.struct_time or similar into datetime."""

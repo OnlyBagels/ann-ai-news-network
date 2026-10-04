@@ -11,10 +11,11 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 from meilisearch import Client
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 
 from ann_agents.core.config import settings
+from ann_agents.core.db import make_engine
 
 
 class MeilisearchSync:
@@ -23,7 +24,7 @@ class MeilisearchSync:
     def __init__(self):
         self.meili = Client(settings.meilisearch_host, settings.meilisearch_api_key)
         self.index = self.meili.index("articles")
-        self.engine = create_engine(settings.sqlalchemy_database_url)
+        self.engine = make_engine()
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def index_article(self, article_id: str) -> bool:
@@ -49,6 +50,12 @@ class MeilisearchSync:
 
             if not row:
                 logger.warning(f"Article {article_id} not found for indexing")
+                return False
+
+            # Search is public: only approved or published stories go in, and
+            # anything else that was indexed earlier comes out.
+            if str(row[13]) not in ("approved", "published"):
+                self.remove_article(article_id)
                 return False
 
             document = {

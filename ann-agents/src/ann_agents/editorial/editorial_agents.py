@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-from ann_agents.collaboration.team_chat import format_team_context_block
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, SignalScores, Story
-from ann_agents.core.voice import apply_voice
 from ann_agents.llm.router import LLMTier, llm_router
 
 
@@ -18,18 +16,13 @@ class HeadlineEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Generate headline options for a story."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}\nTags: {', '.join(story.tags)}"
-        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt=apply_voice(
-                "You are the Headline Editor for ANN. Generate 3 concise, accurate, "
-                "non-clickbait headline options. Specific verb + specific noun. "
-                "Front-load the entity (model name, company, repo) for SEO. "
-                "60-80 characters. No questions, no clickbait, no filler verbs "
-                "(update, change, improve, modify).\n\n"
-                "Output a JSON object with: headlines[]"
-            ),
+            system_prompt="You are a headline editor for ANN, a general news outlet read across the political spectrum. "
+                          "Generate 3 concise, accurate, neutral headline options: no clickbait, no questions, no loaded words, "
+                          "and nothing the summary does not say. "
+                          "Output a JSON object with: headlines[]",
             user_prompt=f"Generate headlines for this story:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -56,18 +49,13 @@ class TechnicalEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Review and improve technical accuracy."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}\nContent: {self._truncate(story.content or 'N/A', max_chars=5000)}"
-        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.PREMIUM,
-            system_prompt=apply_voice(
-                "You are the Technical Editor for ANN. Review the story for technical "
-                "accuracy, clarity, and completeness. Flag claims that lack a citation, "
-                "numbers that look suspicious, and architecture descriptions that don't "
-                "match how the system actually works.\n\n"
-                "Output a JSON object with: technical_issues[], clarity_score (0-10), "
-                "suggested_improvements[], is_technically_sound (bool)"
-            ),
+            system_prompt="You are a copy editor for a general news outlet. "
+                          "Review the story for technical accuracy, clarity, and completeness. "
+                          "Output a JSON object with: technical_issues[], clarity_score (0-10), "
+                          "suggested_improvements[], is_technically_sound (bool)",
             user_prompt=f"Review this story for technical accuracy:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -93,19 +81,14 @@ class StyleEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Apply ANN style guidelines to the story."""
         source_text = f"Title: {story.title}\nSummary: {story.summary or 'N/A'}"
-        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt=apply_voice(
-                "You are the Style Editor for ANN — the de-slop pass. You enforce "
-                "the house voice and call out every banned phrase, anti-pattern, "
-                "and chatbot tell. For each issue, quote the exact text and propose "
-                "a rewrite that follows the rules above.\n\n"
-                "Output a JSON object with: style_issues[] (each item: "
-                "{quoted_text, category, suggested_rewrite}), tone_assessment, "
-                "readability_score (0-10), suggested_refinements[]"
-            ),
+            system_prompt="You are a style editor for ANN, a general news outlet. "
+                          "ANN's style: plain, neutral, concise, every claim attributed. "
+                          "No hype, no clickbait, no loaded or partisan language. "
+                          "Output a JSON object with: style_issues[], tone_assessment, "
+                          "readability_score (0-10), suggested_refinements[]",
             user_prompt=f"Review this story for ANN style compliance:\n\n{source_text}",
             response_format={"type": "json_object"},
         )
@@ -131,17 +114,12 @@ class SummaryEditor(BaseAgent):
     async def process(self, story: Story) -> Story:
         """Generate TL;DR and improve summary."""
         source_text = f"Title: {story.title}\nContent: {self._truncate(story.content or story.summary or 'N/A', max_chars=4000)}"
-        source_text += format_team_context_block(story, "editorial")
 
         result = await llm_router.complete(
             tier=LLMTier.CHEAP,
-            system_prompt=apply_voice(
-                "You are the Summary Editor for ANN. Create a TL;DR (1-2 sentences, "
-                "lead with the most surprising or load-bearing fact, no preamble) and "
-                "a brief summary (2-3 short paragraphs) for a technical AI audience. "
-                "Numbers beat adjectives.\n\n"
-                "Output a JSON object with: tl_dr, summary"
-            ),
+            system_prompt="You are a summary editor. Create a concise TL;DR (1-2 sentences) "
+                          "and a brief summary (2-3 paragraphs) for a technical AI audience. "
+                          "Output a JSON object with: tl_dr, summary",
             user_prompt=f"Create TL;DR and summary for:\n\n{source_text}",
             response_format={"type": "json_object"},
         )

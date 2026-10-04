@@ -1,43 +1,21 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/layout/Header";
-import { Sidebar } from "@/components/layout/Sidebar";
-import { Ticker } from "@/components/layout/Ticker";
 import { Footer } from "@/components/layout/Footer";
 import { Providers } from "@/components/providers/Providers";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-jetbrains-mono",
-  subsets: ["latin"],
-  display: "swap",
-});
+const DESCRIPTION =
+  "The day's news from everywhere, written by AI reporters from the outlets that reported it, every source cited and checked. With a 24-hour live desk.";
 
 export const metadata: Metadata = {
   title: {
-    default: "ANN — AI News Network",
-    template: "%s — ANN",
+    default: "ANN, the AI News Network",
+    template: "%s | ANN",
   },
-  description:
-    "AI ecosystem intelligence for builders, founders, and operators. No hype. Just signal.",
-  keywords: [
-    "AI news",
-    "artificial intelligence",
-    "machine learning",
-    "LLM",
-    "AI ecosystem",
-    "AI intelligence",
-  ],
+  description: DESCRIPTION,
   openGraph: {
-    title: "ANN — AI News Network",
-    description:
-      "AI ecosystem intelligence for builders, founders, and operators. No hype. Just signal.",
+    title: "ANN, the AI News Network",
+    description: DESCRIPTION,
     siteName: "ANN",
     type: "website",
   },
@@ -49,23 +27,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-background text-foreground font-sans">
+    <html lang="en">
+      <body className="flex min-h-dvh flex-col">
         <Providers>
-          <div className="scanlines flex flex-col min-h-screen">
-            <Header />
-            <Ticker />
-            <div className="flex flex-1">
-              <Sidebar />
-              <main className="flex-1 min-w-0 px-4 py-6 md:px-8 lg:px-12 max-w-5xl mx-auto w-full">
-                {children}
-              </main>
-            </div>
-            <Footer />
-          </div>
+          <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:bg-paper focus:p-4 focus:text-ink">
+            Skip to the news
+          </a>
+          <Header />
+          <main id="main" className="mx-auto w-full max-w-[1280px] flex-1 px-4 pt-12 md:px-12 md:pt-16">
+            {children}
+          </main>
+          <Footer />
         </Providers>
       </body>
     </html>

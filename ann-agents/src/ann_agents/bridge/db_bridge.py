@@ -13,10 +13,11 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from loguru import logger
-from sqlalchemy import bindparam, create_engine, text
+from sqlalchemy import text
 from sqlalchemy.orm import Session, sessionmaker
 
 from ann_agents.core.config import settings
+from ann_agents.core.db import make_engine
 from ann_agents.core.types import Story, StoryStatus
 
 
@@ -28,7 +29,7 @@ class DatabaseBridge:
     """
 
     def __init__(self):
-        self.engine = create_engine(settings.sqlalchemy_database_url)
+        self.engine = make_engine()
         self.SessionLocal = sessionmaker(bind=self.engine)
 
     def save_story(self, story: Story) -> Optional[str]:
@@ -52,7 +53,7 @@ class DatabaseBridge:
     def _upsert_article(self, session: Session, story: Story) -> str:
         """Insert or update an article record."""
         slug = story.slug or self._make_slug(story.title)
-        url = story.url or story.primary_source.url if story.primary_source else f"https://ann.news/story/{slug}"
+        url = story.url or (story.primary_source.url if story.primary_source else f"https://ann.news/story/{slug}")
 
         # Check if article already exists
         existing = session.execute(
@@ -87,7 +88,6 @@ class DatabaseBridge:
                 INSERT INTO "Article" (
                     id, title, slug, url, source, "sourceUrl", author,
                     "publishedAt", summary, "tlDr", content, tags, category,
-                    section, region, country,
                     "storyStatus", "agentsInvolved", "sourcesAnalyzed",
                     "factCheckStatus",
                     "overall_confidence", "source_quality", "controversy_score",
@@ -95,11 +95,11 @@ class DatabaseBridge:
                     "hallucination_risk",
                     "risk_level", "risk_factors", "requires_human_review",
                     "legal_concerns", "bias_concerns", "safety_flags",
+                    byline, judge, sources,
                     "createdAt", "updatedAt"
                 ) VALUES (
                     gen_random_uuid()::text, :title, :slug, :url, :source, :source_url, :author,
                     :published_at, :summary, :tl_dr, :content, :tags, CAST(:category AS "Category"),
-                    :section, :region, :country,
                     CAST(:status AS "StoryStatus"), :agents, :sources_analyzed,
                     :fact_check_status,
                     :overall_confidence, :source_quality, :controversy_score,
@@ -107,25 +107,23 @@ class DatabaseBridge:
                     :hallucination_risk,
                     :risk_level, :risk_factors, :requires_human_review,
                     :legal_concerns, :bias_concerns, :safety_flags,
+                    :byline, CAST(:judge AS jsonb), CAST(:sources AS jsonb),
                     NOW(), NOW()
                 ) RETURNING id
             """),
             {
-                "title": story.title,
+                "title": self._headline(story),
                 "slug": slug,
                 "url": url,
                 "source": source_name,
                 "source_url": source_url,
                 "author": author,
                 "published_at": published_at,
-                "summary": story.summary or "",
+                "summary": self._summary(story),
                 "tl_dr": story.tl_dr,
                 "content": story.content,
                 "tags": self._to_pg_array(story.tags),
                 "category": story.category.value if story.category else "research",
-                "section": story.section or "tech",
-                "region": story.region or "global",
-                "country": story.country or "global",
                 "status": story.status.value,
                 "agents": self._to_pg_array([r.value for r in story.agents_involved]),
                 "sources_analyzed": story.sources_analyzed,
@@ -143,9 +141,36 @@ class DatabaseBridge:
                 "legal_concerns": self._to_pg_array(story.risk.legal_concerns if story.risk else []),
                 "bias_concerns": self._to_pg_array(story.risk.bias_concerns if story.risk else []),
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
+                "byline": story.byline,
+                "judge": json.dumps(story.judge) if story.judge else None,
+                "sources": json.dumps(self._sources(story)),
             },
         )
         return result.fetchone()[0]
+
+    @staticmethod
+    def _headline(story: Story) -> str:
+        """The edited headline when there is one, else the reporter's, else the feed's title."""
+        for candidate in [story.headline, *story.suggested_headlines, story.title]:
+            if candidate and candidate.strip():
+                return candidate.strip()[:200]
+        return story.title
+
+    @staticmethod
+    def _sources(story: Story) -> List[Dict[str, Any]]:
+        """Every outlet the story draws on, in the order the reporter saw them."""
+        items = story.source_items or ([story.primary_source] if story.primary_source else [])
+        return [
+            {
+                "name": i.source_name,
+                "url": i.url,
+                "title": i.title,
+                "author": i.author,
+                "publishedAt": i.published_at.isoformat() if i.published_at else None,
+                "lean": i.metadata.get("lean"),
+            }
+            for i in items
+        ]
 
     def _update_article(self, session: Session, article_id: str, story: Story, slug: str):
         """Update an existing article record."""
@@ -158,9 +183,6 @@ class DatabaseBridge:
                     content = :content,
                     tags = :tags,
                     category = CAST(:category AS "Category"),
-                    section = :section,
-                    region = :region,
-                    country = :country,
                     "storyStatus" = CAST(:status AS "StoryStatus"),
                     "agentsInvolved" = :agents,
                     "sourcesAnalyzed" = :sources_analyzed,
@@ -178,20 +200,20 @@ class DatabaseBridge:
                     "legal_concerns" = :legal_concerns,
                     "bias_concerns" = :bias_concerns,
                     "safety_flags" = :safety_flags,
+                    byline = :byline,
+                    judge = CAST(:judge AS jsonb),
+                    sources = CAST(:sources AS jsonb),
                     "updatedAt" = NOW()
                 WHERE id = :id
             """),
             {
                 "id": article_id,
-                "title": story.title,
-                "summary": story.summary or "",
+                "title": self._headline(story),
+                "summary": self._summary(story),
                 "tl_dr": story.tl_dr,
                 "content": story.content,
                 "tags": self._to_pg_array(story.tags),
                 "category": story.category.value if story.category else "research",
-                "section": story.section or "tech",
-                "region": story.region or "global",
-                "country": story.country or "global",
                 "status": story.status.value,
                 "agents": self._to_pg_array([r.value for r in story.agents_involved]),
                 "sources_analyzed": story.sources_analyzed,
@@ -209,6 +231,9 @@ class DatabaseBridge:
                 "legal_concerns": self._to_pg_array(story.risk.legal_concerns if story.risk else []),
                 "bias_concerns": self._to_pg_array(story.risk.bias_concerns if story.risk else []),
                 "safety_flags": self._to_pg_array(story.risk.safety_flags if story.risk else []),
+                "byline": story.byline,
+                "judge": json.dumps(story.judge) if story.judge else None,
+                "sources": json.dumps(self._sources(story)),
             },
         )
 
@@ -298,6 +323,19 @@ class DatabaseBridge:
                 },
             )
 
+    def existing_urls(self, urls: List[str]) -> set:
+        """Which of these source URLs already have an article."""
+        if not urls:
+            return set()
+        session = self.SessionLocal()
+        try:
+            rows = session.execute(
+                text('SELECT url FROM "Article" WHERE url = ANY(:urls)'), {"urls": list(urls)}
+            ).fetchall()
+            return {r[0] for r in rows}
+        finally:
+            session.close()
+
     def get_human_review_queue(self, limit: int = 20) -> List[Dict[str, Any]]:
         """Get articles needing human review."""
         session = self.SessionLocal()
@@ -336,23 +374,6 @@ class DatabaseBridge:
         finally:
             session.close()
 
-    def filter_new_urls(self, urls: List[str]) -> List[str]:
-        """Return URLs that do not already exist in the Article table."""
-        deduped = [u for u in dict.fromkeys(urls) if u]
-        if not deduped:
-            return []
-
-        session = self.SessionLocal()
-        try:
-            stmt = text('SELECT url FROM "Article" WHERE url IN :urls').bindparams(
-                bindparam("urls", expanding=True)
-            )
-            rows = session.execute(stmt, {"urls": deduped}).fetchall()
-            existing = {row[0] for row in rows}
-            return [url for url in deduped if url not in existing]
-        finally:
-            session.close()
-
     def approve_article(self, article_id: str, reviewer: str = "system") -> bool:
         """Approve an article for publication."""
         session = self.SessionLocal()
@@ -361,8 +382,8 @@ class DatabaseBridge:
                 text("""
                     UPDATE "Article" SET
                         "storyStatus" = 'approved'::"StoryStatus",
-                        "humanReviewer" = :reviewer,
-                        "publishedAtReal" = NOW(),
+                        "human_reviewer" = :reviewer,
+                        "published_at_real" = NOW(),
                         "updatedAt" = NOW()
                     WHERE id = :id
                 """),
@@ -385,7 +406,7 @@ class DatabaseBridge:
                 text("""
                     UPDATE "Article" SET
                         "storyStatus" = 'rejected'::"StoryStatus",
-                        "humanNotes" = :notes,
+                        "human_notes" = :notes,
                         "updatedAt" = NOW()
                     WHERE id = :id
                 """),
@@ -400,6 +421,15 @@ class DatabaseBridge:
         finally:
             session.close()
 
+    def _summary(self, story: Story) -> str:
+        """The edited summary, else the source's own description as plain text."""
+        if story.summary:
+            return story.summary
+        source = story.primary_source.summary if story.primary_source else None
+        if not source:
+            return ""
+        return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", source)).strip()
+
     def _make_slug(self, title: str) -> str:
         """Create a URL-friendly slug from a title."""
         slug = title.lower()
@@ -410,9 +440,6 @@ class DatabaseBridge:
         timestamp = int(datetime.utcnow().timestamp())
         return f"{slug[:80]}-{timestamp}"
 
-    def _to_pg_array(self, items: List[str]) -> str:
-        """Convert a Python list to a PostgreSQL array string."""
-        if not items:
-            return "{}"
-        escaped = [f'"{item.replace('"', '\\"')}"' for item in items]
-        return "{" + ",".join(escaped) + "}"
+    def _to_pg_array(self, items: List[str]) -> List[str]:
+        """Pass a list for a text[] column; psycopg2 adapts it to an ARRAY."""
+        return [str(item) for item in items if item]

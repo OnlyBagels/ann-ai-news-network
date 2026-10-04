@@ -1,8 +1,8 @@
 # ANN — AI News Network
 
-AI ecosystem intelligence for builders, founders, and operators. No hype. Just signal.
+News from every desk, from world and politics to markets, sports and the internet, written from other outlets' reporting with each one credited and linked. A 24-hour pixel-art channel reads it on air.
 
-ANN ingests AI models, repos, papers, benchmarks, and news, drafts briefings and explainers through an agent pipeline, scores signal vs. hype, runs review under a human editorial gate, then ships to a website, newsletter, and social channels.
+ANN reads 205 feeds, picks the stories that many outlets are covering, and fetches each article. A local model then writes ANN's own report from that text, crediting every outlet it draws on. A fact-check, a second model and an editor decide whether it publishes. ANN takes no political side: related reports are drawn from outlets across Ad Fontes Media's bias ratings, no section takes more than a third of a cycle's picks, and loaded wording sends a story to human review.
 
 **Status:** active development. End-to-end pipeline runs locally. Source is public; contributions welcome.
 
@@ -11,10 +11,14 @@ ANN ingests AI models, repos, papers, benchmarks, and news, drafts briefings and
 ## Pipeline
 
 ```
-sources → ingest → normalize → dedupe → summarize → score → review → human gate → publish
+feeds → screen → pick → corroborate → fetch text → assign beat → write → fact-check → judge → editor → publish
 ```
 
-Sources: RSS, GitHub trending, Hugging Face, arXiv, Hacker News, Reddit. Targets: website, newsletter, social.
+Sources: 205 in all. 142 are general news feeds across 14 sections: world, US, politics, business, crypto, tech, AI, science, climate, health, sports, entertainment, games and the internet. They run from wire-heavy outlets (ABC News, CBS News, PBS NewsHour, BBC News, Al Jazeera, DW, France 24) to beat outlets such as STAT, KFF Health News, Carbon Brief, CoinDesk, Variety and Polygon, and include outlets Ad Fontes Media rates left, center and right. 65 carry an Ad Fontes rating, which the story page shows beside each source. Each general feed was fetched on 2026-10-02 and had posted within the previous 7 days.
+
+The other 63 are the AI sources ANN started with: 58 RSS feeds plus arXiv, Hacker News, GitHub Trending and Hugging Face models. The feeds cover lab blogs (OpenAI, Google DeepMind, Microsoft Research, Apple, NVIDIA, Mistral, Ai2), AI desks at news sites (The Verge, TechCrunch, Ars Technica, MIT Technology Review, Wired), developer tools (GitHub, JetBrains, LangChain, MCP), open models (Hugging Face, Ollama, vLLM), research (Google Research, METR, Epoch AI), AI security (OWASP GenAI, Trail of Bits, Embrace The Red), funding (Crunchbase, TechCrunch Venture, Sifted) and policy (Federal Register, FTC, the EU AI Act newsletter). The list is `DEFAULT_SOURCES` in `ann-agents/src/ann_agents/ingestion/source_registry.py`; it seeds the `Source` table once, and after that sources are managed at `/admin/sources`.
+
+Each feed was checked on 2026-10-02: it answered, parsed, and had a post in the last 60 days. Gaps: Anthropic publishes no feed, so ANN reads the community mirror at github.com/Olshansk/rss-feeds; Meta AI, xAI and Cohere have no working feed. Feeds that carry only headlines are fine, because the newsroom fetches each article before writing it. Paywalled sites are left out because their text can't be fetched to check against.
 
 ---
 
@@ -70,6 +74,207 @@ ann-agents/src/ann_agents/
 ```
 
 Ingestion: feedparser · BeautifulSoup · lxml · arxiv · PRAW · huggingface-hub · githubkit · newspaper4k · trafilatura.
+
+---
+
+## Design
+
+The site follows the look of Something Something Studios: an ink background, warm white text and one pink accent, with Anybody for display type, Instrument Sans for reading and Sometype Mono for labels (all SIL Open Font License, self-hosted in `ann-web/public/fonts`). Stories sit in ruled lists rather than cards. The mark in the header and the favicon (`ann-web/src/app/icon.svg`) are a pixel-art anchor drawn on the same grid as the live channel's sprites, and reporters and anchors get pixel portraits from that sprite code.
+
+The direction and every design token are at the top of `ann-web/src/app/globals.css`. The Tailwind theme is reset to those tokens, so a stock color, font size or radius class has no effect. Use the tokens.
+
+## ANN Live
+
+A 24-hour channel streamed to YouTube and embedded on the site: on the front page and, with the transcript, schedule and links to each story on air, at `/live`. Pixel-art anchors read the news from stories the pipeline has approved. There is one timeline, so everyone watching sees the same line at the same moment.
+
+**How a segment is made** (`ann-agents/src/ann_agents/broadcast/`)
+
+1. The director (`director.py`) checks who is watching and what the grid in `ann-web/src/broadcast/lineup.json` says is on air. It then picks the next approved story for that show that hasn't aired in the last 6 hours.
+2. `facts.py` builds a numbered fact sheet from the article's own title, TL;DR and summary.
+3. Claude writes the dialogue as structured lines, and each line lists the facts it relies on (`writer.py`). Routine stories go to `claude-haiku-4-5`; stories scoring 80 or more go to `claude-sonnet-5-5`.
+4. `standards.py` cuts lines in code: a figure that isn't in the facts the line cites, a spelled-out figure, a quote that isn't verbatim, a URL, or a speaker who isn't at the desk. Next, `claude-sonnet-5-5` reviews the remaining lines against the fact sheet. If more than a third of the script is cut, the story airs as a straight headline read from the article (`reel.py`). Cut lines stay in the database with their reasons.
+5. Piper voices each line locally (`tts.py`). The clip length sets the timing, and its loudness drives the anchors' mouths. Without voices, lines are timed from their word count and shown as captions.
+6. The segment is appended to the timeline in Postgres (`BroadcastSegment`).
+
+Each show opens with a short intro at the top of its slot.
+
+**What's on.** The grid runs on US Eastern time (`hourEt` in `lineup.json`): ANN Overnight from midnight, Press Start at 4, ANN Morning at 5, Block by Block at 9, ANN Daytime at 10 and 2, Midday Markets at noon, The AI Hour at 1, Sports Desk at 4, ANN Evening News at 5, Capitol Report at 7, Up Late with Vince Calloway at 8, Crypto After Hours at 9 and ANN Tonight at 10. Between stories the director books:
+
+- **Data hits** (`datadesk/`): the weather wall in the first 12 minutes of each hour, the scoreboard from :15 to :25 and the markets wall from :30 to :40, on shows that carry them. The walls show only figures fetched for that segment (Open-Meteo, ESPN, CoinGecko), with the source and an as-of time on screen. With no data, the hit is skipped.
+- **Viewer questions** (`desk/questions.py`), at most one every 20 minutes. See below.
+- **Desk banter** (`broadcast/bits.py`), a short exchange between the anchors, at most every 30 minutes (every 10 on the late-night set). Banter stays away from the news: code drops any line with a number or a political word, and WaterSheep drops lines that read as factual claims. Turn it off with `BROADCAST_BITS=false`.
+- **Correspondents.** On about one story in three, the reporter whose byline is on the article joins the desk, standing beside the anchors.
+
+The studio has five sets (`studio.ts`): the news desk, the weather wall, the sports desk, the markets wall and the late-night set with a guest couch. Anchors act out each line's mood (`face.ts`, `gesture.ts`): faces, eyes and mouths change with the words, and hands gesture, read notes, take notes and drink coffee.
+
+**Viewer questions.** Anyone with an account (`/account/signup`) can send the desk up to 3 questions a day at `/ask`. WaterSheep screens each one, then Gemma decides whether the desk can answer it from ANN's own reporting: it declines requests for opinions, advice or predictions. An accepted question is answered only from ANN articles that WaterSheep agrees support the answer, and it airs with those articles linked. Answered questions are listed at `/questions`. Accounts need `SESSION_SECRET` set in `ann-web/.env.local` (any long random string); without it, sign-up is closed.
+
+**Cost controls**
+
+- The channel runs 24 hours, keeping 5 to 10 minutes of finished segments queued (`BROADCAST_LOOKAHEAD_SECONDS`, default 600). Set `BROADCAST_ALWAYS_ON=false` to write only while someone is watching: browsers on `/live` and the streamer check in, and the director stops once no one has checked in within `BROADCAST_VIEWER_WINDOW_SECONDS`.
+- Claude spend is tracked per UTC day in `BroadcastSpend`. When `BROADCAST_DAILY_BUDGET_USD` is used up, the channel switches to headline reads, which cost nothing.
+- When less than `BROADCAST_MIN_RUNWAY_SECONDS` (default 120) is queued, the director airs headline reads, which are instant, to rebuild the buffer.
+
+**Rendering.** `ann-web/src/broadcast/scene.ts` draws a 640x360 frame using only `fillRect`: the set from `studio.ts`, the cast from `character.ts` (faces from `face.ts`, hands and props from `gesture.ts`). The web player (`src/components/live/LivePlayer.tsx`) and the streamer (`scripts/stream.ts`) both use it, so the site and YouTube show the same picture.
+
+### Running it
+
+You need the newsroom (above) producing approved stories, plus three processes:
+
+```bash
+# 1. the site, which serves /live and the timeline API
+cd ann-web && npm run build && npm run start
+
+# 2. the director, which keeps the timeline filled
+cd ann-agents && python -m ann_agents.broadcast
+
+# 3. the streamer, which sends the channel to YouTube Live
+cd ann-web && YOUTUBE_STREAM_KEY=xxxx npx tsx scripts/stream.ts
+```
+
+- Set `ANTHROPIC_API_KEY` in `ann-agents/.env`. Without it, the channel airs headline reads only.
+- The YouTube stream key comes from YouTube Studio, under Go live, then Stream. The streamer sends 1080p30 H.264 with AAC audio. It needs `ffmpeg` on the PATH.
+- To embed the stream on the site, set `YOUTUBE_CHANNEL_ID` (your channel's `UC...` id) in `ann-web/.env.local`, or `YOUTUBE_VIDEO_ID` for one live video. YouTube runs 15 to 30 seconds behind real time, so the transcript and "on air" panel wait `YOUTUBE_DELAY_SECONDS` (default 20) to match the picture. With neither set, the site draws the channel itself from the timeline.
+- To check the output without going live, record a file instead: `npx tsx scripts/stream.ts --out test.mp4 --seconds 30`.
+
+**Voices.** Install Piper with `pip install piper-tts`. Then download the voices named in `lineup.json` (25 of them) from [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) into `voices/`. You need both the `.onnx` and the `.onnx.json` file for each voice. Then set these in `ann-agents/.env`:
+
+```
+BROADCAST_TTS=piper
+BROADCAST_PIPER_VOICES_DIR=/abs/path/voices
+BROADCAST_AUDIO_DIR=/abs/path/broadcast-audio
+```
+
+Set the same `BROADCAST_AUDIO_DIR` in `ann-web/.env.local`.
+
+**Changing the lineup.** Edit `ann-web/src/broadcast/lineup.json`, which holds the anchors (look, voice, persona), the reporters, the shows (anchors, categories, set, and which data walls they carry) and the 24-hour grid in US Eastern time. To preview the set, run `npx tsx scripts/render-preview.ts`, which writes frames to `ann-web/.preview/`.
+
+### Tests
+
+```bash
+cd ann-web && DATABASE_URL=postgresql://.../ann_test npx prisma db push
+cd ann-agents && pip install -e ".[dev]" && TEST_DATABASE_URL=postgresql://.../ann_test pytest
+```
+
+The database tests truncate every table, so point `TEST_DATABASE_URL` at a separate database.
+
+---
+
+## Deploying
+
+Everything runs on CPU: the site, the newsroom agents, the live channel, the voices (Piper), the picture and the stream encode. Models can be self-hosted on CPU servers, Claude, or both.
+
+### One server
+
+```bash
+cp .env.example .env        # set POSTGRES_PASSWORD, MEILI_MASTER_KEY, and who writes (below)
+docker compose --profile local-models --profile youtube up -d --build
+```
+
+| Service | What it does |
+|---|---|
+| `postgres`, `meilisearch` | Database and search |
+| `migrate` | Applies `ann-web/prisma/migrations`, then exits |
+| `web` | The site on `WEB_PORT` (default 3000) |
+| `newsroom` | Ingests sources, runs the agents, saves stories every `NEWSROOM_INTERVAL_MINUTES` |
+| `agents-api` | The API the admin pages call to start a cycle by hand |
+| `voices` | Downloads the anchors' Piper voices once |
+| `director` | Keeps the live timeline written |
+| `streamer` (profile `youtube`) | Sends the channel to YouTube with `YOUTUBE_STREAM_KEY` |
+| `ollama`, `ollama-pull` (profile `local-models`) | A CPU model server, and a one-off pull of `LOCAL_LLM_MODEL` |
+
+Put a reverse proxy with TLS (Caddy, nginx) in front of `web`.
+
+**Admin access.** Set `ADMIN_TOKEN` to a long random string (`openssl rand -base64 32`). Editors sign in at `/admin/login` with it and get a signed, HTTP-only session cookie that lasts 7 days. Scripts can send it as `Authorization: Bearer <token>`. While `ADMIN_TOKEN` is empty, the admin pages, `/api/admin/*` and `POST /api/ingest` stay locked.
+
+Set `AGENT_API_TOKEN` too. The agent API's review endpoint can approve stories for the site and the channel, so with the token set it refuses any call that doesn't carry it, and the site sends it automatically.
+
+### Self-hosted models on CPU
+
+Any server with an OpenAI-compatible `/v1/chat/completions` works: Ollama, llama.cpp's `llama-server`, LM Studio, vLLM. Set:
+
+```
+LOCAL_LLM_BASE_URLS=http://ollama:11434/v1      # the local-models profile on this box
+LOCAL_LLM_MODEL=gemma4:e4b
+LOCAL_LLM_REASONING_EFFORT=none
+BROADCAST_LLM=local
+```
+
+Local models take every agent tier ahead of hosted providers (narrow that with `LOCAL_LLM_TIERS`), and write and check the anchors' lines with output held to a JSON schema. The standards rules run the same way whatever the model.
+
+CPU models write slower than a segment airs. The director copes in three ways: it writes `BROADCAST_LOOKAHEAD_SECONDS` ahead, it airs a straight headline read whenever less than `BROADCAST_MIN_RUNWAY_SECONDS` is queued, and it drops a script that takes longer than `BROADCAST_WRITE_TIMEOUT_SECONDS`. `.env.example` has settings for CPU. The share of airtime that is written dialogue rather than headline reads grows with the number of model servers.
+
+Measured on a 4 vCPU, 16 GB machine with Ollama and nothing else competing for it:
+
+| Job | `qwen2.5:3b` | `qwen2.5:7b` |
+|---|---|---|
+| One anchor segment, written and reviewed | about 30 s | about 95 s |
+| One story through the lean newsroom (`NEWSROOM_LEAN=true`, 5 calls) | not measured | about 2 min 40 s |
+| One story through the full newsroom (14 calls) | not measured | did not finish one in 2 min 30 s |
+
+What that means in practice:
+
+- The 3B model wrote fast but lost most of its lines to the standards check, so most of what aired was headline reads. Use 7B or larger.
+- The 7B model's script passed. It did add one small detail the source didn't have ("tools for small businesses" where the article said "tools for builders"), and the 7B standards desk let it through.
+- The rules in code catch wrong figures and invented quotes, not wording like that. For a stricter desk, use a bigger local model for the review (`BROADCAST_LOCAL_STANDARDS_MODEL`, or `LOCAL_LLM_PREMIUM_MODEL` on a bigger box), or send only the review to Claude with `BROADCAST_DESK_LLM=claude`. Reviews are short, so that costs little.
+- On CPU, set `NEWSROOM_LEAN=true`. The full newsroom makes about 14 model calls per story.
+
+Pick the model by testing it on your own hardware: run the director with `--once` and check the `writer` and `script.dropped` columns of `BroadcastSegment` for how many lines survive the standards check. A model that loses most lines airs mostly headline reads.
+
+### Gemma 4 and WaterSheep
+
+The default local setup is two models with separate jobs:
+
+- **Gemma 4** ([`gemma4:e4b`](https://ollama.com/library/gemma4) on Ollama) picks the stories, writes them, fact-checks them and writes the anchors' lines. Set `LOCAL_LLM_REASONING_EFFORT=none`: with Gemma's thinking on, a short answer took 87 s on 4 vCPU, and with it off, 9 s.
+- **[WaterSheep](https://huggingface.co/samratduttaofficial/WaterSheep)** is a ModernBERT-base classifier (Apache-2.0) that answers yes/no questions about a text with a calibrated probability. ANN runs its quantized ONNX build with onnxruntime, without PyTorch. It answers in under a second on CPU. Download it with `python -m ann_agents.llm.watersheep --download`.
+
+How they split the work:
+
+| Step | Gemma 4 | WaterSheep |
+|---|---|---|
+| Find | Picks the stories from a shortlist, like an assignment editor, favoring stories more outlets cover (`pipeline/assignment.py`) | Screens every item with "is this a news report about real events, rather than an advertisement, a promotion, a job listing or an opinion column?". Confirms which other outlets' reports cover the same event (`pipeline/corroborate.py`). |
+| Assign | | Picks the section, and so the reporter (`pipeline/beat.py`). Items from AI-only feeds go straight to an AI beat. |
+| Write | Writes the summary and headline from the article's text, which is fetched when the feed only gives a teaser | |
+| Decide | Fact-checks against the source text | Scores whether the article is supported by its sources, whether the headline is clickbait, and whether the wording is loaded (`oversight/watersheep_judge.py`) |
+| Air | Writes the dialogue and reviews it at the standards desk | Checks every line that states a fact against the fact sheet |
+
+A story publishes only when both pass it: Gemma's fact-check, and WaterSheep's support (`WATERSHEEP_MIN_SUPPORT`) and clickbait (`WATERSHEEP_MAX_CLICKBAIT`) thresholds. Items that aren't news reports are rejected, loaded wording (`WATERSHEEP_MAX_LOADED`) goes to review, and anything else in doubt goes to the review queue with the reason attached. A story whose source text is under `NEWSROOM_MIN_SOURCE_CHARS` never publishes on its own: in testing, Gemma wrote confident and invented summaries from headline-only feed items, and both checks passed them until the article text was fetched.
+
+Measured on 4 vCPU, with the article text fetched:
+
+- About 2 min 40 s per story through the lean newsroom. Picking from 40 candidates took 25 s.
+- About 2 min per anchor segment.
+- Both test stories' figures matched their sources.
+- One embellishment got through: "without an extra fee", where the source says costs fall by up to 66%. It came from the newsroom summary, which then became part of the fact sheet the anchors wrote from.
+
+WaterSheep's model card reports 61% accuracy on datasets it wasn't trained on. Treat it as a second vote, not a judge on its own.
+
+### More CPU servers
+
+Run a model server on each extra machine:
+
+```bash
+LOCAL_LLM_MODEL=gemma4:e4b docker compose -f deploy/model-server.compose.yml up -d
+```
+
+Then list them all on the main server and give the director one writer per server:
+
+```
+LOCAL_LLM_BASE_URLS=http://10.0.0.11:11434/v1,http://10.0.0.12:11434/v1
+BROADCAST_WRITERS=2
+```
+
+Requests rotate across the servers and skip any that are down. Ollama has no authentication, so keep port 11434 on a private network or firewalled to the main server.
+
+### A Mac (Mac Studio, Mac mini)
+
+Docker on macOS can't use the Mac's GPU, so run Ollama natively (`brew install ollama`, then `ollama serve`) and point the containers at it: `LOCAL_LLM_BASE_URLS=http://host.docker.internal:11434/v1`. Leave out the `local-models` profile.
+
+### Operating it
+
+- Logs: `docker compose logs -f director` shows each booked segment, its writer, its cost and how many lines were cut.
+- Backups: `docker compose exec postgres pg_dump -U ann ann > ann.sql`.
+- Updates: `git pull && docker compose up -d --build`. Migrations run before the site and agents start.
 
 ---
 

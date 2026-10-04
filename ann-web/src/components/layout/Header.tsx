@@ -1,107 +1,119 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { Menu, Search, Terminal } from "lucide-react";
+import { Menu, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { SearchBar } from "@/components/shared/SearchBar";
+import { SECTIONS } from "@/types";
+import { Mark } from "@/components/layout/Mark";
+
+const PAGES = [
+  { href: "/feed", label: "Latest" },
+  { href: "/live", label: "Live" },
+  { href: "/weather", label: "Weather" },
+  { href: "/newsroom", label: "Newsroom" },
+  { href: "/ask", label: "Ask the desk" },
+  { href: "/search", label: "Search" },
+];
 
 export function Header() {
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-terminal-header/95 backdrop-blur-sm">
-      <div className="flex items-center justify-between h-12 px-4 md:px-6">
-        {/* Left: Logo */}
-        <div className="flex items-center gap-3">
-          <button
-            className="md:hidden p-1.5 rounded-md hover:bg-terminal-hover transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            aria-label="Toggle menu"
-          >
-            <Menu className="w-4 h-4 text-muted" />
-          </button>
-          <Link href="/" className="flex items-center gap-2 group">
-            <Terminal className="w-4 h-4 text-accent-cyan group-hover:text-accent-green transition-colors" />
-            <span className="font-mono text-xs font-bold tracking-tight">
-              <span className="text-accent-cyan">ANN</span>
-              <span className="text-muted mx-1">/</span>
-              <span className="text-foreground">AI News Network</span>
+    <header className="border-b border-border bg-background">
+      <div className="mx-auto max-w-[1280px] px-4 md:px-12">
+        <div className="flex h-16 items-center justify-between gap-4 md:h-24">
+          <Link href="/" className="flex items-center gap-3" onClick={() => setOpen(false)}>
+            <Mark size={32} />
+            <span className="flex flex-col">
+              <span className="display text-2xl">ANN</span>
+              <span className="label-caps text-muted-foreground">AI News Network</span>
             </span>
           </Link>
-        </div>
 
-        {/* Center: Desktop Nav */}
-        <nav className="hidden md:flex items-center gap-1">
-          <NavLink href="/" label="Feed" />
-          <NavLink href="/categories/models" label="Models" />
-          <NavLink href="/categories/research" label="Research" />
-          <NavLink href="/categories/security" label="Security" />
-          <NavLink href="/categories/funding" label="Funding" />
-        </nav>
+          <nav aria-label="Pages" className="hidden md:block">
+            <ul className="flex items-center gap-8">
+              {PAGES.map((page) => (
+                <li key={page.href}>
+                  <Link
+                    href={page.href}
+                    aria-current={isActive(page.href) ? "page" : undefined}
+                    className={cn(
+                      "inline-flex min-h-11 items-center gap-2 transition-colors duration-[180ms]",
+                      isActive(page.href) ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {page.href === "/search" && <Search className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />}
+                    {page.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
 
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2">
           <button
-            onClick={() => setSearchOpen(!searchOpen)}
-            className="p-1.5 rounded-md hover:bg-terminal-hover transition-colors"
-            aria-label="Search"
+            type="button"
+            className="inline-flex h-12 w-12 items-center justify-center md:hidden"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            aria-controls="site-menu"
+            aria-label={open ? "Close menu" : "Open menu"}
           >
-            <Search className="w-4 h-4 text-muted hover:text-foreground transition-colors" />
+            {open ? (
+              <X className="h-6 w-6" strokeWidth={1.75} aria-hidden="true" />
+            ) : (
+              <Menu className="h-6 w-6" strokeWidth={1.75} aria-hidden="true" />
+            )}
           </button>
-          <div className="hidden sm:flex items-center gap-1.5 text-[10px] font-mono text-muted border border-border rounded px-2 py-1">
-            <span className="status-dot live" />
-            <span>LIVE</span>
-          </div>
         </div>
+
+        <nav aria-label="Sections" className="border-t border-border">
+          <ul className="scrollbar-none -mx-4 flex gap-6 overflow-x-auto px-4 md:mx-0 md:px-0">
+            {SECTIONS.map((c) => {
+              const href = `/categories/${c.id}`;
+              const active = pathname === href;
+              return (
+                <li key={c.id} className="shrink-0">
+                  <Link
+                    href={href}
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "label inline-flex min-h-11 items-center border-b-2 transition-colors duration-[180ms]",
+                      active
+                        ? "border-brand text-foreground"
+                        : "border-transparent text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {c.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </nav>
       </div>
 
-      {/* Mobile Menu */}
-      {mobileMenuOpen && (
-        <div className="md:hidden border-t border-border bg-terminal-bg p-4">
-          <nav className="flex flex-col gap-2">
-            <MobileNavLink href="/" label="Feed" />
-            <MobileNavLink href="/categories/models" label="Models" />
-            <MobileNavLink href="/categories/research" label="Research" />
-            <MobileNavLink href="/categories/security" label="Security" />
-            <MobileNavLink href="/categories/funding" label="Funding" />
-            <MobileNavLink href="/categories/open-source" label="Open Source" />
-            <MobileNavLink href="/categories/agents" label="Agents" />
-            <MobileNavLink href="/categories/coding-ai" label="Coding AI" />
-            <MobileNavLink href="/categories/regulation" label="Regulation" />
-          </nav>
-        </div>
-      )}
-
-      {/* Search Overlay */}
-      {searchOpen && (
-        <div className="border-t border-border bg-terminal-bg p-4">
-          <SearchBar onClose={() => setSearchOpen(false)} autoFocus />
-        </div>
+      {open && (
+        <nav id="site-menu" aria-label="Pages" className="border-t border-border md:hidden">
+          <ul className="px-4 py-2">
+            {PAGES.map((page) => (
+              <li key={page.href} className="border-b border-border last:border-b-0">
+                <Link
+                  href={page.href}
+                  onClick={() => setOpen(false)}
+                  aria-current={isActive(page.href) ? "page" : undefined}
+                  className="display flex min-h-12 items-center text-2xl"
+                >
+                  {page.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       )}
     </header>
-  );
-}
-
-function NavLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="px-3 py-1.5 text-sm font-mono text-muted hover:text-accent-cyan hover:bg-terminal-hover rounded-md transition-all"
-    >
-      {label}
-    </Link>
-  );
-}
-
-function MobileNavLink({ href, label }: { href: string; label: string }) {
-  return (
-    <Link
-      href={href}
-      className="px-3 py-2 text-sm font-mono text-muted hover:text-accent-cyan hover:bg-terminal-hover rounded-md transition-all"
-    >
-      {label}
-    </Link>
   );
 }

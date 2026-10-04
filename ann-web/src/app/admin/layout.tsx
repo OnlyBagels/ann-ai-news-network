@@ -7,11 +7,9 @@ import {
   ClipboardCheck,
   Activity,
   Radio,
-  ArrowLeft,
-  Terminal,
-  PenLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { signOut } from "./actions";
 
 const adminNavItems = [
   {
@@ -21,17 +19,12 @@ const adminNavItems = [
   },
   {
     href: "/admin/review",
-    label: "Review Queue",
+    label: "Review queue",
     icon: ClipboardCheck,
   },
   {
-    href: "/admin/assignments",
-    label: "Assign Topic",
-    icon: PenLine,
-  },
-  {
     href: "/admin/agents",
-    label: "Agent Logs",
+    label: "Agent logs",
     icon: Activity,
   },
   {
@@ -48,66 +41,46 @@ export default function AdminLayout({
 }) {
   const pathname = usePathname();
 
-  return (
-    <div className="flex min-h-[calc(100vh-8rem)]">
-      {/* Admin Sidebar */}
-      <aside className="hidden md:flex flex-col w-56 border-r border-border bg-terminal-bg/50 shrink-0">
-        <div className="p-4 border-b border-border">
-          <div className="flex items-center gap-2 mb-1">
-            <Terminal className="w-4 h-4 text-accent-cyan" />
-            <h3 className="text-xs font-mono font-semibold text-accent-cyan uppercase tracking-wider">
-              Admin Panel
-            </h3>
-          </div>
-          <p className="text-[10px] font-mono text-muted/60">
-            Pipeline Management
-          </p>
-        </div>
+  // The sign-in page sits outside the admin chrome.
+  if (pathname === "/admin/login") return <>{children}</>;
 
-        <nav className="flex-1 overflow-y-auto p-2 space-y-0.5">
+  return (
+    <div className="flex flex-col gap-12">
+      <header className="flex flex-col gap-6 border-b border-rule-strong pb-6 md:flex-row md:items-end md:justify-between">
+        <div>
+          <p className="label-caps text-muted-foreground">Editors only</p>
+          <h1 className="display mt-2 text-4xl">Admin</h1>
+        </div>
+        <form action={signOut}>
+          <button type="submit" className="button-quiet">
+            Sign out
+          </button>
+        </form>
+      </header>
+      <nav aria-label="Admin" className="-mt-12 border-b border-border">
+        <ul className="scrollbar-none flex gap-8 overflow-x-auto">
           {adminNavItems.map((item) => {
             const Icon = item.icon;
-            const isActive =
-              item.href === "/admin"
-                ? pathname === "/admin"
-                : pathname.startsWith(item.href);
-
+            const isActive = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2.5 px-3 py-2 text-sm font-mono rounded-md transition-all",
-                  isActive
-                    ? "bg-terminal-hover text-accent-cyan"
-                    : "text-muted hover:text-foreground hover:bg-terminal-hover"
-                )}
-              >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span>{item.label}</span>
-                {isActive && (
-                  <span className="ml-auto text-accent-cyan text-[10px]">
-                    {">"}
-                  </span>
-                )}
-              </Link>
+              <li key={item.href} className="shrink-0">
+                <Link
+                  href={item.href}
+                  aria-current={isActive ? "page" : undefined}
+                  className={cn(
+                    "inline-flex min-h-12 items-center gap-2 border-b-2 transition-colors duration-[180ms]",
+                    isActive ? "border-brand text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-4 w-4" strokeWidth={1.75} aria-hidden="true" />
+                  {item.label}
+                </Link>
+              </li>
             );
           })}
-        </nav>
-
-        <div className="p-4 border-t border-border">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xs font-mono text-muted hover:text-accent-cyan transition-colors"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            Back to Feed
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main Content */}
-      <main className="flex-1 min-w-0 p-4 md:p-6 lg:p-8">{children}</main>
+        </ul>
+      </nav>
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }

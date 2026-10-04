@@ -136,12 +136,6 @@ wrangler.*.local.toml
 *.bak
 *.orig
 
-# Scratch / personal notes that occasionally land in the working tree
-/idk*.md
-/scratch*.md
-/tmp*.md
-/notes.md
-
 # ===========================================================================
 # Public repo policy: code only.
 # Everything below is intentionally kept private — not for the public repo.
@@ -170,3 +164,10 @@ wrangler.*.local.toml
 /ann-agents/README.md
 /ann-agents/AGENTS.md
 /ann-agents/CLAUDE.md
+
+# --- Broadcast ---
+broadcast-audio/
+voices/
+
+# Downloaded model weights
+models/

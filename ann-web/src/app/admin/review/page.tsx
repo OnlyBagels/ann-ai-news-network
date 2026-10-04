@@ -20,21 +20,9 @@ interface ReviewArticle {
   id: string;
   title: string;
   slug: string;
-  url: string;
-  source: string;
-  sourceUrl: string | null;
-  author: string | null;
-  publishedAt: string;
   summary: string;
-  tlDr: string | null;
-  content: string | null;
-  tags: string[];
   category: string;
-  section: string | null;
-  region: string | null;
-  country: string | null;
   storyStatus: string;
-  sourcesAnalyzed: number;
   riskLevel: string;
   requiresHumanReview: boolean;
   overallConfidence: number | null;
@@ -129,11 +117,11 @@ export default function ReviewQueuePage() {
 
   if (isError || !data) {
     return (
-      <div className="border border-accent-red/30 rounded-lg bg-accent-red/5 p-8 text-center">
-        <p className="text-sm font-mono text-accent-red mb-2">
+      <div className="border border-brand/30 rounded-lg bg-brand/5 p-8 text-center">
+        <p className="text-sm font-mono text-brand mb-2">
           Error loading review queue
         </p>
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           {(error as Error)?.message || "An unexpected error occurred."}
         </p>
       </div>
@@ -148,13 +136,13 @@ export default function ReviewQueuePage() {
           <h1 className="text-lg font-mono font-bold text-foreground mb-1">
             Review Queue
           </h1>
-          <p className="text-xs font-mono text-muted">
+          <p className="text-xs font-mono text-muted-foreground">
             {data.total} article{data.total !== 1 ? "s" : ""} pending human
             review
           </p>
         </div>
         {data.total > 0 && (
-          <span className="flex items-center gap-1.5 text-xs font-mono text-accent-yellow border border-accent-yellow/30 rounded-md px-2.5 py-1.5">
+          <span className="flex items-center gap-2 text-xs font-mono text-warn border border-warn/30 rounded-md px-3 py-2">
             <AlertTriangle className="w-3.5 h-3.5" />
             Attention Required
           </span>
@@ -162,12 +150,12 @@ export default function ReviewQueuePage() {
       </div>
 
       {data.articles.length === 0 ? (
-        <div className="border border-border rounded-lg bg-terminal-card p-12 text-center">
-          <CheckCircle2 className="w-8 h-8 text-accent-green mx-auto mb-3" />
+        <div className="border border-border rounded-lg bg-panel p-12 text-center">
+          <CheckCircle2 className="w-8 h-8 text-foreground mx-auto mb-3" />
           <p className="text-sm font-mono text-foreground mb-1">
             All Clear
           </p>
-          <p className="text-xs text-muted">
+          <p className="text-xs text-muted-foreground">
             No articles currently need human review.
           </p>
         </div>
@@ -177,18 +165,18 @@ export default function ReviewQueuePage() {
             <div
               key={article.id}
               className={cn(
-                "border rounded-lg bg-terminal-card overflow-hidden transition-all",
+                "border rounded-lg bg-panel overflow-hidden transition-colors",
                 article.riskLevel === "high"
-                  ? "border-accent-red/30"
+                  ? "border-brand/30"
                   : article.riskLevel === "medium"
-                    ? "border-accent-yellow/30"
+                    ? "border-warn/30"
                     : "border-border",
-                selectedArticle?.id === article.id && "ring-1 ring-accent-cyan"
+                selectedArticle?.id === article.id && "ring-1 ring-brand"
               )}
             >
               {/* Article Header */}
               <div
-                className="p-4 cursor-pointer hover:bg-terminal-hover transition-colors"
+                className="p-4 cursor-pointer hover:bg-raised transition-colors"
                 onClick={() =>
                   setSelectedArticle(
                     selectedArticle?.id === article.id ? null : article
@@ -200,47 +188,26 @@ export default function ReviewQueuePage() {
                     <div className="flex items-center gap-2 mb-2">
                       <span
                         className={cn(
-                          "text-xs font-mono px-2 py-0.5 rounded-full border",
+                          "text-xs font-mono px-2 py-1 rounded-sm border",
                           article.riskLevel === "high"
-                            ? "text-accent-red border-accent-red/30 bg-accent-red/5"
+                            ? "text-brand border-brand/30 bg-brand/5"
                             : article.riskLevel === "medium"
-                              ? "text-accent-yellow border-accent-yellow/30 bg-accent-yellow/5"
-                              : "text-accent-green border-accent-green/30 bg-accent-green/5"
+                              ? "text-warn border-warn/30 bg-warn/5"
+                              : "text-foreground border-border-strong/30 bg-border-strong/5"
                         )}
                       >
                         {article.riskLevel} risk
                       </span>
-                      <span className="text-xs font-mono text-muted capitalize">
+                      <span className="text-xs font-mono text-muted-foreground capitalize">
                         {article.category.replace(/-/g, " ")}
                       </span>
                     </div>
                     <h3 className="text-sm font-semibold text-foreground leading-relaxed">
                       {article.title}
                     </h3>
-                    <p className="text-xs text-muted mt-1 line-clamp-2 font-mono">
+                    <p className="text-xs text-muted-foreground mt-1 line-clamp-2 font-mono">
                       {article.summary}
                     </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-mono text-muted">
-                      {article.section && (
-                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
-                          {article.section}
-                        </span>
-                      )}
-                      {article.region && (
-                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
-                          {article.region}
-                        </span>
-                      )}
-                      {article.country && article.country !== "global" && (
-                        <span className="border border-border rounded px-1.5 py-0.5 uppercase">
-                          {article.country}
-                        </span>
-                      )}
-                      <span className="inline-flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {formatDate(article.publishedAt)}
-                      </span>
-                    </div>
                   </div>
 
                   {/* Quick Actions */}
@@ -254,7 +221,7 @@ export default function ReviewQueuePage() {
                         });
                       }}
                       disabled={reviewMutation.isPending}
-                      className="p-2 rounded-md text-accent-green hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                      className="p-2 rounded-md text-foreground hover:bg-border-strong/10 transition-colors disabled:opacity-50"
                       title="Approve"
                     >
                       <CheckCircle2 className="w-5 h-5" />
@@ -264,7 +231,7 @@ export default function ReviewQueuePage() {
                         e.stopPropagation();
                         setSelectedArticle(article);
                       }}
-                      className="p-2 rounded-md text-accent-red hover:bg-accent-red/10 transition-colors"
+                      className="p-2 rounded-md text-brand hover:bg-brand/10 transition-colors"
                       title="Reject"
                     >
                       <XCircle className="w-5 h-5" />
@@ -274,11 +241,11 @@ export default function ReviewQueuePage() {
 
                 {/* Risk Factors */}
                 {article.riskFactors.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mt-3">
+                  <div className="flex flex-wrap gap-2 mt-3">
                     {article.riskFactors.map((factor) => (
                       <span
                         key={factor}
-                        className="text-[10px] font-mono text-accent-red/80 bg-accent-red/5 border border-accent-red/20 px-2 py-0.5 rounded"
+                        className="text-xs font-mono text-brand/80 bg-brand/5 border border-brand/20 px-2 py-1 rounded"
                       >
                         {factor}
                       </span>
@@ -302,11 +269,11 @@ export default function ReviewQueuePage() {
                       color={
                         article.overallConfidence != null &&
                         article.overallConfidence >= 0.8
-                          ? "text-accent-green"
+                          ? "text-foreground"
                           : article.overallConfidence != null &&
                               article.overallConfidence >= 0.5
-                            ? "text-accent-yellow"
-                            : "text-accent-red"
+                            ? "text-warn"
+                            : "text-brand"
                       }
                       icon={Brain}
                     />
@@ -320,11 +287,11 @@ export default function ReviewQueuePage() {
                       color={
                         article.hallucinationRisk != null &&
                         article.hallucinationRisk < 0.3
-                          ? "text-accent-green"
+                          ? "text-foreground"
                           : article.hallucinationRisk != null &&
                               article.hallucinationRisk < 0.6
-                            ? "text-accent-yellow"
-                            : "text-accent-red"
+                            ? "text-warn"
+                            : "text-brand"
                       }
                       icon={AlertTriangle}
                     />
@@ -333,8 +300,8 @@ export default function ReviewQueuePage() {
                       value={article.legalConcerns.length.toString()}
                       color={
                         article.legalConcerns.length > 0
-                          ? "text-accent-red"
-                          : "text-accent-green"
+                          ? "text-brand"
+                          : "text-foreground"
                       }
                       icon={Scale}
                     />
@@ -343,8 +310,8 @@ export default function ReviewQueuePage() {
                       value={article.biasConcerns.length.toString()}
                       color={
                         article.biasConcerns.length > 0
-                          ? "text-accent-yellow"
-                          : "text-accent-green"
+                          ? "text-warn"
+                          : "text-foreground"
                       }
                       icon={Flag}
                     />
@@ -353,14 +320,14 @@ export default function ReviewQueuePage() {
                   {/* Safety Flags */}
                   {article.safetyFlags.length > 0 && (
                     <div>
-                      <p className="text-xs font-mono text-muted mb-2">
+                      <p className="text-xs font-mono text-muted-foreground mb-2">
                         Safety Flags
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
+                      <div className="flex flex-wrap gap-2">
                         {article.safetyFlags.map((flag) => (
                           <span
                             key={flag}
-                            className="text-xs font-mono text-accent-red bg-accent-red/5 border border-accent-red/20 px-2 py-1 rounded"
+                            className="text-xs font-mono text-brand bg-brand/5 border border-brand/20 px-2 py-1 rounded"
                           >
                             <Shield className="w-3 h-3 inline mr-1" />
                             {flag}
@@ -370,108 +337,38 @@ export default function ReviewQueuePage() {
                     </div>
                   )}
 
-                  {/* Draft body and source pack */}
-                  <div className="space-y-3">
-                    <p className="text-xs font-mono text-muted">Draft article</p>
-                    <div className="border border-border rounded-md bg-terminal-bg/60 p-3 space-y-3">
-                      {article.tlDr && (
-                        <div className="text-xs font-mono text-accent-cyan border-l border-accent-cyan/40 pl-2">
-                          <span className="text-accent-cyan/70">TL;DR </span>
-                          {article.tlDr}
-                        </div>
-                      )}
-                      <div className="space-y-3 text-sm leading-relaxed text-foreground/90">
-                        {splitArticleBody(article.content || article.summary).length > 0 ? (
-                          splitArticleBody(article.content || article.summary).map((paragraph, idx) => (
-                            <p key={idx}>{paragraph}</p>
-                          ))
-                        ) : (
-                          <p className="text-xs text-muted">No draft body generated.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-mono text-muted">Sources</p>
-                    <div className="border border-border rounded-md bg-terminal-bg/60 p-3 space-y-2 text-xs font-mono text-muted">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-foreground">{article.source}</span>
-                        {article.author && <span>by {article.author}</span>}
-                        <span className="text-muted/70">
-                          {article.sourcesAnalyzed} source
-                          {article.sourcesAnalyzed === 1 ? "" : "s"} analyzed
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap items-center gap-4">
-                        <a
-                          href={article.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          Canonical story URL
-                        </a>
-                        {article.sourceUrl && (
-                          <a
-                            href={article.sourceUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-accent-cyan hover:text-accent-green"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            Original source link
-                          </a>
-                        )}
-                      </div>
-                      {article.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 pt-1">
-                          {article.tags.slice(0, 10).map((tag) => (
-                            <span
-                              key={tag}
-                              className="text-[10px] text-muted border border-border rounded px-1.5 py-0.5"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
                   {/* Agent Actions */}
                   {article.agentActions.length > 0 && (
                     <div>
-                      <p className="text-xs font-mono text-muted mb-2">
+                      <p className="text-xs font-mono text-muted-foreground mb-2">
                         Agent Actions
                       </p>
                       <div className="space-y-1">
                         {article.agentActions.map((action, i) => (
                           <div
                             key={i}
-                            className="flex items-center gap-3 text-xs font-mono text-muted"
+                            className="flex items-center gap-3 text-xs font-mono text-muted-foreground"
                           >
                             <span
                               className={cn(
                                 "w-1.5 h-1.5 rounded-full shrink-0",
                                 action.state === "completed"
-                                  ? "bg-accent-green"
+                                  ? "bg-border-strong"
                                   : action.state === "error"
-                                    ? "bg-accent-red"
-                                    : "bg-accent-yellow"
+                                    ? "bg-brand"
+                                    : "bg-warn"
                               )}
                             />
                             <span className="capitalize">
                               {action.agentRole.replace(/_/g, " ")}
                             </span>
                             {action.durationMs && (
-                              <span className="text-muted/60">
+                              <span className="text-muted-foreground/60">
                                 {action.durationMs}ms
                               </span>
                             )}
                             {action.error && (
-                              <span className="text-accent-red">
+                              <span className="text-brand">
                                 {action.error}
                               </span>
                             )}
@@ -498,7 +395,7 @@ export default function ReviewQueuePage() {
                         })
                       }
                       disabled={reviewMutation.isPending}
-                      className="px-3 py-1.5 text-xs font-mono text-accent-green border border-accent-green/30 rounded-md hover:bg-accent-green/10 transition-colors disabled:opacity-50"
+                      className="px-3 py-2 text-xs font-mono text-foreground border border-border-strong/30 rounded-md hover:bg-border-strong/10 transition-colors disabled:opacity-50"
                     >
                       {reviewMutation.isPending ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -515,7 +412,7 @@ export default function ReviewQueuePage() {
                         })
                       }
                       disabled={reviewMutation.isPending}
-                      className="px-3 py-1.5 text-xs font-mono text-accent-red border border-accent-red/30 rounded-md hover:bg-accent-red/10 transition-colors disabled:opacity-50"
+                      className="px-3 py-2 text-xs font-mono text-brand border border-brand/30 rounded-md hover:bg-brand/10 transition-colors disabled:opacity-50"
                     >
                       {reviewMutation.isPending ? (
                         <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -534,13 +431,6 @@ export default function ReviewQueuePage() {
   );
 }
 
-function splitArticleBody(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map((part) => part.trim())
-    .filter(Boolean);
-}
-
 function DetailBox({
   label,
   value,
@@ -554,9 +444,9 @@ function DetailBox({
 }) {
   return (
     <div className="border border-border rounded-lg p-3">
-      <div className="flex items-center gap-1.5 mb-1">
+      <div className="flex items-center gap-2 mb-1">
         <Icon className={cn("w-3.5 h-3.5", color)} />
-        <span className="text-[10px] font-mono text-muted">{label}</span>
+        <span className="text-xs font-mono text-muted-foreground">{label}</span>
       </div>
       <p className={cn("text-sm font-mono font-bold", color)}>{value}</p>
     </div>

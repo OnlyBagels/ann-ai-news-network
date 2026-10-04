@@ -1,18 +1,17 @@
 """Scheduler - Periodically ingests sources and runs the agent pipeline.
 
 Runs on a configurable interval to:
-1. Ingest from broad all-news feeds by default
-2. Optionally add AI-specialist sources when explicitly enabled
-3. Run the agent pipeline on each story
-4. Save results to the database
-5. Index in Meilisearch
+1. Ingest from all configured sources (RSS, HN, arXiv, GitHub, HuggingFace)
+2. Run the agent pipeline on each story
+3. Save results to the database
+4. Index in Meilisearch
 """
 
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
-from typing import List, Optional
+
+from typing import List
 
 from loguru import logger
 
@@ -20,12 +19,33 @@ from ann_agents.bridge.db_bridge import DatabaseBridge
 from ann_agents.bridge.meilisearch_sync import MeilisearchSync
 from ann_agents.core.config import settings
 from ann_agents.core.types import SourceItem, Story
+from ann_agents.ingestion.article_text import fetch_article_text
 from ann_agents.ingestion.source_ingester import SourceIngester
+from ann_agents.ingestion.source_registry import SourceRegistry
+from ann_agents.pipeline.assignment import assign
+from ann_agents.pipeline.corroborate import related
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
+def interleave_sources(items: List[SourceItem]) -> List[SourceItem]:
+    """Newest first within each source, then one from each source in turn.
+
+    Without this the first feed in the list fills every slot in a cycle.
+    """
+    by_source: dict = {}
+    for item in items:
+        by_source.setdefault(item.source_name, []).append(item)
+    queues = [sorted(group, key=lambda i: i.published_at, reverse=True) for group in by_source.values()]
+    ordered: List[SourceItem] = []
+    while any(queues):
+        for queue in queues:
+            if queue:
+                ordered.append(queue.pop(0))
+    return ordered
+
+
 class NewsroomScheduler:
-    """Orchestrates periodic ingestion and processing of all-news coverage."""
+    """Orchestrates periodic ingestion and processing of the news."""
 
     def __init__(self):
         self.ingester = SourceIngester()
@@ -33,68 +53,73 @@ class NewsroomScheduler:
         self.db = DatabaseBridge()
         self.search = MeilisearchSync()
         self._running = False
-        self._cycle_lock = asyncio.Lock()
+        self.sources = SourceRegistry(self.db.engine, self.ingester)
+        self._seeded = False
+        # URLs WaterSheep screened out, so later cycles don't ask again.
+        self._off_topic: set = set()
 
     async def run_once(self) -> int:
         """Run a single ingestion + pipeline cycle.
 
         Returns the number of stories processed.
         """
-        if self._cycle_lock.locked():
-            logger.warning("Ingestion cycle already in progress; skipping duplicate run request")
-            return 0
+        logger.info("=== Newsroom Scheduler: Starting ingestion cycle ===")
 
-        async with self._cycle_lock:
-            logger.info("=== Newsroom Scheduler: Starting ingestion cycle ===")
+        # Step 1: Ingest from all sources
+        all_items = await self._ingest_all()
+        logger.info(f"Ingested {len(all_items)} total items")
 
-            # Step 1: Ingest from all sources
-            all_items = await self._ingest_all()
-            logger.info(f"Ingested {len(all_items)} total items")
+        # Step 2: Deduplicate by URL
+        seen_urls: set = set()
+        unique_items: List[SourceItem] = []
+        for item in all_items:
+            if item.url not in seen_urls:
+                seen_urls.add(item.url)
+                unique_items.append(item)
 
-            # Step 2: Deduplicate by URL
-            seen_urls: set = set()
-            unique_items: List[SourceItem] = []
-            for item in all_items:
-                if item.url not in seen_urls:
-                    seen_urls.add(item.url)
-                    unique_items.append(item)
+        logger.info(f"{len(unique_items)} unique items after dedup")
 
-            logger.info(f"{len(unique_items)} unique items after dedup")
+        # Skip what an earlier cycle already ran; every rerun costs model calls.
+        known = self.db.existing_urls([item.url for item in unique_items])
+        unique_items = interleave_sources([item for item in unique_items if item.url not in known])
+        logger.info(f"{len(unique_items)} new items, {len(known)} already in the newsroom")
 
-            candidate_urls = [item.url for item in unique_items if item.url]
-            new_urls = set(self.db.filter_new_urls(candidate_urls))
-            new_items = [item for item in unique_items if not item.url or item.url in new_urls]
-            logger.info(f"{len(new_items)} items are new since the last DB sync")
+        # Step 3: WaterSheep screens the feed, the language model picks the stories
+        assigned = await assign(unique_items, settings.max_concurrent_stories, self._off_topic)
 
-            if not new_items:
-                logger.info("No new items to process this cycle")
-                return 0
+        # Step 4: Run pipeline on each item
+        processed = 0
+        for item in assigned:
+            # Other outlets' reports of the same event, so the story can cite
+            # more than one and the fact-check can compare them.
+            others = await related(item, all_items)
+            # Write from the articles, not the feeds' teasers.
+            fetched = await asyncio.gather(
+                *(fetch_article_text(i, settings.newsroom_min_source_chars) for i in [item, *others])
+            )
+            item = fetched[0]
+            story = Story(
+                title=item.title,
+                source_items=list(fetched),
+                primary_source=item,
+                tags=item.tags,
+            )
 
-            # Step 3: Run pipeline on each item
-            processed = 0
-            for item in new_items[:settings.max_concurrent_stories]:
-                story = Story(
-                    title=item.title,
-                    source_items=[item],
-                    primary_source=item,
-                    tags=item.tags,
-                )
+            try:
+                result = await self.pipeline.run_full_pipeline(story)
 
-                try:
-                    result = await self.pipeline.run_full_pipeline(story)
+                # Save to database
+                article_id = self.db.save_story(result)
+                if article_id:
+                    # Index in Meilisearch
+                    self.search.index_article(article_id)
+                    processed += 1
 
-                    # Save to database
-                    article_id = self.db.save_story(result)
-                    if article_id:
-                        # Index in Meilisearch
-                        self.search.index_article(article_id)
-                        processed += 1
+            except Exception as e:
+                logger.error(f"Pipeline failed for '{item.title[:60]}': {e}")
 
-                except Exception as e:
-                    logger.error(f"Pipeline failed for '{item.title[:60]}': {e}")
-
-            logger.info(f"=== Cycle complete: {processed}/{len(new_items)} new stories processed ===")
-            return processed
+        logger.info(f"=== Cycle complete: {processed}/{len(unique_items)} stories processed ===")
+        return processed
 
     async def run_forever(self, interval_minutes: int = 15):
         """Run the ingestion cycle on a loop."""
@@ -116,28 +141,8 @@ class NewsroomScheduler:
         logger.info("Scheduler stopped")
 
     async def _ingest_all(self) -> List[SourceItem]:
-        """Ingest from all configured sources."""
-        all_items: List[SourceItem] = []
-
-        # Default: broad all-news feed mix (world, politics, business, tech,
-        # science, climate, health, sports, culture).
-        news_items = await self.ingester.ingest_news_feeds(
-            limit_per_feed=max(1, settings.all_news_limit_per_feed)
-        )
-        all_items.extend(news_items)
-
-        # Optional: AI-specialist sources for users who explicitly want them.
-        if settings.include_ai_specialist_sources:
-            hn_items = await self.ingester.ingest_hn(top_n=20)
-            all_items.extend(hn_items)
-
-            arxiv_items = await self.ingester.ingest_arxiv(max_results=12)
-            all_items.extend(arxiv_items)
-
-            github_items = await self.ingester.ingest_github_trending()
-            all_items.extend(github_items)
-
-            hf_items = await self.ingester.ingest_huggingface(limit=12)
-            all_items.extend(hf_items)
-
-        return all_items
+        """Fetch every active source in the Source table (seeded with the defaults once)."""
+        if not self._seeded:
+            self.sources.seed()
+            self._seeded = True
+        return await self.sources.fetch_all()

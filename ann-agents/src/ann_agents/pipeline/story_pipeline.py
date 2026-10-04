@@ -1,68 +1,75 @@
-"""Story Pipeline - orchestrates ANN's full newsroom workflow."""
+"""Story Pipeline - Orchestrates the full agent workflow for each story."""
 
 from __future__ import annotations
 
 import asyncio
 from datetime import datetime
+from typing import List, Optional
 
 from loguru import logger
 
-from ann_agents.bridge.publisher import publisher
-from ann_agents.collaboration.team_chat import append_team_round
 from ann_agents.core.config import settings
-from ann_agents.core.types import AgentRole, Story, StoryStatus
-from ann_agents.editorial.article_writer import ArticleWriter
-from ann_agents.editorial.editorial_agents import (
-    HeadlineEditor,
-    SummaryEditor,
-    StyleEditor,
-    TechnicalEditor,
-)
-from ann_agents.editorial.triage_editor import (
-    TriageEditor,
-    assigned_reporter,
-    reporter_roles_for_story,
-)
-from ann_agents.factcheck.fact_check_agent import FactCheckAgent
-from ann_agents.oversight.oversight_agents import (
-    BiasAgent,
-    EditorInChief,
-    LegalAgent,
-    RiskAgent,
-)
-from ann_agents.reporters.business_reporter import BusinessReporter
+from ann_agents.core.types import AgentRole, Category, RiskAssessment, RiskLevel, Story, StoryStatus
+from ann_agents.core.voice import detect_slop
+from ann_agents.pipeline.beat import REPORTER_ROLE, assign_beat
 from ann_agents.reporters.model_reporter import ModelReporter
 from ann_agents.reporters.open_source_reporter import OpenSourceReporter
-from ann_agents.reporters.regulation_reporter import RegulationReporter
 from ann_agents.reporters.research_reporter import ResearchReporter
-from ann_agents.reporters.section_reporters import build_section_reporters
 from ann_agents.reporters.security_reporter import SecurityReporter
-from ann_agents.research.journalist_research import JournalistResearcher
+from ann_agents.reporters.regulation_reporter import RegulationReporter
+from ann_agents.reporters.business_reporter import BusinessReporter
+from ann_agents.reporters.beat_reporter import BeatReporter
 from ann_agents.research.research_agent import ResearchAgent
+from ann_agents.factcheck.fact_check_agent import FactCheckAgent
+from ann_agents.editorial.editorial_agents import (
+    HeadlineEditor,
+    TechnicalEditor,
+    StyleEditor,
+    SummaryEditor,
+)
+from ann_agents.oversight.watersheep_judge import WaterSheepJudge
+from ann_agents.oversight.oversight_agents import (
+    RiskAgent,
+    LegalAgent,
+    BiasAgent,
+    EditorInChief,
+)
 
 
 class StoryPipeline:
-    """Runs stories through triage, desks, research, editorial, and oversight."""
+    """Orchestrates the full agent workflow for stories.
 
-    def __init__(self):
-        self.triage_editor = TriageEditor()
-        self.journalist_researcher = JournalistResearcher()
+    Pipeline flow:
+    Source detection → Story clustering → Reporter agents investigate
+    → Research agents enrich → Fact-check agents verify
+    → Editorial agents refine → Risk/legal oversight
+    → Editor-in-chief review → Human approval (optional) → Publish
+    """
 
-        # Reporter desks (section-wide + AI specialist beats).
+    def __init__(self, lean: Optional[bool] = None):
+        # Lean mode (NEWSROOM_LEAN=true) is for slow, self-hosted models: only
+        # the beat's reporter, no research pass, the headline and summary editors, and
+        # the risk check. The fact-check and the editor-in-chief always run.
+        self.lean = settings.newsroom_lean if lean is None else lean
+
+        # Reporter Agents (6)
         self.reporters = {
-            **build_section_reporters(),
             AgentRole.MODEL_REPORTER: ModelReporter(),
             AgentRole.OPEN_SOURCE_REPORTER: OpenSourceReporter(),
             AgentRole.RESEARCH_REPORTER: ResearchReporter(),
             AgentRole.SECURITY_REPORTER: SecurityReporter(),
             AgentRole.REGULATION_REPORTER: RegulationReporter(),
             AgentRole.BUSINESS_REPORTER: BusinessReporter(),
+            AgentRole.BEAT_REPORTER: BeatReporter(),
         }
 
+        # Research Agent
         self.research_agent = ResearchAgent()
-        self.fact_check_agent = FactCheckAgent()
-        self.article_writer = ArticleWriter()
 
+        # Fact-Check Agent
+        self.fact_check_agent = FactCheckAgent()
+
+        # Editorial Agents (4)
         self.editorial_agents = {
             AgentRole.HEADLINE_EDITOR: HeadlineEditor(),
             AgentRole.TECHNICAL_EDITOR: TechnicalEditor(),
@@ -70,59 +77,58 @@ class StoryPipeline:
             AgentRole.SUMMARY_EDITOR: SummaryEditor(),
         }
 
+        # Oversight Agents (4)
         self.oversight_agents = {
             AgentRole.RISK_AGENT: RiskAgent(),
             AgentRole.LEGAL_AGENT: LegalAgent(),
             AgentRole.BIAS_AGENT: BiasAgent(),
             AgentRole.EDITOR_IN_CHIEF: EditorInChief(),
+            AgentRole.WATERSHEEP_JUDGE: WaterSheepJudge(),
         }
 
+        if self.lean:
+            for role in (AgentRole.TECHNICAL_EDITOR, AgentRole.STYLE_EDITOR):
+                del self.editorial_agents[role]
+            for role in (AgentRole.LEGAL_AGENT, AgentRole.BIAS_AGENT):
+                del self.oversight_agents[role]
+
     async def run_full_pipeline(self, story: Story) -> Story:
-        """Run the complete newsroom pipeline for one story."""
+        """Run the complete agent pipeline on a story.
+
+        This is the main entry point for processing a story through the newsroom.
+        """
         logger.info(f"=== Starting pipeline for story: {story.title[:60]} ===")
         story.status = StoryStatus.INVESTIGATING
 
-        # Step 0: triage for section/category/region/country.
-        story = await self.triage_editor.run(story)
+        # Step 1: WaterSheep picks the beat, which decides the reporter.
+        beat = await assign_beat(story)
 
-        # Step 1: reporter desk pass (single-assigned or full parallel desk).
-        story = await self._run_reporters(story)
+        # Step 2: Reporter Agents investigate (run in parallel)
+        story = await self._run_reporters(story, beat)
+        if beat:
+            story.category = Category(beat)
+        story.byline = self._byline(story.category)
         story.status = StoryStatus.ENRICHED
 
-        # Step 1b: 3-researcher journalist pass.
-        if story.primary_source is None:
-            logger.info(
-                f"[pipeline] no primary_source for '{story.title[:60]}' "
-                "-> running in research-first (assignment) mode"
-            )
-        story = await self.journalist_researcher.run(story)
+        # Step 3: Research Agent enriches
+        if not self.lean:
+            story = await self.research_agent.run(story)
 
-        # Step 2: research enrichment.
-        story = await self.research_agent.run(story)
-
-        # Step 3: fact-check.
+        # Step 4: Fact-Check Agent verifies
         story = await self.fact_check_agent.run(story)
         story.status = StoryStatus.VERIFIED
 
-        # Step 4: editorial parallel pass.
+        # Step 5: Editorial Agents refine (run in parallel)
         story = await self._run_editorial(story)
-
-        # Step 4b: full-article writer.
-        story = await self.article_writer.run(story)
+        self._flag_style(story)
         story.status = StoryStatus.EDITED
 
-        # Step 5: oversight pass.
+        # Step 6: Oversight Agents review (run in parallel)
         story = await self._run_oversight(story)
         story.status = StoryStatus.REVIEWED
 
-        # Step 6: final EIC decision.
+        # Step 7: Editor-in-Chief makes final decision
         story = await self.oversight_agents[AgentRole.EDITOR_IN_CHIEF].run(story)
-
-        # Step 7: publish draft to ann-web review queue.
-        try:
-            await publisher.publish(story)
-        except Exception as exc:
-            logger.error(f"[pipeline] publisher raised: {exc}")
 
         logger.info(
             f"=== Pipeline complete for: {story.title[:60]} === "
@@ -130,221 +136,132 @@ class StoryPipeline:
             f"Agents: {len(story.agents_involved)}, "
             f"Confidence: {story.confidence.overall_confidence if story.confidence else 'N/A'}"
         )
+
         return story
 
-    async def _run_reporters(self, story: Story) -> Story:
-        """Run reporter desks using ANN_REPORTER_EXECUTION_MODE."""
-        roles = reporter_roles_for_story(story, settings.reporter_execution_mode)
-        if not roles:
-            logger.info(
-                f"[pipeline] no reporter mapped for section={story.section} "
-                f"category={story.category}; skipping reporter stage"
-            )
-            return story
+    def _flag_style(self, story: Story) -> None:
+        """Note banned house-voice phrases for the editor in the review queue."""
+        text = "\n".join(t for t in (story.headline, story.summary, story.content) if t)
+        hits = detect_slop(text)
+        if not hits:
+            return
+        if story.risk is None:
+            story.risk = RiskAssessment()
+        story.risk.risk_factors = list(story.risk.risk_factors) + [
+            "style: " + ", ".join(f'"{phrase}" ({fix})' for phrase, fix in hits)
+        ]
 
-        max_roles = max(1, settings.reporter_parallel_limit)
-        roles = roles[:max_roles]
+    def _reporter_roles(self, beat: Optional[str]) -> List[AgentRole]:
+        """The beat's reporter. With no beat yet, the AI desk in full mode, the
+        general beat reporter in lean mode."""
+        if beat:
+            return [REPORTER_ROLE.get(beat, AgentRole.BEAT_REPORTER)]
+        if not self.lean:
+            return [r for r in self.reporters if r != AgentRole.BEAT_REPORTER]
+        return [AgentRole.MODEL_REPORTER]
 
-        rounds = self._team_rounds()
-        owner_role = assigned_reporter(story)
-        latest_briefs: dict[str, dict] = {}
+    def _byline(self, category: Optional[Category]) -> Optional[str]:
+        """The beat reporter's id from the lineup, if the lineup is available."""
+        if category is None:
+            return None
+        try:
+            from ann_agents.broadcast.lineup import load_lineup
 
-        for round_idx in range(1, rounds + 1):
-            if len(roles) == 1:
-                role = roles[0]
-                reporter = self.reporters.get(role)
-                if reporter is None:
-                    logger.warning(f"[pipeline] reporter missing for role={role.value}")
-                    return story
-                logger.info(
-                    f"[pipeline] reporters round {round_idx}/{rounds}; "
-                    f"mode={settings.reporter_execution_mode}; assigned={role.value}"
-                )
-                result = await reporter.run(story)
+            return load_lineup().beats.get(category.value)
+        except Exception as e:
+            logger.warning(f"lineup unavailable, no byline: {e}")
+            return None
+
+    async def _run_reporters(self, story: Story, beat: Optional[str] = None) -> Story:
+        """Run the reporter agents in parallel."""
+        tasks = []
+        for role in self._reporter_roles(beat):
+            copy = story.model_copy(deep=True)
+            if beat:
+                copy.category = Category(beat)
+            copy.byline = self._byline(Category(beat)) if beat else None
+            tasks.append(self.reporters[role].run(copy))
+
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # Merge results from all reporters
+        for result in results:
+            if isinstance(result, Story):
                 story = self._merge_stories(story, result)
-                if result.summary:
-                    latest_briefs[role.value] = {
-                        "reporter": role.value,
-                        "summary": result.summary,
-                        "tags": result.tags[:8],
-                    }
-                    append_team_round(
-                        story,
-                        "reporters",
-                        round_idx,
-                        [f"{role.value}: {result.summary[:260]}"],
-                        max_chars=settings.team_chat_context_chars,
-                    )
-                continue
-
-            logger.info(
-                f"[pipeline] reporters round {round_idx}/{rounds}; "
-                f"mode={settings.reporter_execution_mode}; running {len(roles)} desks in parallel"
-            )
-
-            role_task_pairs = []
-            for role in roles:
-                reporter = self.reporters.get(role)
-                if reporter is None:
-                    logger.warning(f"[pipeline] reporter missing for role={role.value}")
-                    continue
-                role_task_pairs.append((role, reporter.run(story.copy(deep=True))))
-
-            if not role_task_pairs:
-                return story
-
-            results = await asyncio.gather(
-                *(task for _, task in role_task_pairs),
-                return_exceptions=True,
-            )
-
-            owner_summary = None
-            round_notes = []
-            for (role, _), result in zip(role_task_pairs, results):
-                if isinstance(result, Exception):
-                    logger.error(f"Reporter {role.value} failed: {result}")
-                    continue
-                if not isinstance(result, Story):
-                    continue
-
-                if result.summary:
-                    if role == owner_role:
-                        owner_summary = result.summary
-                    latest_briefs[role.value] = {
-                        "reporter": role.value,
-                        "summary": result.summary,
-                        "tags": result.tags[:8],
-                    }
-                    round_notes.append(f"{role.value}: {result.summary[:260]}")
-
-                story = self._merge_stories(story, result)
-
-            if owner_summary:
-                story.summary = owner_summary
-            if round_notes:
-                append_team_round(
-                    story,
-                    "reporters",
-                    round_idx,
-                    round_notes,
-                    max_chars=settings.team_chat_context_chars,
-                )
-
-        if story.primary_source is not None:
-            story.primary_source.metadata["reporter_briefs"] = list(latest_briefs.values())
+            elif isinstance(result, Exception):
+                logger.error(f"Reporter agent failed: {result}")
 
         return story
 
     async def _run_editorial(self, story: Story) -> Story:
-        """Run editorial team in collaborative rounds."""
-        rounds = self._team_rounds()
-        for round_idx in range(1, rounds + 1):
-            role_task_pairs = [
-                (role, agent.run(story.copy(deep=True)))
-                for role, agent in self.editorial_agents.items()
-            ]
-            results = await asyncio.gather(
-                *(task for _, task in role_task_pairs),
-                return_exceptions=True,
-            )
+        """Run all editorial agents in parallel."""
+        tasks = []
+        for role, agent in self.editorial_agents.items():
+            tasks.append(agent.run(story.model_copy(deep=True)))
 
-            round_notes = []
-            for (role, _), result in zip(role_task_pairs, results):
-                if isinstance(result, Exception):
-                    logger.error(f"Editorial agent {role.value} failed: {result}")
-                    continue
-                if not isinstance(result, Story):
-                    continue
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
+        for result in results:
+            if isinstance(result, Story):
                 story = self._merge_stories(story, result)
+            elif isinstance(result, Exception):
+                logger.error(f"Editorial agent failed: {result}")
 
-                if role == AgentRole.HEADLINE_EDITOR and result.headline:
-                    story.headline = result.headline
-                    round_notes.append(f"{role.value}: {result.headline}")
-                elif role == AgentRole.SUMMARY_EDITOR:
-                    if result.tl_dr:
-                        story.tl_dr = result.tl_dr
-                        round_notes.append(f"{role.value} TLDR: {result.tl_dr[:220]}")
-                    if result.summary:
-                        story.summary = result.summary
-                elif role == AgentRole.TECHNICAL_EDITOR and result.primary_source:
-                    tech = result.primary_source.metadata.get("technical_review")
-                    if tech:
-                        round_notes.append(f"{role.value}: technical issues reviewed")
-                elif role == AgentRole.STYLE_EDITOR and result.primary_source:
-                    style = result.primary_source.metadata.get("style_review")
-                    if style:
-                        round_notes.append(f"{role.value}: style issues reviewed")
-
-            if round_notes:
-                append_team_round(
-                    story,
-                    "editorial",
-                    round_idx,
-                    round_notes,
-                    max_chars=settings.team_chat_context_chars,
-                )
         return story
 
     async def _run_oversight(self, story: Story) -> Story:
-        """Run oversight team in collaborative rounds (excluding EIC)."""
-        rounds = self._team_rounds()
-        for round_idx in range(1, rounds + 1):
-            role_task_pairs = []
-            for role, agent in self.oversight_agents.items():
-                if role == AgentRole.EDITOR_IN_CHIEF:
-                    continue
-                role_task_pairs.append((role, agent.run(story.copy(deep=True))))
+        """Run oversight agents (except Editor-in-Chief) in parallel."""
+        tasks = []
+        for role, agent in self.oversight_agents.items():
+            if role == AgentRole.EDITOR_IN_CHIEF:
+                continue
+            tasks.append(agent.run(story.model_copy(deep=True)))
 
-            results = await asyncio.gather(
-                *(task for _, task in role_task_pairs),
-                return_exceptions=True,
-            )
+        results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            round_notes = []
-            for (role, _), result in zip(role_task_pairs, results):
-                if isinstance(result, Exception):
-                    logger.error(f"Oversight agent {role.value} failed: {result}")
-                    continue
-                if not isinstance(result, Story):
-                    continue
-
+        for result in results:
+            if isinstance(result, Story):
                 story = self._merge_stories(story, result)
+            elif isinstance(result, Exception):
+                logger.error(f"Oversight agent failed: {result}")
 
-                if result.risk is not None:
-                    story.risk = result.risk
-                    round_notes.append(
-                        f"{role.value}: risk={result.risk.risk_level.value}, "
-                        f"flags={len(result.risk.risk_factors)}"
-                    )
-
-            if round_notes:
-                append_team_round(
-                    story,
-                    "oversight",
-                    round_idx,
-                    round_notes,
-                    max_chars=settings.team_chat_context_chars,
-                )
         return story
 
-    def _team_rounds(self) -> int:
-        if not settings.team_chat_enabled:
-            return 1
-        return max(1, settings.team_chat_rounds)
+    @staticmethod
+    def _merge_risk(a: Optional[RiskAssessment], b: RiskAssessment) -> RiskAssessment:
+        """Combine two agents' risk findings: the higher level, every concern,
+        and human review if either asked for it."""
+        if a is None:
+            return b
+        order = [RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH]
+
+        def union(x: List[str], y: List[str]) -> List[str]:
+            return list(dict.fromkeys([*x, *y]))
+
+        return RiskAssessment(
+            risk_level=max(a.risk_level, b.risk_level, key=order.index),
+            risk_factors=union(a.risk_factors, b.risk_factors),
+            requires_human_review=a.requires_human_review or b.requires_human_review,
+            legal_concerns=union(a.legal_concerns, b.legal_concerns),
+            bias_concerns=union(a.bias_concerns, b.bias_concerns),
+            safety_flags=union(a.safety_flags, b.safety_flags),
+        )
 
     def _merge_stories(self, original: Story, updated: Story) -> Story:
-        """Merge one agent's output back onto the shared story."""
-        existing_roles = {action.agent_role for action in original.agent_actions}
+        """Merge updates from an agent's output back into the main story."""
+        # Merge agent actions
+        existing_roles = {a.agent_role for a in original.agent_actions}
         for action in updated.agent_actions:
             if action.agent_role not in existing_roles:
                 original.agent_actions.append(action)
                 existing_roles.add(action.agent_role)
 
+        # Merge agents involved
         for role in updated.agents_involved:
             if role not in original.agents_involved:
                 original.agents_involved.append(role)
 
+        # Merge content (take first non-None value)
         if updated.summary and not original.summary:
             original.summary = updated.summary
         if updated.tl_dr and not original.tl_dr:
@@ -354,18 +271,24 @@ class StoryPipeline:
         if updated.headline and not original.headline:
             original.headline = updated.headline
 
+        # Merge tags
         original.tags = list(set(original.tags + updated.tags))
 
+        # Merge category (take first set)
         if updated.category and not original.category:
             original.category = updated.category
 
+        # Merge scores
         if updated.confidence and not original.confidence:
             original.confidence = updated.confidence
         if updated.scores and not original.scores:
             original.scores = updated.scores
-        if updated.risk and not original.risk:
-            original.risk = updated.risk
+        if updated.risk:
+            original.risk = self._merge_risk(original.risk, updated.risk)
+        if updated.judge and not original.judge:
+            original.judge = updated.judge
 
+        # Merge metadata
         if updated.suggested_headlines:
             original.suggested_headlines = list(
                 set(original.suggested_headlines + updated.suggested_headlines)
@@ -374,4 +297,5 @@ class StoryPipeline:
         original.sources_analyzed = max(original.sources_analyzed, updated.sources_analyzed)
         original.fact_check_status = updated.fact_check_status or original.fact_check_status
         original.updated_at = datetime.utcnow()
+
         return original

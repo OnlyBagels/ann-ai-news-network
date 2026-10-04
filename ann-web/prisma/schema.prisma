@@ -7,6 +7,8 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// The AI beats (models .. regulation) form the AI section; the rest are
+// the general news sections.
 enum Category {
   models
   open_source
@@ -16,6 +18,19 @@ enum Category {
   security
   funding
   regulation
+  world
+  us
+  politics
+  business
+  crypto
+  tech
+  science
+  climate
+  health
+  sports
+  entertainment
+  gaming
+  internet
 }
 
 enum StoryStatus {
@@ -30,10 +45,6 @@ enum StoryStatus {
   published
   rejected
   needs_human_review
-}
-
-enum UserRole {
-  ADMIN
 }
 
 model Article {
@@ -52,12 +63,9 @@ model Article {
   category        Category
   imageUrl        String?
   relatedArticles String[]
-
-  // Broad section + region (pivot from AI-only to All News)
-  section         String?    @default("tech")
-  region          String?    @default("global")
-  country         String?    @default("global")
-  subCategory     String?    @map("sub_category")
+  byline          String?    // reporter id from src/broadcast/lineup.json
+  sources         Json?      // every outlet the story draws on: [{name, url, author, publishedAt, lean}]
+  judge           Json?      // WaterSheep scores: relevance, support, clickbait
 
   // Agent pipeline tracking
   storyStatus     StoryStatus @default(raw)
@@ -128,9 +136,17 @@ model Source {
   id          String   @id @default(cuid())
   name        String   @unique
   url         String?
-  type        String   // rss, api, scraper
+  type        String   // rss | hackernews | arxiv | github_trending | huggingface
+  category    String?  // the beat its items usually belong to
+  aiOnly      Boolean  @default(false) // every item is AI news: skip relevance screening
+  lean        String?  // political lean from Ad Fontes Media: left .. right
+  paywalled   Boolean  @default(false)
   isActive    Boolean  @default(true)
-  lastFetched DateTime?
+  lastFetched DateTime? // last attempt
+  lastSuccessAt DateTime?
+  lastError   String?
+  lastItemCount Int?
+  failures    Int      @default(0) // failed fetches in a row
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -142,29 +158,80 @@ model Tag {
   createdAt    DateTime @default(now())
 }
 
-model User {
-  id          String    @id @default(cuid())
-  email       String    @unique
-  name        String
-  passwordHash String
-  role        UserRole  @default(ADMIN)
-  isActive    Boolean   @default(true)
-  lastLoginAt DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+// ─── Live broadcast ───
+// Written by ann-agents/src/ann_agents/broadcast, read by /api/live and the
+// streamer. One row per segment on the single shared timeline.
+model BroadcastSegment {
+  id         String   @id
+  showId     String
+  kind       String   // story | reel | ident
+  startsAt   DateTime
+  endsAt     DateTime
+  durationMs Int
+  title      String
+  anchors    String[]
+  articleIds String[]
+  // { articles: SegmentArticle[], lines: ScriptLine[], dropped: DroppedLine[] }
+  script     Json
+  writer     String   // model id that wrote it, or "reel"
+  costUsd    Float    @default(0)
+  createdAt  DateTime @default(now())
 
-  sessions Session[]
+  @@index([startsAt])
+  @@index([endsAt])
 }
 
-model Session {
-  id        String   @id @default(cuid())
-  tokenHash String   @unique
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt DateTime
-  revokedAt DateTime?
-  userAgent String?
-  ipAddress String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+// Claude spend per UTC day, checked against BROADCAST_DAILY_BUDGET_USD.
+model BroadcastSpend {
+  day          String   @id // YYYY-MM-DD, UTC
+  usd          Float    @default(0)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  calls        Int      @default(0)
+  updatedAt    DateTime @default(now())
+}
+
+// Who is watching. Browsers on /live and the YouTube streamer check in;
+// the broadcast writes nothing when no one has checked in recently.
+model LiveViewer {
+  id         String   @id
+  kind       String   @default("web") // web | streamer
+  lastSeenAt DateTime @default(now())
+
+  @@index([lastSeenAt])
+}
+
+// Viewer accounts, for sending the desk questions.
+model User {
+  id           String   @id @default(cuid())
+  handle       String   @unique // shown on air with a question, e.g. @pixelfan
+  passwordHash String
+  createdAt    DateTime @default(now())
+  questions    ViewerQuestion[]
+}
+
+enum QuestionStatus {
+  received    // waiting for the desk
+  screened    // WaterSheep: not a question about the news, or not something we read on air
+  declined    // the desk decided not to take it on (reason given)
+  answered    // researched and answered from ANN's reporting
+  aired       // answered on ANN Live too
+}
+
+model ViewerQuestion {
+  id         String         @id @default(cuid())
+  userId     String
+  user       User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  text       String
+  status     QuestionStatus @default(received)
+  reason     String?        // why it was screened out or declined, shown to the viewer
+  answer     String?
+  articleIds String[]       @default([]) // the ANN stories the answer is drawn from
+  judge      Json?          // WaterSheep's scores for the screen and the answer
+  segmentId  String?        // the broadcast segment it aired in
+  createdAt  DateTime       @default(now())
+  answeredAt DateTime?
+
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
 }

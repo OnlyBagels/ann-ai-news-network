@@ -1,127 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { redis, getCacheKey, CACHE_TTL } from "@/lib/redis";
-
-const VALID_CATEGORIES = new Set([
-  "models",
-  "open_source",
-  "coding_ai",
-  "agents",
-  "research",
-  "security",
-  "funding",
-  "regulation",
-]);
-
-const GEO_REGION_MAP: Record<string, { regions?: string[]; countries?: string[] }> = {
-  "north-america": {
-    regions: ["us"],
-    countries: ["us", "ca", "mx"],
-  },
-  america: {
-    regions: ["us"],
-    countries: ["us"],
-  },
-  americas: {
-    regions: ["us", "latam"],
-    countries: [
-      "us",
-      "ca",
-      "mx",
-      "gt",
-      "hn",
-      "sv",
-      "ni",
-      "cr",
-      "pa",
-      "bz",
-      "cu",
-      "do",
-      "ht",
-      "jm",
-      "tt",
-      "br",
-      "ar",
-      "cl",
-      "co",
-      "pe",
-      "uy",
-      "py",
-      "bo",
-      "ec",
-      "ve",
-      "gy",
-      "sr",
-    ],
-  },
-  europe: {
-    regions: ["eu", "uk", "ru", "ua"],
-    countries: ["gb", "ie", "fr", "de", "es", "it", "nl", "be", "pt", "pl", "ru", "ua"],
-  },
-  asia: {
-    regions: ["asia", "cn", "jp"],
-    countries: ["cn", "jp", "kr", "in", "pk", "bd", "th", "vn", "id", "ph", "my", "sg", "tw"],
-  },
-  africa: {
-    regions: ["africa"],
-    countries: ["za", "ng", "ke", "et", "gh", "eg", "ma", "tn", "dz", "sn", "tz", "ug"],
-  },
-  "middle-east": {
-    regions: ["me"],
-    countries: ["sa", "ae", "qa", "kw", "om", "bh", "jo", "lb", "il", "ir", "iq", "ye", "sy"],
-  },
-  oceania: {
-    regions: ["oceania"],
-    countries: ["au", "nz"],
-  },
-};
-
-function normalizeCountry(value: string | null): string | null {
-  if (!value) return null;
-  const normalized = value.trim().toLowerCase();
-  return normalized || null;
-}
-
-function geoFilterWhere(geo: string | null): Prisma.ArticleWhereInput | null {
-  if (!geo) return null;
-  const config = GEO_REGION_MAP[geo.toLowerCase()];
-  if (!config) return null;
-
-  const orFilters: Prisma.ArticleWhereInput[] = [];
-  if (config.regions && config.regions.length > 0) {
-    orFilters.push({ region: { in: config.regions } });
-  }
-  if (config.countries && config.countries.length > 0) {
-    orFilters.push({ country: { in: config.countries } });
-  }
-  return orFilters.length > 0 ? { OR: orFilters } : null;
-}
+import { PUBLIC_STATUSES, dbCategoriesFor, toArticle } from "@/lib/articles";
+import type { Prisma } from "@prisma/client";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") || "20")));
   const category = searchParams.get("category");
-  const section = searchParams.get("section");
-  const region = searchParams.get("region");
-  const country = normalizeCountry(searchParams.get("country"));
-  const geo = searchParams.get("geo");
   const sort = searchParams.get("sort") || "signal";
   const search = searchParams.get("search");
 
-  const cacheKey = getCacheKey(
-    "feed",
-    page.toString(),
-    limit.toString(),
-    category || undefined,
-    section || undefined,
-    region || undefined,
-    country || undefined,
-    geo || undefined,
-    sort,
-    search || undefined,
-  );
+  const cacheKey = getCacheKey("feed", page.toString(), limit.toString(), category || undefined, sort, search || undefined);
 
   // Try cache first
   if (redis) {
@@ -132,55 +23,36 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Public feed: only show articles that have cleared /admin/review.
-    // Draft and rejected articles never leak to the public surface.
-    const where: Prisma.ArticleWhereInput = {
-      storyStatus: { in: ["approved", "published"] },
-    };
-    const andFilters: Prisma.ArticleWhereInput[] = [];
-
-    if (category && VALID_CATEGORIES.has(category)) {
-      andFilters.push({ category: category as never });
-    }
-    if (section) {
-      andFilters.push({ section });
-    }
-    if (region) {
-      andFilters.push({ region });
-    }
-    if (country) {
-      andFilters.push({ country });
-    }
-    const geoWhere = geoFilterWhere(geo);
-    if (geoWhere) {
-      andFilters.push(geoWhere);
+    // Build query filters
+    const where: Prisma.ArticleWhereInput = { storyStatus: { in: PUBLIC_STATUSES } };
+    if (category) {
+      const categories = dbCategoriesFor(category);
+      if (!categories) {
+        return NextResponse.json({ error: "Unknown category" }, { status: 400 });
+      }
+      where.category = { in: categories };
     }
     if (search) {
-      andFilters.push({
-        OR: [
+      where.OR = [
         { title: { contains: search, mode: "insensitive" } },
         { summary: { contains: search, mode: "insensitive" } },
         { tags: { has: search } },
-        ],
-      });
-    }
-    if (andFilters.length > 0) {
-      where.AND = andFilters;
+      ];
     }
 
-    // Build orderBy. signal/trending sort against the joined Scores row;
-    // newest is the publish timestamp from the original source.
-    let orderBy: Record<string, unknown> = {};
+    // Build orderBy
+    // Scores live on a related row, so rank through the relation.
+    let orderBy: Prisma.ArticleOrderByWithRelationInput[];
     switch (sort) {
       case "newest":
-        orderBy = { publishedAt: "desc" };
+        orderBy = [{ publishedAt: "desc" }];
         break;
       case "trending":
-        orderBy = { scores: { signalScore: "desc" } };
+        orderBy = [{ scores: { signalScore: "desc" } }, { publishedAt: "desc" }];
         break;
       case "signal":
       default:
-        orderBy = { scores: { overallScore: "desc" } };
+        orderBy = [{ scores: { overallScore: "desc" } }, { publishedAt: "desc" }];
         break;
     }
 
@@ -198,26 +70,8 @@ export async function GET(request: NextRequest) {
     ]);
 
     const response = {
-      articles: articles.map((article) => ({
-        id: article.id,
-        title: article.title,
-        slug: article.slug,
-        url: article.url,
-        source: article.source,
-        sourceUrl: article.sourceUrl,
-        author: article.author,
-        publishedAt: article.publishedAt.toISOString(),
-        summary: article.summary,
-        tlDr: article.tlDr,
-        tags: article.tags,
-        category: article.category,
-        section: article.section,
-        region: article.region,
-        country: article.country,
-        subCategory: article.subCategory,
-        scores: article.scores,
-        imageUrl: article.imageUrl,
-      })),
+      // The feed leaves out full article bodies.
+      articles: articles.map((article) => ({ ...toArticle(article), content: undefined })),
       total,
       page,
       totalPages: Math.ceil(total / limit),

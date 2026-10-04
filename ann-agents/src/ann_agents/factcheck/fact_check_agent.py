@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from ann_agents.core.base_agent import BaseAgent
 from ann_agents.core.types import AgentRole, ConfidenceScore, Story
+from ann_agents.ingestion.article_text import source_text
 from ann_agents.llm.router import LLMTier, llm_router
 
 
-SYSTEM_PROMPT = """You are a Fact-Check Agent for ANN (AI News Network).
+SYSTEM_PROMPT = """You are a Fact-Check Agent for ANN, a general news network written by AI.
 Your job: rigorously verify claims and sources in stories.
 
 For each story, you must:
@@ -16,8 +17,12 @@ For each story, you must:
 3. Detect potential hallucinations or unsupported claims
 4. Compare information across multiple sources
 5. Flag unsupported or exaggerated claims
-6. Validate benchmark results and pricing claims
+6. Check every number, date, name, title and quote against the sources, and that each claim is attributed to the source that made it
 7. Assess source quality and credibility
+
+A claim is verified only when a source's own text states it. Do not use what you know about the subject.
+If the sources contain little more than a title, nothing in the summary can be verified: set verified_claims to 0,
+overall_confidence below 0.3 and hallucination_risk above 0.7.
 
 Output a JSON object with:
 - overall_confidence (0.0-1.0): How confident are we in this story's accuracy?
@@ -78,7 +83,7 @@ class FactCheckAgent(BaseAgent):
             parts.append(f"\n--- Source {i + 1}: {src.source_name} ---")
             parts.append(f"URL: {src.url}")
             parts.append(f"Author: {src.author or 'Unknown'}")
-            if src.content:
-                parts.append(f"Content: {self._truncate(src.content, max_chars=3000)}")
+            text = source_text(src)
+            parts.append(f"Content: {self._truncate(text, max_chars=6000) if text else '(no text beyond the title)'}")
 
         return "\n".join(parts)

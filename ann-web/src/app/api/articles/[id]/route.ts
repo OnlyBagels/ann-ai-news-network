@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { redis, getCacheKey, CACHE_TTL } from "@/lib/redis";
+import { PUBLIC_STATUSES, toArticle } from "@/lib/articles";
 
 export async function GET(
   _request: NextRequest,
@@ -18,13 +19,8 @@ export async function GET(
   }
 
   try {
-    // Public detail: only serve articles that have cleared review.
-    // Drafts and rejects 404 here so they can't be deep-linked.
     const article = await prisma.article.findFirst({
-      where: {
-        id,
-        storyStatus: { in: ["approved", "published"] },
-      },
+      where: { id, storyStatus: { in: PUBLIC_STATUSES } },
       include: {
         scores: true,
       },
@@ -37,27 +33,7 @@ export async function GET(
       );
     }
 
-    const response = {
-      id: article.id,
-      title: article.title,
-      slug: article.slug,
-      url: article.url,
-      source: article.source,
-      sourceUrl: article.sourceUrl,
-      author: article.author,
-      publishedAt: article.publishedAt.toISOString(),
-      summary: article.summary,
-      tlDr: article.tlDr,
-      content: article.content,
-      tags: article.tags,
-      category: article.category,
-      section: article.section,
-      region: article.region,
-      country: article.country,
-      scores: article.scores,
-      imageUrl: article.imageUrl,
-      relatedArticles: article.relatedArticles,
-    };
+    const response = toArticle(article);
 
     // Cache the response
     if (redis) {

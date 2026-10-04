@@ -1,111 +1,127 @@
-"""LLM Router - routes requests to the appropriate provider based on tier.
-
-Each tier maps to a preferred provider:
-- CHEAP        → DeepSeek (chat/V3/V4)
-- LONG_CONTEXT → Gemini
-- SOCIAL       → Grok
-- PREMIUM      → Anthropic, falling back to OpenAI
-
-When the preferred provider has no API key configured, the router falls
-back to DeepSeek if its key is available. This lets you run the whole
-pipeline against a single provider in early dev (just set
-DEEPSEEK_API_KEY and every tier will route through DeepSeek).
-"""
+"""LLM Router - Routes requests to the appropriate model based on task type."""
 
 from __future__ import annotations
 
-import asyncio
+import json
+import re
 from enum import Enum
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from loguru import logger
 
 from ann_agents.core.config import settings
+from ann_agents.llm.local import local_pool
 
 
 class LLMTier(str, Enum):
     """Tiers of LLM models for different task types."""
 
-    CHEAP = "cheap"               # DeepSeek — bulk tagging, extraction, classification
-    LONG_CONTEXT = "long_context" # Gemini — clustering, long-doc analysis
-    SOCIAL = "social"             # Grok — culture, social sentiment
-    PREMIUM = "premium"           # Claude/GPT — final editorial, high-quality output
+    CHEAP = "cheap"  # DeepSeek V4 Flash - bulk tagging, extraction, classification
+    LONG_CONTEXT = "long_context"  # Gemini Flash - clustering, analysis
+    SOCIAL = "social"  # Grok - social sentiment, culture
+    PREMIUM = "premium"  # Claude/GPT - final editorial, high-quality output
+
+
+# Provider preference per tier. The first provider with a key wins, so a
+# deployment with only ANTHROPIC_API_KEY set still runs every agent.
+TIER_PROVIDERS: Dict[LLMTier, List[str]] = {
+    LLMTier.CHEAP: ["deepseek", "anthropic", "openai"],
+    LLMTier.LONG_CONTEXT: ["gemini", "anthropic", "openai"],
+    LLMTier.SOCIAL: ["grok", "anthropic", "openai"],
+    LLMTier.PREMIUM: ["anthropic", "openai"],
+}
+
+_JSON_FENCE = re.compile(r"^```(?:json)?\s*|\s*```$", re.IGNORECASE)
+
+
+def extract_json_text(text: str) -> str:
+    """Return the JSON object inside a model reply.
+
+    Claude has no json_object response mode, so a reply can arrive wrapped
+    in a code fence or with a sentence in front of it.
+    """
+    stripped = _JSON_FENCE.sub("", text.strip())
+    try:
+        json.loads(stripped)
+        return stripped
+    except json.JSONDecodeError:
+        pass
+    start, end = stripped.find("{"), stripped.rfind("}")
+    if start != -1 and end > start:
+        return stripped[start : end + 1]
+    return stripped
 
 
 class LLMRouter:
-    """Routes LLM requests to the appropriate provider, with DeepSeek fallback."""
+    """Routes LLM requests to the appropriate model based on task complexity."""
 
-    def __init__(self) -> None:
+    def __init__(self):
         self._clients: Dict[str, Any] = {}
 
-    # ─── Client constructors (all return ASYNC clients) ────────────────────
+    def _has_key(self, provider: str) -> bool:
+        return bool(getattr(settings, f"{provider}_api_key", None))
 
-    def _get_deepseek_client(self) -> Any:
-        """DeepSeek uses an OpenAI-compatible API."""
-        from openai import AsyncOpenAI
-        if "deepseek" not in self._clients:
-            self._clients["deepseek"] = AsyncOpenAI(
-                api_key=settings.deepseek_api_key,
-                base_url="https://api.deepseek.com/v1",
+    def _providers(self, tier: LLMTier) -> List[str]:
+        """Providers to try for a tier: self-hosted first when it covers the tier."""
+        order = list(TIER_PROVIDERS[tier])
+        local_tiers = {t.strip() for t in settings.local_llm_tiers.split(",")}
+        if local_pool() is not None and tier.value in local_tiers:
+            order.insert(0, "local")
+        return order
+
+    def _resolve(self, tier: LLMTier) -> Optional[Tuple[str, Any]]:
+        """Pick the first configured provider for a tier."""
+        for provider in self._providers(tier):
+            if provider == "local":
+                return provider, local_pool()
+            if self._has_key(provider):
+                return provider, self._get_client(provider)
+        return None
+
+    def _get_client(self, provider: str) -> Any:
+        if provider in self._clients:
+            return self._clients[provider]
+
+        if provider == "anthropic":
+            from anthropic import AsyncAnthropic
+
+            client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        elif provider == "gemini":
+            from google import genai
+
+            client = genai.Client(api_key=settings.gemini_api_key)
+        else:
+            from openai import AsyncOpenAI
+
+            base_urls = {
+                "deepseek": "https://api.deepseek.com/v1",
+                "grok": "https://api.x.ai/v1",
+                "openai": None,
+            }
+            client = AsyncOpenAI(
+                api_key=getattr(settings, f"{provider}_api_key"),
+                base_url=base_urls[provider],
             )
-        return self._clients["deepseek"]
 
-    def _get_grok_client(self) -> Any:
-        """xAI Grok uses an OpenAI-compatible API."""
-        from openai import AsyncOpenAI
-        if "grok" not in self._clients:
-            self._clients["grok"] = AsyncOpenAI(
-                api_key=settings.grok_api_key,
-                base_url="https://api.x.ai/v1",
-            )
-        return self._clients["grok"]
+        self._clients[provider] = client
+        return client
 
-    def _get_openai_client(self) -> Any:
-        from openai import AsyncOpenAI
-        if "openai" not in self._clients:
-            self._clients["openai"] = AsyncOpenAI(api_key=settings.openai_api_key)
-        return self._clients["openai"]
-
-    def _get_anthropic_client(self) -> Any:
-        from anthropic import AsyncAnthropic
-        if "anthropic" not in self._clients:
-            self._clients["anthropic"] = AsyncAnthropic(api_key=settings.anthropic_api_key)
-        return self._clients["anthropic"]
-
-    def _get_gemini_client(self) -> Any:
-        """google-genai has a sync API; we wrap calls in asyncio.to_thread."""
-        from google import genai
-        if "gemini" not in self._clients:
-            self._clients["gemini"] = genai.Client(api_key=settings.gemini_api_key)
-        return self._clients["gemini"]
-
-    # ─── Routing ───────────────────────────────────────────────────────────
-
-    def _resolve(self, tier: LLMTier) -> Tuple[Optional[Any], LLMTier, str]:
-        """Pick a client for the requested tier.
-
-        Returns (client, effective_tier, provider_name). When the preferred
-        provider has no key, we fall back to DeepSeek if available so a
-        single-key dev setup still runs the full pipeline.
-        """
-        if tier == LLMTier.CHEAP and settings.deepseek_api_key:
-            return self._get_deepseek_client(), LLMTier.CHEAP, "deepseek"
-        if tier == LLMTier.LONG_CONTEXT and settings.gemini_api_key:
-            return self._get_gemini_client(), LLMTier.LONG_CONTEXT, "gemini"
-        if tier == LLMTier.SOCIAL and settings.grok_api_key:
-            return self._get_grok_client(), LLMTier.SOCIAL, "grok"
-        if tier == LLMTier.PREMIUM:
-            if settings.anthropic_api_key:
-                return self._get_anthropic_client(), LLMTier.PREMIUM, "anthropic"
-            if settings.openai_api_key:
-                return self._get_openai_client(), LLMTier.PREMIUM, "openai"
-
-        # Fallback to DeepSeek (single-provider dev mode)
-        if settings.deepseek_api_key:
-            logger.debug(f"[llm] no provider for tier={tier.value}; falling back to deepseek")
-            return self._get_deepseek_client(), LLMTier.CHEAP, "deepseek"
-
-        return None, tier, "none"
+    def _model_for(self, provider: str, tier: LLMTier) -> str:
+        if provider == "local":
+            if tier in (LLMTier.PREMIUM, LLMTier.LONG_CONTEXT) and settings.local_llm_premium_model:
+                return settings.local_llm_premium_model
+            return settings.local_llm_model
+        if provider == "anthropic":
+            if tier in (LLMTier.CHEAP, LLMTier.SOCIAL):
+                return settings.anthropic_cheap_model
+            return settings.anthropic_premium_model
+        if provider == "openai":
+            return settings.openai_model
+        if provider == "gemini":
+            return settings.llm_long_context_model
+        if provider == "grok":
+            return settings.llm_social_model
+        return settings.llm_cheap_model
 
     async def complete(
         self,
@@ -116,46 +132,57 @@ class LLMRouter:
         max_tokens: int = 2000,
         response_format: Optional[Dict[str, str]] = None,
     ) -> Optional[str]:
-        """Send a completion. Returns the response text, or None on failure."""
-        client, effective_tier, provider = self._resolve(tier)
-        if client is None:
-            logger.warning(f"[llm] no client available for tier={tier.value}; skipping")
+        """Send a completion request to the appropriate LLM tier.
+
+        Args:
+            tier: Which LLM tier to use
+            system_prompt: System-level instructions
+            user_prompt: The user's request
+            temperature: Creativity (0.0 = deterministic, 1.0 = creative).
+                Not sent to Claude: current Claude models reject it.
+            max_tokens: Maximum tokens in response
+            response_format: Optional format specification (e.g., {"type": "json_object"})
+
+        Returns:
+            The model's response text, or None if no provider is configured
+            or the request failed
+        """
+        resolved = self._resolve(tier)
+        if resolved is None:
+            logger.warning(f"No API key configured for LLM tier: {tier.value}")
             return None
+        provider, client = resolved
+        model = self._model_for(provider, tier)
+        wants_json = bool(response_format and response_format.get("type") == "json_object")
 
         try:
-            if provider == "gemini":
-                return await self._complete_gemini(client, system_prompt, user_prompt, temperature, max_tokens)
-            if provider == "anthropic":
-                return await self._complete_anthropic(client, system_prompt, user_prompt, temperature, max_tokens)
-            # deepseek / grok / openai — all OpenAI-compatible
-            return await self._complete_openai_like(
-                client, effective_tier, system_prompt, user_prompt,
-                temperature, max_tokens, response_format,
-            )
+            if provider == "local":
+                reply = await client.chat(
+                    model, system_prompt, user_prompt, max_tokens=max_tokens, temperature=temperature,
+                    response_format={"type": "json_object"} if wants_json else None,
+                )
+                text = reply.text
+            elif provider == "anthropic":
+                text = await self._complete_anthropic(client, model, system_prompt, user_prompt, max_tokens, wants_json)
+            elif provider == "gemini":
+                text = await self._complete_gemini(client, model, system_prompt, user_prompt, temperature, max_tokens)
+            else:
+                text = await self._complete_openai_like(
+                    client, model, system_prompt, user_prompt, temperature, max_tokens, response_format
+                )
         except Exception as e:
-            logger.error(f"[llm] {provider} completion failed for tier {tier.value}: {e}")
+            logger.error(f"LLM completion failed for tier {tier.value} via {provider}: {e}")
             return None
 
-    # ─── Provider-specific completion paths ────────────────────────────────
+        if text is not None and wants_json:
+            text = extract_json_text(text)
+        return text
 
     async def _complete_openai_like(
-        self,
-        client: Any,
-        tier: LLMTier,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
-        response_format: Optional[Dict[str, str]] = None,
+        self, client: Any, model: str, system: str, user: str,
+        temperature: float, max_tokens: int, response_format: Optional[Dict[str, str]] = None,
     ) -> str:
-        """Async completion for OpenAI-compatible APIs (DeepSeek, Grok, OpenAI)."""
-        model_map = {
-            LLMTier.CHEAP: settings.llm_cheap_model,
-            LLMTier.SOCIAL: settings.llm_social_model,
-            LLMTier.PREMIUM: settings.llm_premium_model,
-        }
-        model = model_map.get(tier, settings.llm_cheap_model)
-
+        """Completion for OpenAI-compatible APIs (DeepSeek, Grok, OpenAI)."""
         kwargs: Dict[str, Any] = {
             "model": model,
             "messages": [
@@ -171,46 +198,40 @@ class LLMRouter:
         response = await client.chat.completions.create(**kwargs)
         return response.choices[0].message.content or ""
 
-    async def _complete_anthropic(
-        self,
-        client: Any,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
+    async def _complete_gemini(
+        self, client: Any, model: str, system: str, user: str,
+        temperature: float, max_tokens: int,
     ) -> str:
-        """Async completion for Anthropic Claude."""
+        """Completion for Google Gemini."""
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=user,
+            config={
+                "system_instruction": system,
+                "temperature": temperature,
+                "max_output_tokens": max_tokens,
+            },
+        )
+        return response.text or ""
+
+    async def _complete_anthropic(
+        self, client: Any, model: str, system: str, user: str,
+        max_tokens: int, wants_json: bool,
+    ) -> Optional[str]:
+        """Completion for Anthropic Claude."""
+        if wants_json:
+            system = f"{system}\n\nReply with the JSON object only: no code fence, no text before or after it."
         response = await client.messages.create(
-            model=settings.llm_premium_model,
+            model=model,
             system=system,
             messages=[{"role": "user", "content": user}],
-            temperature=temperature,
             max_tokens=max_tokens,
         )
-        return response.content[0].text
-
-    async def _complete_gemini(
-        self,
-        client: Any,
-        system: str,
-        user: str,
-        temperature: float,
-        max_tokens: int,
-    ) -> str:
-        """Gemini's sync call wrapped in asyncio.to_thread to stay non-blocking."""
-        def _call() -> str:
-            response = client.models.generate_content(
-                model=settings.llm_long_context_model,
-                contents=user,
-                config={
-                    "system_instruction": system,
-                    "temperature": temperature,
-                    "max_output_tokens": max_tokens,
-                },
-            )
-            return response.text or ""
-        return await asyncio.to_thread(_call)
+        if response.stop_reason == "refusal":
+            logger.warning(f"Claude declined a request on {model}")
+            return None
+        return "".join(block.text for block in response.content if block.type == "text")
 
 
-# Global router instance.
+# Global LLM router instance
 llm_router = LLMRouter()

@@ -64,7 +64,7 @@ export default function AdminDashboard() {
 
   if (isLoading) {
     return (
-      <div className="space-y-6">
+      <div className="flex flex-col gap-8">
         <div className="skeleton h-6 w-48 mb-6" />
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
@@ -78,11 +78,11 @@ export default function AdminDashboard() {
 
   if (isError || !data) {
     return (
-      <div className="border border-accent-red/30 rounded-lg bg-accent-red/5 p-8 text-center">
-        <p className="text-sm font-mono text-accent-red mb-2">
+      <div className="border border-brand/30 rounded-lg bg-brand/5 p-8 text-center">
+        <p className="text-sm font-mono text-brand mb-2">
           Error loading dashboard
         </p>
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           {(error as Error)?.message || "An unexpected error occurred."}
         </p>
       </div>
@@ -92,46 +92,39 @@ export default function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-lg font-mono font-bold text-foreground mb-1">
-          Dashboard
-        </h1>
-        <p className="text-xs font-mono text-muted">
-          Pipeline overview and system health
-        </p>
-      </div>
+      <h2 className="text-2xl font-semibold">What the newsroom is doing</h2>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={FileText}
-          label="Total Articles"
+          label="Stories in total"
           value={data.articles.total}
-          color="text-accent-cyan"
+          color="text-foreground"
         />
         <StatCard
           icon={CheckCircle2}
           label="Published"
           value={data.articles.published}
-          color="text-accent-green"
+          color="text-foreground"
         />
         <StatCard
           icon={AlertTriangle}
-          label="Pending Review"
+          label="Waiting for review"
           value={data.articles.pendingReview}
-          color="text-accent-yellow"
+          color="text-warn"
         />
         <StatCard
           icon={XCircle}
           label="Rejected"
           value={data.articles.rejected}
-          color="text-accent-red"
+          color="text-foreground"
         />
       </div>
 
       {/* Average Scores */}
       <section>
-        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Average Scores
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
@@ -147,13 +140,13 @@ export default function AdminDashboard() {
 
       {/* Category Breakdown */}
       <section>
-        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Published by Category
         </h2>
-        <div className="border border-border rounded-lg bg-terminal-card overflow-hidden">
+        <div className="border border-border rounded-lg bg-panel overflow-hidden">
           {data.categories.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-sm font-mono text-muted">No published articles yet</p>
+              <p className="text-sm font-mono text-muted-foreground">No published articles yet</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -165,7 +158,7 @@ export default function AdminDashboard() {
                   <span className="text-sm font-mono text-foreground capitalize">
                     {cat.category.replace(/-/g, " ")}
                   </span>
-                  <span className="text-sm font-mono text-accent-cyan font-bold">
+                  <span className="text-sm font-mono font-semibold">
                     {cat.count}
                   </span>
                 </div>
@@ -177,46 +170,46 @@ export default function AdminDashboard() {
 
       {/* Recent Agent Actions */}
       <section>
-        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Recent Agent Activity
         </h2>
-        <div className="border border-border rounded-lg bg-terminal-card overflow-hidden">
+        <div className="border border-border rounded-lg bg-panel overflow-hidden">
           {data.recentActions.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-sm font-mono text-muted">No agent activity yet</p>
+              <p className="text-sm font-mono text-muted-foreground">No agent activity yet</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
               {data.recentActions.map((action, i) => (
                 <div
                   key={i}
-                  className="flex items-center justify-between px-4 py-2.5"
+                  className="flex items-center justify-between px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <span
                       className={cn(
                         "w-2 h-2 rounded-full shrink-0",
                         action.state === "completed"
-                          ? "bg-accent-green"
+                          ? "bg-border-strong"
                           : action.state === "error"
-                            ? "bg-accent-red"
-                            : "bg-accent-yellow"
+                            ? "bg-brand"
+                            : "bg-warn"
                       )}
                     />
                     <span className="text-sm font-mono text-foreground">
                       {action.agentRole}
                     </span>
                   </div>
-                  <div className="flex items-center gap-4 text-xs font-mono text-muted">
+                  <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
                     {action.durationMs && (
                       <span>{action.durationMs}ms</span>
                     )}
                     {action.error && (
-                      <span className="text-accent-red" title={action.error}>
+                      <span className="text-brand" title={action.error}>
                         error
                       </span>
                     )}
-                    <span className="text-muted/60">
+                    <span className="text-muted-foreground/60">
                       {formatTimeAgo(action.createdAt)}
                     </span>
                   </div>
@@ -242,12 +235,12 @@ function StatCard({
   color: string;
 }) {
   return (
-    <div className="border border-border rounded-lg bg-terminal-card p-4">
+    <div className="border border-border rounded-lg bg-panel p-4">
       <div className="flex items-center justify-between mb-2">
-        <span className="text-xs font-mono text-muted">{label}</span>
-        <Icon className={cn("w-4 h-4", color)} />
+        <span className="text-xs font-mono text-muted-foreground">{label}</span>
+        <Icon className="h-4 w-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
       </div>
-      <p className={cn("text-2xl font-mono font-bold", color)}>{value}</p>
+      <p className={cn("text-2xl font-semibold", color)}>{value}</p>
     </div>
   );
 }
@@ -265,21 +258,15 @@ function ScoreStat({
 }) {
   const displayScore = inverted ? 100 - score : score;
   const colorClass =
-    displayScore >= 80
-      ? "text-emerald-400"
-      : displayScore >= 60
-        ? "text-cyan-400"
-        : displayScore >= 40
-          ? "text-yellow-400"
-          : "text-red-400";
+    displayScore >= 60 ? "text-foreground" : displayScore >= 40 ? "text-muted-foreground" : "text-warn";
 
   return (
-    <div className="border border-border rounded-lg bg-terminal-card p-3 text-center">
-      <Icon className={cn("w-4 h-4 mx-auto mb-1", colorClass)} />
-      <p className={cn("text-lg font-mono font-bold", colorClass)}>
+    <div className="border border-border rounded-lg bg-panel p-3 text-center">
+      <Icon className="mx-auto mb-1 h-4 w-4 text-muted-foreground" strokeWidth={1.75} aria-hidden="true" />
+      <p className={cn("text-lg font-semibold", colorClass)}>
         {displayScore}
       </p>
-      <p className="text-[10px] font-mono text-muted">{label}</p>
+      <p className="text-xs font-mono text-muted-foreground">{label}</p>
     </div>
   );
 }

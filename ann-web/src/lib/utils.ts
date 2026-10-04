@@ -28,18 +28,7 @@ export function truncate(str: string, length: number): string {
   return str.slice(0, length).trimEnd() + "...";
 }
 
-export function scoreColor(score: number): string {
-  if (score >= 80) return "text-emerald-400";
-  if (score >= 60) return "text-cyan-400";
-  if (score >= 40) return "text-yellow-400";
-  if (score >= 20) return "text-orange-400";
-  return "text-red-400";
-}
-
-export function scoreBg(score: number): string {
-  if (score >= 80) return "bg-emerald-400/10 border-emerald-400/30";
-  if (score >= 60) return "bg-cyan-400/10 border-cyan-400/30";
-  if (score >= 40) return "bg-yellow-400/10 border-yellow-400/30";
-  if (score >= 20) return "bg-orange-400/10 border-orange-400/30";
-  return "bg-red-400/10 border-red-400/30";
+// "Models and APIs reporter" -> "AI models and APIs reporter", keeping acronyms.
+export function aiTitle(title: string): string {
+  return `AI ${title.charAt(0).toLowerCase()}${title.slice(1)}`;
 }

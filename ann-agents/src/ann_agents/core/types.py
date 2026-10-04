@@ -12,16 +12,6 @@ class AgentRole(str, Enum):
     """All agent roles in the ANN newsroom."""
 
     # Reporter Agents
-    WORLD_REPORTER = "world_reporter"
-    POLITICS_REPORTER = "politics_reporter"
-    BUSINESS_DESK_REPORTER = "business_desk_reporter"
-    TECH_REPORTER = "tech_reporter"
-    SCIENCE_REPORTER = "science_reporter"
-    CLIMATE_REPORTER = "climate_reporter"
-    HEALTH_REPORTER = "health_reporter"
-    SPORTS_REPORTER = "sports_reporter"
-    CULTURE_REPORTER = "culture_reporter"
-    OPINION_REPORTER = "opinion_reporter"
     MODEL_REPORTER = "model_reporter"
     OPEN_SOURCE_REPORTER = "open_source_reporter"
     RESEARCH_REPORTER = "research_reporter"
@@ -31,26 +21,22 @@ class AgentRole(str, Enum):
 
     # Research Agents
     RESEARCH_AGENT = "research_agent"
-    JOURNALIST_RESEARCHER = "journalist_researcher"
-    WEB_SEARCH_RESEARCHER = "web_search_researcher"
-    CROSS_REF_RESEARCHER = "cross_ref_researcher"
-    ENTITY_LOOKUP_RESEARCHER = "entity_lookup_researcher"
 
     # Fact-Check Agents
     FACT_CHECK_AGENT = "fact_check_agent"
 
     # Editorial Agents
-    TRIAGE_EDITOR = "triage_editor"
     HEADLINE_EDITOR = "headline_editor"
     TECHNICAL_EDITOR = "technical_editor"
     STYLE_EDITOR = "style_editor"
     SUMMARY_EDITOR = "summary_editor"
-    ARTICLE_WRITER = "article_writer"
 
     # Oversight Agents
     RISK_AGENT = "risk_agent"
     LEGAL_AGENT = "legal_agent"
     BIAS_AGENT = "bias_agent"
+    WATERSHEEP_JUDGE = "watersheep_judge"
+    BEAT_REPORTER = "beat_reporter"
     EDITOR_IN_CHIEF = "editor_in_chief"
 
 
@@ -99,23 +85,23 @@ class Category(str, Enum):
     SECURITY = "security"
     FUNDING = "funding"
     REGULATION = "regulation"
+    # General news sections
+    WORLD = "world"
+    US = "us"
+    POLITICS = "politics"
+    BUSINESS = "business"
+    CRYPTO = "crypto"
+    TECH = "tech"
+    SCIENCE = "science"
+    CLIMATE = "climate"
+    HEALTH = "health"
+    SPORTS = "sports"
+    ENTERTAINMENT = "entertainment"
+    GAMING = "gaming"
+    INTERNET = "internet"
 
 
-def parse_category(value: Any) -> Optional[Category]:
-    """Best-effort parse of an LLM-supplied category string.
-
-    LLMs return free text like "Model Release", "model-release", "advisory".
-    Normalize case + separators, then try the enum. Returns None when no
-    valid match — callers should fall back to a default or skip the
-    assignment rather than letting Category(invalid) raise.
-    """
-    if value is None:
-        return None
-    normalized = str(value).strip().lower().replace("-", "_").replace(" ", "_")
-    try:
-        return Category(normalized)
-    except ValueError:
-        return None
+AI_CATEGORIES = {"models", "open_source", "coding_ai", "agents", "research", "security", "funding", "regulation"}
 
 
 class SourceItem(BaseModel):
@@ -199,15 +185,6 @@ class Story(BaseModel):
     tags: List[str] = Field(default_factory=list)
     category: Optional[Category] = None
 
-    # All-News taxonomy: top-level newsroom section + geographic region.
-    # `section` is one of the 10 ANN sections (world, politics, business,
-    # tech, science, climate, health, sports, culture, opinion). `region`
-    # is a geographic tag (us, eu, asia, etc.) — independent of section.
-    # TriageEditor sets both; the article inherits them in the DB.
-    section: Optional[str] = None
-    region: Optional[str] = None
-    country: Optional[str] = None
-
     # Pipeline state
     status: StoryStatus = StoryStatus.RAW
     agent_actions: List[AgentAction] = Field(default_factory=list)
@@ -216,8 +193,13 @@ class Story(BaseModel):
     confidence: Optional[ConfidenceScore] = None
     scores: Optional[SignalScores] = None
     risk: Optional[RiskAssessment] = None
+    # WaterSheep's probabilities: relevance (a news report), support (the
+    # summary follows from the sources), clickbait (the headline), loaded
+    # (one-sided or loaded language).
+    judge: Optional[Dict[str, float]] = None
 
     # Editorial
+    byline: Optional[str] = None  # reporter id from the lineup
     headline: Optional[str] = None
     suggested_headlines: List[str] = Field(default_factory=list)
 
@@ -232,6 +214,3 @@ class Story(BaseModel):
     sources_analyzed: int = 0
     agents_involved: List[AgentRole] = Field(default_factory=list)
     fact_check_status: str = "pending"
-
-    class Config:
-        use_enum_values = True

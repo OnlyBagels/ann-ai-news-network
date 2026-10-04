@@ -1,52 +1,43 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { Prose } from "@/components/layout/Prose";
 
 export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "ANN Terms of Service",
+  title: "Terms",
+  description: "The terms for using ANN.",
 };
 
 export default function TermsPage() {
   return (
-    <div className="max-w-3xl mx-auto">
-      <h1 className="text-xl font-mono font-bold text-foreground mb-6">
-        Terms of Service
-      </h1>
-      <div className="prose prose-invert prose-sm max-w-none space-y-4 text-muted font-mono">
+    <div className="flex flex-col gap-12">
+      <PageHeader title="Terms">The terms for reading ANN and watching ANN Live.</PageHeader>
+      <Prose>
+        <h2>What ANN is</h2>
         <p>
-          By accessing ANN ("AI News Network"), you agree to these terms.
+          ANN publishes news stories written by AI from other outlets&rsquo; reporting and checked by software against those sources (see{" "}
+          <Link href="/legal/ai-disclosure">how ANN uses AI</Link>). Stories can contain mistakes. They are for
+          information only and are not financial, legal or professional advice. Check the linked source before relying
+          on a detail.
         </p>
-
-        <h2 className="text-foreground font-semibold text-sm">Use of Service</h2>
+        <h2>Sources</h2>
         <p>
-          ANN provides AI ecosystem intelligence and news aggregation. Content is
-          provided for informational purposes only and should not be considered
-          financial or professional advice.
+          Every story links to the article it was written from. That reporting belongs to its authors and publishers.
+          ANN&rsquo;s own summaries, headlines and broadcast scripts belong to ANN.
         </p>
-
-        <h2 className="text-foreground font-semibold text-sm">Intellectual Property</h2>
-        <p>
-          Original analysis, summaries, and scoring methodologies are the property
-          of ANN. Source articles remain the property of their respective authors
-          and publications. We link to and attribute all sources.
-        </p>
-
-        <h2 className="text-foreground font-semibold text-sm">Acceptable Use</h2>
-        <ul className="list-disc pl-5 space-y-1">
-          <li>Do not scrape or republish our content without permission</li>
-          <li>Do not use the service for illegal purposes</li>
-          <li>Do not attempt to bypass rate limits or access controls</li>
+        <h2>Fair use of the site</h2>
+        <ul>
+          <li>Don&rsquo;t republish ANN&rsquo;s stories wholesale without permission. Quoting with a link is fine.</li>
+          <li>Don&rsquo;t try to get around rate limits or into the admin area.</li>
+          <li>Don&rsquo;t use the site for anything illegal.</li>
         </ul>
-
-        <h2 className="text-foreground font-semibold text-sm">Limitation of Liability</h2>
+        <h2>No warranty</h2>
         <p>
-          ANN is provided "as is" without warranties. We are not liable for
-          damages arising from use of the service.
+          ANN is provided as is, without warranties. We aren&rsquo;t liable for losses that come from using it or from
+          errors in a story.
         </p>
-
-        <p className="text-xs text-muted/60 pt-4">
-          Last updated: May 2026
-        </p>
-      </div>
+        <p className="label pt-4">Last updated: October 2026</p>
+      </Prose>
     </div>
   );
 }

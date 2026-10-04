@@ -23,22 +23,22 @@ async function fetchAgentLogs(): Promise<AdminStats> {
 }
 
 const agentRoles = [
-  { role: "model_reporter", label: "Model Reporter", color: "text-cyan-400" },
-  { role: "open_source_reporter", label: "Open Source Reporter", color: "text-emerald-400" },
-  { role: "research_reporter", label: "Research Reporter", color: "text-pink-400" },
-  { role: "security_reporter", label: "Security Reporter", color: "text-red-400" },
-  { role: "regulation_reporter", label: "Regulation Reporter", color: "text-orange-400" },
-  { role: "business_reporter", label: "Business Reporter", color: "text-yellow-400" },
-  { role: "research_agent", label: "Research Agent", color: "text-violet-400" },
-  { role: "fact_check_agent", label: "Fact Check Agent", color: "text-blue-400" },
-  { role: "headline_editor", label: "Headline Editor", color: "text-cyan-400" },
-  { role: "technical_editor", label: "Technical Editor", color: "text-emerald-400" },
-  { role: "style_editor", label: "Style Editor", color: "text-blue-400" },
-  { role: "summary_editor", label: "Summary Editor", color: "text-violet-400" },
-  { role: "risk_agent", label: "Risk Agent", color: "text-red-400" },
-  { role: "legal_agent", label: "Legal Agent", color: "text-orange-400" },
-  { role: "bias_agent", label: "Bias Agent", color: "text-yellow-400" },
-  { role: "editor_in_chief", label: "Editor-in-Chief", color: "text-accent-green" },
+  { role: "model_reporter", label: "Model Reporter", color: "text-foreground" },
+  { role: "open_source_reporter", label: "Open Source Reporter", color: "text-foreground" },
+  { role: "research_reporter", label: "Research Reporter", color: "text-foreground" },
+  { role: "security_reporter", label: "Security Reporter", color: "text-foreground" },
+  { role: "regulation_reporter", label: "Regulation Reporter", color: "text-foreground" },
+  { role: "business_reporter", label: "Business Reporter", color: "text-foreground" },
+  { role: "research_agent", label: "Research Agent", color: "text-foreground" },
+  { role: "fact_check_agent", label: "Fact Check Agent", color: "text-foreground" },
+  { role: "headline_editor", label: "Headline Editor", color: "text-foreground" },
+  { role: "technical_editor", label: "Technical Editor", color: "text-foreground" },
+  { role: "style_editor", label: "Style Editor", color: "text-foreground" },
+  { role: "summary_editor", label: "Summary Editor", color: "text-foreground" },
+  { role: "risk_agent", label: "Risk Agent", color: "text-foreground" },
+  { role: "legal_agent", label: "Legal Agent", color: "text-foreground" },
+  { role: "bias_agent", label: "Bias Agent", color: "text-foreground" },
+  { role: "editor_in_chief", label: "Editor-in-Chief", color: "text-foreground" },
 ];
 
 export default function AgentLogsPage() {
@@ -61,11 +61,11 @@ export default function AgentLogsPage() {
 
   if (isError || !data) {
     return (
-      <div className="border border-accent-red/30 rounded-lg bg-accent-red/5 p-8 text-center">
-        <p className="text-sm font-mono text-accent-red mb-2">
+      <div className="border border-brand/30 rounded-lg bg-brand/5 p-8 text-center">
+        <p className="text-sm font-mono text-brand mb-2">
           Error loading agent logs
         </p>
-        <p className="text-xs text-muted">
+        <p className="text-xs text-muted-foreground">
           {(error as Error)?.message || "An unexpected error occurred."}
         </p>
       </div>
@@ -87,7 +87,7 @@ export default function AgentLogsPage() {
         <h1 className="text-lg font-mono font-bold text-foreground mb-1">
           Agent Logs
         </h1>
-        <p className="text-xs font-mono text-muted">
+        <p className="text-xs font-mono text-muted-foreground">
           Recent activity from the agentic newsroom pipeline
         </p>
       </div>
@@ -103,7 +103,7 @@ export default function AgentLogsPage() {
           return (
             <div
               key={agent.role}
-              className="border border-border rounded-lg bg-terminal-card p-4"
+              className="border border-border rounded-lg bg-panel p-4"
             >
               <div className="flex items-center justify-between mb-2">
                 <span className={cn("text-xs font-mono font-semibold", agent.color)}>
@@ -113,20 +113,20 @@ export default function AgentLogsPage() {
                   className={cn(
                     "w-2 h-2 rounded-full",
                     errorCount > 0
-                      ? "bg-accent-red"
+                      ? "bg-brand"
                       : latestAction?.state === "completed"
-                        ? "bg-accent-green"
-                        : "bg-accent-yellow"
+                        ? "bg-border-strong"
+                        : "bg-warn"
                   )}
                 />
               </div>
-              <div className="flex items-center gap-3 text-xs font-mono text-muted">
+              <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
                 <span className="flex items-center gap-1">
                   <Activity className="w-3 h-3" />
                   {totalActions}
                 </span>
                 {errorCount > 0 && (
-                  <span className="flex items-center gap-1 text-accent-red">
+                  <span className="flex items-center gap-1 text-brand">
                     <AlertCircle className="w-3 h-3" />
                     {errorCount}
                   </span>
@@ -145,13 +145,13 @@ export default function AgentLogsPage() {
 
       {/* Recent Activity Feed */}
       <section>
-        <h2 className="text-xs font-mono font-semibold text-muted uppercase tracking-wider mb-3">
+        <h2 className="text-xs font-mono font-semibold text-muted-foreground uppercase tracking-wider mb-3">
           Recent Activity
         </h2>
-        <div className="border border-border rounded-lg bg-terminal-card overflow-hidden">
+        <div className="border border-border rounded-lg bg-panel overflow-hidden">
           {data.recentActions.length === 0 ? (
             <div className="p-6 text-center">
-              <p className="text-sm font-mono text-muted">No agent activity yet</p>
+              <p className="text-sm font-mono text-muted-foreground">No agent activity yet</p>
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -169,10 +169,10 @@ export default function AgentLogsPage() {
                         className={cn(
                           "w-2 h-2 rounded-full shrink-0",
                           action.state === "completed"
-                            ? "bg-accent-green"
+                            ? "bg-border-strong"
                             : action.state === "error"
-                              ? "bg-accent-red"
-                              : "bg-accent-yellow"
+                              ? "bg-brand"
+                              : "bg-warn"
                         )}
                       />
                       <span
@@ -184,19 +184,19 @@ export default function AgentLogsPage() {
                         {agentInfo?.label || action.agentRole}
                       </span>
                     </div>
-                    <div className="flex items-center gap-4 text-xs font-mono text-muted">
+                    <div className="flex items-center gap-4 text-xs font-mono text-muted-foreground">
                       {action.state === "completed" && (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-accent-green" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-foreground" />
                       )}
                       {action.state === "error" && (
-                        <span className="text-accent-red" title={action.error || ""}>
+                        <span className="text-brand" title={action.error || ""}>
                           {action.error?.slice(0, 40)}...
                         </span>
                       )}
                       {action.durationMs && (
                         <span>{action.durationMs}ms</span>
                       )}
-                      <span className="text-muted/60">
+                      <span className="text-muted-foreground/60">
                         {formatTimeAgo(action.createdAt)}
                       </span>
                     </div>

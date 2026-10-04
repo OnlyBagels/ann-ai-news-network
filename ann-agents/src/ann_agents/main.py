@@ -4,6 +4,8 @@ Usage:
     python -m ann_agents.main                    # Run a demo story through the pipeline
     python -m ann_agents.main --ingest           # Ingest from all sources and process
     python -m ann_agents.main --pipeline         # Run pipeline on existing stories
+    python -m ann_agents.main --newsroom         # Ingest, check and save on a loop (NEWSROOM_INTERVAL_MINUTES)
+    python -m ann_agents.main --newsroom --once  # One newsroom cycle, then exit
 """
 
 from __future__ import annotations
@@ -17,7 +19,6 @@ from loguru import logger
 
 from ann_agents.core.types import Category, SourceItem, Story
 from ann_agents.ingestion.source_ingester import SourceIngester
-from ann_agents.pipeline.filters import filter_newsworthy
 from ann_agents.pipeline.story_pipeline import StoryPipeline
 
 
@@ -108,24 +109,16 @@ async def run_ingest() -> None:
     ingester = SourceIngester()
     pipeline = StoryPipeline()
 
-    # Ingest from multiple sources concurrently.
-    hn_items, arxiv_items, github_items, news_feed_items = await asyncio.gather(
-        ingester.ingest_hn(top_n=10),
-        ingester.ingest_arxiv(max_results=5),
-        ingester.ingest_github_trending(),
-        ingester.ingest_news_feeds(limit_per_feed=5),
-    )
+    # Ingest from multiple sources
+    hn_items = await ingester.ingest_hn(top_n=10)
+    arxiv_items = await ingester.ingest_arxiv(max_results=5)
+    github_items = await ingester.ingest_github_trending()
 
-    all_items = hn_items + arxiv_items + github_items + news_feed_items
+    all_items = hn_items + arxiv_items + github_items
     logger.info(f"Total items ingested: {len(all_items)}")
 
-    # Cheap LLM pre-filter — reject SEO junk and promos before the 16-agent
-    # pipeline burns ~80 calls on a press release with no story.
-    all_items = await filter_newsworthy(all_items)
-
-    # Process each item through the pipeline. Cap per run so a single
-    # invocation doesn't burn through the budget.
-    for item in all_items[:10]:
+    # Process each item through the pipeline
+    for item in all_items[:5]:  # Limit to 5 for demo
         story = Story(
             title=item.title,
             source_items=[item],
@@ -144,7 +137,16 @@ async def main() -> None:
 
     args = sys.argv[1:]
 
-    if "--ingest" in args:
+    if "--newsroom" in args:
+        import os
+
+        from ann_agents.bridge.scheduler import NewsroomScheduler
+
+        if "--once" in args:
+            await NewsroomScheduler().run_once()
+        else:
+            await NewsroomScheduler().run_forever(int(os.environ.get("NEWSROOM_INTERVAL_MINUTES", "15")))
+    elif "--ingest" in args:
         await run_ingest()
     elif "--pipeline" in args:
         logger.info("Pipeline mode - would process existing stories from database")
